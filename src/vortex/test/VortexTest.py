@@ -9,8 +9,8 @@
 
 from twisted.trial import unittest
 
+from run_test_vortex_server import setupVortexServer
 from vortex.VortexClient import VortexClient
-from vortex.test.SiteTest import setupVortexServer
 
 
 class VortexTest(unittest.TestCase):

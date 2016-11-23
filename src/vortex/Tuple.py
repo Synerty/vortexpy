@@ -60,7 +60,7 @@ def addTupleType(cls):
     # If we inherit from a tuple that has a tuple field, that field should be included
     def getBaseClassTupleFields(cls, objDict):
         # Skip these types
-        if cls in (object, Tuple, Xmlable):
+        if cls in (object, Tuple, Jsonable):
             return
 
         for name, value in cls.__dict__.items():
@@ -163,7 +163,8 @@ class Tuple(Jsonable):
     __rapuiSerialiseType__ = T_RAPUI_TUPLE
 
     def __init__(self, **kwargs):
-        Xmlable.__init__(self)
+        Jsonable.__init__(self)
+
         # Reset all the tuples.
         # We never want TupleField in an instance
         for name in self.__fieldNames__:
@@ -311,7 +312,7 @@ class Tuple(Jsonable):
 class TupleHash(object):
     def __init__(self, tupl):
         self.tupl = tupl
-        from Payload import Payload
+        from .Payload import Payload
         assert (tupl is not None)
         assert (isinstance(tupl, Tuple) or isinstance(tupl, Payload))
 

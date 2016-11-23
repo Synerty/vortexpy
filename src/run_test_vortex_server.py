@@ -15,7 +15,19 @@ from twisted.web.resource import Resource
 
 from vortex.VortexResource import VortexResource
 
+logging.basicConfig(format='%(asctime)s %(levelname)s %(name)s:%(message)s'
+                    , datefmt='%d-%b-%Y %H:%M:%S'
+                    , level=logging.DEBUG)
+
 logger = logging.getLogger(__name__)
+
+class T(Resource):
+
+    def getChildWithDefault(self, path, request):
+        return Resource.getChildWithDefault(self, path, request)
+
+    def getChild(self, path, request):
+        return Resource.getChild(self, path, request)
 
 
 def setupVortexServer(portNum=8345):
@@ -26,8 +38,8 @@ def setupVortexServer(portNum=8345):
     @return: Port object
     '''
 
-    rootResource = Resource()
-    rootResource.putChild("/vortex", VortexResource)
+    rootResource = T()
+    rootResource.putChild(b"vortex", VortexResource())
 
     site = server.Site(rootResource)
     site.protocol = HTTPChannel
@@ -38,8 +50,9 @@ def setupVortexServer(portNum=8345):
     ip = subprocess.getoutput("/sbin/ifconfig").split("\n")[1].split()[1][5:]
 
     logger.info('Vortex test is alive and listening on http://%s:%s/vortex',
-                 ip, port)
+                ip, port)
     return port
+
 
 if __name__ == '__main__':
     setupVortexServer()

@@ -29,6 +29,10 @@ class VortexResource(Resource):
     """
     isLeaf = True
 
+    def render_GET(self, request):
+        request.code = 405
+        return b"You have reached the vortex. It only likes POST methods."
+
     def render_POST(self, request):
         # We don't care about the arguments, ever. (In this design anyway)
 

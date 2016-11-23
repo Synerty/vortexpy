@@ -7,19 +7,9 @@
  * Support : support@synerty.com
 """
 
-import collections
 import logging
-from _pyio import BytesIO
-from base64 import b64decode
 
-from twisted.internet import task
-from twisted.internet.defer import inlineCallbacks
-from twisted.web.server import NOT_DONE_YET
-
-from rapui.DeferUtil import deferToThreadWrap
-from rapui.site.ResourceUtil import RapuiResource, addResourceCreator
-from Payload import Payload
-from Vortex import Vortex
+from .Vortex import Vortex
 
 logger = logging.getLogger(name=__name__)
 

@@ -16,9 +16,9 @@ from twisted.web.server import Session
 from zope.interface import Interface, Attribute
 from zope.interface.declarations import implementer
 
-from Payload import Payload
-from PayloadFilterKeys import rapuiServerEcho
-from PayloadIO import PayloadIO
+from vortex.Payload import Payload
+from vortex.PayloadFilterKeys import rapuiServerEcho
+from vortex.PayloadIO import PayloadIO
 
 logger = logging.getLogger(__name__)
 

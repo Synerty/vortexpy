@@ -89,10 +89,3 @@ class PayloadPyTest(unittest.TestCase):
             vortexMsg = origPayload.toVortexMsg()
             payload = Payload().fromVortexMsg(vortexMsg)
 
-    def testDecodingLargeXml(self):
-        fileName = os.path.join(os.path.dirname(__file__), 'encodedPayloadXml.dat')
-
-        with open(fileName) as f:
-            data = f.read()
-
-        Payload().fromVortexMsg(data)

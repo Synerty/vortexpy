@@ -7,20 +7,34 @@
  * Support : support@synerty.com
 """
 import json
+import logging
 import zlib
 from base64 import b64encode, b64decode
 from datetime import datetime
 
-from lxml import etree
+from twisted.internet.threads import deferToThread
 
-from rapui.DeferUtil import deferToThreadWrap
-from FastXml import FastXml
-from Jsonable import Jsonable
-from SerialiseUtil import T_RAPUI_PAYLOAD
-from Xmlable import Xmlable
+from .Jsonable import Jsonable
+from .SerialiseUtil import T_RAPUI_PAYLOAD
+
+logger = logging.getLogger(__name__)
 
 
-class Payload(Xmlable, Jsonable):
+def printFailure(failure):
+    logger.error(failure)
+    return failure
+
+
+def deferToThreadWrap(funcToWrap):
+    def func(*args, **kwargs):
+        d = deferToThread(funcToWrap, *args, **kwargs)
+        d.addErrback(printFailure)
+        return d
+
+    return func
+
+
+class Payload(Jsonable):
     ''' Payload
     This object represents a hierarchy of data transferred between client and server
     '''
@@ -47,31 +61,10 @@ class Payload(Xmlable, Jsonable):
 
     def isEmpty(self):
         return ((not self.filt
-                    or (self.vortexUuidKey in self.filt and len(self.filt) == 1))
+                 or (self.vortexUuidKey in self.filt and len(self.filt) == 1))
                 and not self.replyFilt
                 and not self.tuples
                 and not self.result)
-
-    # -------------------------------------------
-    # XML Related methods
-    def _fromXmlDoc(self, root):
-        assert (root.tag == self.__rapuiSerialiseType__)
-        self.fromXml(root)
-        return self
-
-    def _fromXmlDocStr(self, xmlStr):
-        doc = etree.fromstring(xmlStr)
-        xmlDoc = doc.getroottree().getroot()
-        return self._fromXmlDoc(xmlDoc)
-
-    def _toXmlDocStr(self):
-        # Create the xml document
-        xmlDoc = FastXml()
-        self.toXml(xmlDoc, xmlDoc)
-
-        xmlStr = xmlDoc.toPrettyXml()
-        xmlDoc.unlink()
-        return xmlStr
 
     # -------------------------------------------
     # JSON Related methods

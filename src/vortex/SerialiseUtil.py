@@ -10,7 +10,6 @@ import decimal
 import logging
 from collections import defaultdict
 from datetime import datetime, date
-from base64 import b64decode
 
 logger = logging.getLogger(__name__)
 
@@ -189,11 +188,11 @@ def toRapuiType(value):
     if value is None:
         return V_NULL
 
-    from Tuple import Tuple
+    from .Tuple import Tuple
     if isinstance(value, Tuple):
         return T_RAPUI_TUPLE
 
-    from Payload import Payload
+    from .Payload import Payload
     if isinstance(value, Payload):
         return T_RAPUI_PAYLOAD
 
