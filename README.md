@@ -1,16 +1,17 @@
 # VortexPY
 
-Synerty's observable, routeable, data serialisation and transport code.
+Synerty's observable, routable, data serialisation and transport code.
 
 Why PY at the end? To be consistent with VortexJS, which is the Browser side package.
 See https://github.com/Synerty/vortexjs
 
 Requirements:
 * Python 3.5
-* Twisted
+* Twisted 16+
+* SQLAlchemy 1, 1.1
 
-The "vortex" is designed to transport "Payloads" from a web browser (JavaScript) to a
-twisted web server. There is also a python client for python client to python server
+The "vortex" is designed to transport "Payloads" from a web browser (VortexJS) to a
+twisted web server (VortexPY). There is also a python client for python client to python server
 communication.
 
 ### Vortex, The Observable Part
