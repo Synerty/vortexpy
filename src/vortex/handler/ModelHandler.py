@@ -12,9 +12,9 @@ from copy import copy
 from twisted.internet.defer import maybeDeferred
 from twisted.internet.threads import deferToThread
 
-from rapui.vortex.Payload import Payload
-from rapui.vortex.PayloadEndpoint import PayloadEndpoint
-from rapui.vortex.Vortex import vortexSendVortexMsg
+from vortex.Payload import Payload
+from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.Vortex import vortexSendVortexMsg
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class ModelHandler(object):
 
         ModelHandler.sendModelUpdate(self,
                                      vortexUuid=vortexUuid,
-                                     payloadFilt=payload.filt,
+                                     payload=payload,
                                      payloadReplyFilt=payload.replyFilt,
                                      session=session)
 
@@ -46,8 +46,10 @@ class ModelHandler(object):
         self.postProcess(payload.filt, vortexUuid)
 
     def sendModelUpdate(self, vortexUuid=None,
-                        payloadFilt=None, payloadReplyFilt=None,
+                        payload=None, payloadReplyFilt=None,
                         session=None, userAccess=None):
+
+        payloadFilt = payload.filt
 
         # Prefer reply filt, if not combine our accpt filt with the filt we were sent
         filt = None
@@ -69,19 +71,25 @@ class ModelHandler(object):
 
             encodedXml = Payload(filt=filt, result=str(failure.value)).toVortexMsg()
             vortexSendVortexMsg(encodedXml, vortexUuid=vortexUuid)
+
+            logger.exception(failure.value)
+
             return failure
 
-        d = maybeDeferred(self.buildModel, payloadFilt,
-                                     vortexUuid=vortexUuid,
-                                     userAccess=userAccess)
+        d = maybeDeferred(self.buildModel,
+                          payloadFilt=payload.filt,
+                          payload=payload,
+                          vortexUuid=vortexUuid,
+                          userAccess=userAccess)
         d.addCallback(_sendModelUpdateCallback)
         d.addErrback(_sendModelUpdateErrback)
         # deferToThread doesn't like this, and it never used to return anything anyway
         # return d
 
-    def buildModel(self, payloadFilt,
+    def buildModel(self, payloadFilt={},
                    vortexUuid=None,
-                   userAccess=None):
+                   userAccess=None,
+                   payload=Payload()):
         raise NotImplementedError()
 
     def preProcess(self, payload, vortextUuid, **kwargs):

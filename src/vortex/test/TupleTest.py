@@ -18,6 +18,7 @@ from Tuple import TUPLE_TYPES_BY_NAME, TupleHash
 from tuples_test.TestTuple import TestSubTuple, TestTuple
 
 
+
 def makeTupleA():
     tuple_ = TestTuple()
     tuple_.aBoolTrue = True

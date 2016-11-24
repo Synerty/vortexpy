@@ -31,12 +31,19 @@ class T(Resource):
 
 
 def setupVortexServer(portNum=8345):
-    ''' Setup Site
+    """ Setup Site
     Sets up the web site to listen for connections and serve the site.
     Supports customisation of resources based on user details
 
     @return: Port object
-    '''
+    """
+
+    # Register the test tuple
+    from vortex.test import TestTuple
+    TestTuple.__unused = False # Crap code
+
+    from vortex.test import VortexJSTupleLoaderTestHandler
+    VortexJSTupleLoaderTestHandler.__unused = False # Crap code
 
     rootResource = T()
     rootResource.putChild(b"vortex", VortexResource())

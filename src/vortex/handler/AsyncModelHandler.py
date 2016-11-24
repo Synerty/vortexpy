@@ -9,13 +9,13 @@
 import logging
 from copy import copy
 
-from rapui.vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEndpoint import PayloadEndpoint
 from twisted.internet.defer import fail, Deferred
 from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure
 
-from rapui.vortex.Payload import Payload
-from rapui.vortex.Vortex import vortexSendPayload, vortexSendVortexMsg
+from vortex.Payload import Payload
+from vortex.Vortex import vortexSendPayload, vortexSendVortexMsg
 
 logger = logging.getLogger(__name__)
 

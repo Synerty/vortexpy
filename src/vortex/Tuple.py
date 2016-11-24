@@ -181,7 +181,9 @@ class Tuple(Jsonable):
                     setattr(self, name, deepcopy(default.arg))
 
         for key, val in list(kwargs.items()):
-            assert hasattr(self, key)
+            if not hasattr(self, key):
+                raise KeyError("kwarg %s was pased, but tuple %s has no such TupleField"
+                               % (key, self.__tupleType__))
             setattr(self, key, val)
 
     @classmethod

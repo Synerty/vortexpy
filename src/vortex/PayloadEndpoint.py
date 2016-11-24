@@ -12,7 +12,7 @@ import weakref
 
 import types
 
-from PayloadIO import PayloadIO
+from vortex.PayloadIO import PayloadIO
 
 logger = logging.getLogger(__name__)
 

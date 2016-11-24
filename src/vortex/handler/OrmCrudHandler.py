@@ -9,14 +9,14 @@
 
 from copy import copy
 
-from rapui.vortex.PayloadEndpoint import PayloadEndpoint
-from rapui.vortex.PayloadFilterKeys import plIdKey, plDeleteKey
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.session import Session
 from twisted.internet.threads import deferToThread
 
-from rapui.vortex.Payload import Payload
-from rapui.vortex.Vortex import vortexSendPayload, vortexSendVortexMsg
+from vortex.Payload import Payload
+from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadFilterKeys import plIdKey, plDeleteKey
+from vortex.Vortex import vortexSendPayload, vortexSendVortexMsg
 
 
 class OrmCrudHandlerExtension(object):
