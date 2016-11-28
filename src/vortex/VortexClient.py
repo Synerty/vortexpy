@@ -19,15 +19,14 @@ from twisted.web.http_headers import Headers
 from twisted.web.iweb import IBodyProducer
 from zope.interface.declarations import implementer
 
-from Payload import Payload
-from VortexPayloadClientProtocol import VortexPayloadClientProtocol
+from vortex.Payload import Payload
+from vortex.VortexPayloadClientProtocol import VortexPayloadClientProtocol
 
 logger = logging.getLogger(name=__name__)
 
+
 @implementer(IBodyProducer)
 class _VortexClientPayloadProducer(object):
-
-
     def __init__(self, vortexMsgs):
         self.vortexMsgs = b''
 
@@ -45,7 +44,6 @@ class _VortexClientPayloadProducer(object):
 
     def stopProducing(self):
         pass
-
 
 
 class VortexClient(object):
@@ -117,7 +115,7 @@ class VortexClient(object):
 
             elif self._connectionBroken:
                 logger.info("Vortex client %s:%s reconnected",
-                             self._server, self._port)
+                            self._server, self._port)
 
             self._connectionBroken = False
             self.__protocol = VortexPayloadClientProtocol(logger, vortexClient=self)
@@ -133,7 +131,7 @@ class VortexClient(object):
         }
 
         uri = ("http://%s:%s/vortex?%s"
-                  % (self._server, self._port, urlencode(args))).encode("UTF-8")
+               % (self._server, self._port, urlencode(args))).encode("UTF-8")
 
         d = agent.request(
             b'POST', uri,

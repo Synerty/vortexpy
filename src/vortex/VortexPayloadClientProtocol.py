@@ -6,27 +6,15 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
-import logging
-import uuid
-from http.cookiejar import CookieJar
-from datetime import datetime
-from urllib.parse import urlencode
 
+from twisted.internet.defer import inlineCallbacks
 from twisted.internet.error import ConnectionDone, ConnectionLost
-from twisted.web.http import _DataLoss
-
-from rapui.DeferUtil import printFailure, deferToThreadWrap
-from PayloadIO import PayloadIO
-from twisted.internet import reactor, task
-from twisted.internet.defer import succeed, inlineCallbacks
 from twisted.internet.protocol import Protocol
 from twisted.web._newclient import ResponseDone, ResponseNeverReceived, ResponseFailed
-from twisted.web.client import Agent, CookieAgent
-from twisted.web.http_headers import Headers
-from twisted.web.iweb import IBodyProducer
-from zope.interface.declarations import implements
+from twisted.web.http import _DataLoss
 
-from Payload import Payload
+from vortex.Payload import Payload
+from vortex.PayloadIO import PayloadIO
 
 
 class VortexPayloadClientProtocol(Protocol):
