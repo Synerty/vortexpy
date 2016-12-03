@@ -72,6 +72,7 @@ class ModelHandler(object):
             encodedXml = Payload(filt=filt, result=str(failure.value)).toVortexMsg()
             vortexSendVortexMsg(encodedXml, vortexUuid=vortexUuid)
 
+            logger.error("Payload filt is : %s", payload.filt)
             logger.exception(failure.value)
 
             return failure
