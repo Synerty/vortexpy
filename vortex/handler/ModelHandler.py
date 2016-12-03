@@ -10,7 +10,6 @@ import logging
 from copy import copy
 
 from twisted.internet.defer import maybeDeferred
-from twisted.internet.threads import deferToThread
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
@@ -49,7 +48,7 @@ class ModelHandler(object):
                         payload=None, payloadReplyFilt=None,
                         session=None, userAccess=None):
 
-        payloadFilt = payload.filt
+        payloadFilt = payload.filt if payload else None
 
         # Prefer reply filt, if not combine our accpt filt with the filt we were sent
         filt = None
@@ -78,7 +77,7 @@ class ModelHandler(object):
             return failure
 
         d = maybeDeferred(self.buildModel,
-                          payloadFilt=payload.filt,
+                          payloadFilt=payload.filt if payload else None,
                           payload=payload,
                           vortexUuid=vortexUuid,
                           userAccess=userAccess)
@@ -87,7 +86,7 @@ class ModelHandler(object):
         # deferToThread doesn't like this, and it never used to return anything anyway
         # return d
 
-    def buildModel(self, payloadFilt={},
+    def buildModel(self, payloadFilt=None,
                    vortexUuid=None,
                    userAccess=None,
                    payload=Payload()):
@@ -98,15 +97,3 @@ class ModelHandler(object):
 
     def postProcess(self, payloadFilt, vortextUuid):
         pass
-
-
-class ModelHandlerInThread(ModelHandler):
-    def __init__(self, payloadFilter):
-        ModelHandler.__init__(self, payloadFilter)
-        self._ep = PayloadEndpoint(self._payloadFilter, self._process)
-
-    def _process(self, payload, **kwargs):
-        return deferToThread(ModelHandler._process, self, payload, **kwargs)
-
-    def sendModelUpdate(self, **kwargs):
-        return deferToThread(ModelHandler.sendModelUpdate, self, **kwargs)
