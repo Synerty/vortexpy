@@ -63,11 +63,11 @@ class PayloadIO(object):
             Putting the exception into a failure messes with the stack, hence the
             common function
             '''
-            from Vortex import vortexSendPayload
-            from Payload import Payload
+            from vortex.Vortex import vortexSendPayload
+            from vortex.Payload import Payload
 
             vortexSendPayload(Payload(filt=payload.filt,
-                                      result=exception.message),
+                                      result=str(exception)),
                               kwargs['vortexUuid'])
             logger.exception(exception)
 
