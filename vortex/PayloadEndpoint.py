@@ -6,7 +6,7 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
-import copy
+from copy import copy
 import logging
 import weakref
 
