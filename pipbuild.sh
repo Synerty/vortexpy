@@ -31,10 +31,11 @@ sed -i "s;^package_version.*=.*;package_version = '${VER}';"  setup.py
 # Update the package version
 sed -i "s;.*version.*;__version__ = '${VER}';" vortex/__init__.py
 
-python setup.py sdist
+# Upload to test pypi
+python setup.py sdist upload -r pypitest
 
 # Reset the commit, we don't want versions in the commit
-git reset --hard
+git commit -a -m "Updated to version ${VER}"
 
 git tag ${VER}
 git push
