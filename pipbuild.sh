@@ -41,3 +41,8 @@ git tag ${VER}
 git push
 git push --tags
 
+
+echo "If you're happy with this you can now run :"
+echo
+echo "python setup.py upload -r pypi"
+echo

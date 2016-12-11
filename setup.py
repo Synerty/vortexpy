@@ -15,5 +15,7 @@ setup(
     download_url=('https://github.com/Synerty/%s/tarball/%s'
                   % (package_name, package_version)),
     keywords=['vortex', 'observable', 'http', 'compressed', 'synerty'],
-    classifiers=[],
+    classifiers=[
+        "Programming Language :: Python :: 3.5",
+    ],
 )
