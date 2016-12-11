@@ -6,3 +6,5 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
+
+__version__ = "0.0.0"
