@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 package_name = "vortexpy"
-package_version = '0.1.4'
+package_version = '0.1.5'
 
 setup(
     name='vortexpy',
