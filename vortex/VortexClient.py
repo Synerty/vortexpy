@@ -10,6 +10,7 @@ import logging
 import uuid
 from datetime import datetime
 from http.cookiejar import CookieJar
+from typing import Union
 from urllib.parse import urlencode
 
 from twisted.internet import reactor, task
@@ -89,7 +90,7 @@ class VortexClient(object):
         """
         self._reconnectVortexMsgs.append(payload.toVortexMsg())
 
-    def send(self, payloads=None):
+    def send(self, payloads: Union[[Payload], Payload, None] = None):
         if payloads is None:
             vortexMsgs = self._reconnectVortexMsgs
 
@@ -101,8 +102,9 @@ class VortexClient(object):
 
         return task.deferLater(reactor, 0, self.sendVortexMsg, vortexMsgs)
 
-    def sendVortexMsg(self, vortexMsgs=[]):
+    def sendVortexMsg(self, vortexMsgs: Union[[bytes], bytes]):
         assert self._server
+        assert vortexMsgs
 
         if not isinstance(vortexMsgs, list):
             vortexMsgs = [vortexMsgs]
@@ -135,7 +137,7 @@ class VortexClient(object):
 
         d = agent.request(
             b'POST', uri,
-            Headers({b'User-Agent': [b'RapUI Vortex Client'],
+            Headers({b'User-Agent': [b'Synerty Vortex Client'],
                      b'Content-Type': [b'text/plain']}),
             bodyProducer)
 
@@ -146,8 +148,14 @@ class VortexClient(object):
         self._beatTime = datetime.utcnow()
 
     def _checkBeat(self):
-        if (datetime.utcnow() - self._beatTime).seconds > self._beatTimeout:
-            self._connectionBroken = True
-            logger.info("Vortex client dead, reconnecting %s:%s"
-                        % (self._server, self._port))
-            self.send()
+        if not (datetime.utcnow() - self._beatTime).seconds > self._beatTimeout:
+            return
+
+        self._connectionBroken = True
+        logger.info("Vortex client dead, reconnecting %s:%s"
+                    % (self._server, self._port))
+
+        d = self.send()
+
+        # Add a errback that handles the failure. The next ***back will be a callback
+        d.addErrback(lambda _: None)
