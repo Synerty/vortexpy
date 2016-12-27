@@ -10,7 +10,7 @@ import logging
 import uuid
 from datetime import datetime
 from http.cookiejar import CookieJar
-from typing import Union
+from typing import Union, List
 from urllib.parse import urlencode
 
 from twisted.internet import reactor, task
@@ -25,6 +25,8 @@ from vortex.VortexPayloadClientProtocol import VortexPayloadClientProtocol
 
 logger = logging.getLogger(name=__name__)
 
+PayloadList = List[Payload]
+VortexMsgList = List[bytes]
 
 @implementer(IBodyProducer)
 class _VortexClientPayloadProducer(object):
@@ -90,7 +92,7 @@ class VortexClient(object):
         """
         self._reconnectVortexMsgs.append(payload.toVortexMsg())
 
-    def send(self, payloads: Union[[Payload], Payload, None] = None):
+    def send(self, payloads: Union[PayloadList, Payload, None] = None):
         if payloads is None:
             vortexMsgs = self._reconnectVortexMsgs
 
@@ -102,7 +104,7 @@ class VortexClient(object):
 
         return task.deferLater(reactor, 0, self.sendVortexMsg, vortexMsgs)
 
-    def sendVortexMsg(self, vortexMsgs: Union[[bytes], bytes]):
+    def sendVortexMsg(self, vortexMsgs: Union[VortexMsgList, bytes]):
         assert self._server
         assert vortexMsgs
 
