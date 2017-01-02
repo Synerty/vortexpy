@@ -14,7 +14,7 @@ from twisted.python import failure
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
-from vortex.VortexServer import vortexSendVortexMsg
+from vortex.VortexFactory import VortexFactory
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class ModelHandler(object):
 
         self._ep = PayloadEndpoint(self._payloadFilter, self._process)
 
-    def _process(self, payload, vortexUuid, **kwargs):
+    def _process(self, payload: Payload, vortexUuid: str, **kwargs):
         # Execute preprocess functions
         self.preProcess(payload, vortexUuid, **kwargs)
 
@@ -62,17 +62,24 @@ class ModelHandler(object):
             if payloadFilt:
                 filt.update(payloadFilt)
 
-        def _sendModelUpdateCallback(tuples):
+        def _sendModelUpdateCallback(value):
+            # Add some convenience handlers.
+            if isinstance(value, list):
+                value = Payload(filt=filt, tuples=value)
 
-            assert tuples is not None
+            if isinstance(value, Payload):
+                VortexFactory.sendVortexMsg(payload.toVortexMsg(),
+                                            destVortexUuid=vortexUuid)
 
-            encodedXml = Payload(filt=filt, tuples=tuples).toVortexMsg()
-            vortexSendVortexMsg(encodedXml, vortexUuid=vortexUuid)
+            if isinstance(value, bytes):
+                VortexFactory.sendVortexMsg(value, destVortexUuid=vortexUuid)
+
+            return True
 
         def _sendModelUpdateErrback(failure):
 
             encodedXml = Payload(filt=filt, result=str(failure.value)).toVortexMsg()
-            vortexSendVortexMsg(encodedXml, vortexUuid=vortexUuid)
+            VortexFactory.sendVortexMsg(encodedXml, destVortexUuid=vortexUuid)
 
             logger.error("Payload filt is : %s", payload.filt)
             logger.exception(failure.value)

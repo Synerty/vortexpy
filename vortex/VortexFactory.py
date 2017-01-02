@@ -1,6 +1,6 @@
 from typing import Union, List, Optional
 
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, DeferredList
 
 from vortex.Payload import VortexMsgList
 from vortex.VortexABC import VortexABC
@@ -31,7 +31,9 @@ class VortexFactory:
         raise Exception("Vortex Factory should not be instantiated")
 
     @classmethod
-    def _getVortexSendRefs(cls, name) -> (VortexABC, [str]):
+    def _getVortexSendRefs(cls, name=None, uuid=None) -> (VortexABC, [str]):
+        assert name or uuid
+
         results = []
 
         vortexes = (list(cls.__vortexServersByName.values())
@@ -41,6 +43,8 @@ class VortexFactory:
             uuids = []
             for remoteVortexInfo in vortex.remoteVortexInfo:
                 if remoteVortexInfo.name == name:
+                    uuids.append(remoteVortexInfo.uuid)
+                elif remoteVortexInfo.uuid == uuid:
                     uuids.append(remoteVortexInfo.uuid)
 
             if uuids:
@@ -92,24 +96,37 @@ class VortexFactory:
     @classmethod
     def sendVortexMsg(cls,
                       vortexMsgs: Union[VortexMsgList, bytes],
-                      destVortexName: Optional[str] = broadcast) -> Deferred:
+                      destVortexName: Optional[str] = broadcast,
+                      destVortexUuid: Optional[str] = broadcast) -> Deferred:
         """ Send VortexMsg
 
-        Sends a payload to the remote vortex, by name.
+        Sends a payload to the remote vortex.
+
+        :param vortexMsgs: The vortex message(s) to send to the remote vortex.
 
         :param destVortexName: The name of the vortex to send the payload to.
-        :param vortexMsgs: The vortex message(s) to send to the remote vortex.
+            This can be null, If provided, it's used to limit the vortexes the
+             message is sent to.
+
+        :param destVortexUuid: The uuid of the vortex to send the payload to,
+            This can be null, If provided, it's used to limit the vortexes the
+             message is sent to.
+
+
         :return: A C{Deferred} which will callback when the message has been sent.
         """
 
-        vortexAndUuids = cls._getVortexSendRefs(destVortexName)
+        vortexAndUuids = cls._getVortexSendRefs(destVortexName, destVortexUuid)
         if not vortexAndUuids:
             raise NoVortexException("Can not find vortexes named %s to send message to"
                                      % destVortexName)
 
+        deferreds = []
         for vortex, uuids in vortexAndUuids:
             for uuid in uuids:
-                vortex.sendVortexMsg(vortexMsgs, uuid)
+                deferreds.append(vortex.sendVortexMsg(vortexMsgs, uuid))
+
+        return DeferredList(deferreds)
 
     # def vortexIsClientAlive(vortexUuid):
     #     return VortexServer().isVortexAlive(vortexUuid)

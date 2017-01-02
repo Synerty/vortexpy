@@ -8,15 +8,17 @@
 """
 
 from copy import copy
+from typing import Callable
+from typing import Union
 
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.session import Session
 from twisted.internet.threads import deferToThread
 
-from vortex.Payload import Payload
+from vortex.Payload import Payload, VortexMsgList
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadFilterKeys import plIdKey, plDeleteKey
-from vortex.VortexServer import vortexSendPayload, vortexSendVortexMsg
+from vortex.VortexFactory import VortexFactory
 
 
 class OrmCrudHandlerExtension(object):
@@ -167,7 +169,11 @@ class OrmCrudHandler(object):
     def addExtension(self, Tuple):
         return self._ext.addExtension(Tuple)
 
-    def process(self, payload, vortexUuid=None, **kwargs):
+    def process(self, payload,
+                vortexUuid: str,
+                sendResponse: Callable[[Union[VortexMsgList, bytes]], None],
+                              **kwargs):
+
         # Execute preprocess functions
         if self.preProcess(payload, vortexUuid, **kwargs) != None:
             return
@@ -216,7 +222,7 @@ class OrmCrudHandler(object):
 
         except Exception as e:
             replyPayload = Payload(result=str(e), filt=replyFilt)
-            vortexSendPayload(replyPayload, vortexUuid)
+            sendResponse(replyPayload.toVortexMsg())
             try:
                 session.rollback()
             except:
@@ -231,7 +237,7 @@ class OrmCrudHandler(object):
             replyPayload.result = True
 
         replyPayload.filt = replyFilt
-        vortexSendVortexMsg(replyPayload.toVortexMsg(), vortexUuid=vortexUuid)
+        sendResponse(replyPayload.toVortexMsg())
 
         # Execute the post process function
         self.postProcess(action, payload.filt, vortexUuid)
@@ -331,7 +337,7 @@ class OrmCrudHandler(object):
         pl = self._retrieve(session, objId, self._payloadFilter, obj=obj)
         pl.filt.update(self._payloadFilter)
         pl.filt[plIdKey] = objId
-        vortexSendVortexMsg(pl.toVortexMsg(), vortexUuid=vortexUuid)
+        VortexFactory.sendVortexMsg(pl.toVortexMsg(), destVortexUuid=vortexUuid)
 
     def preProcess(self, payload, vortextUuid, **kwargs):
         pass
