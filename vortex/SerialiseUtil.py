@@ -11,7 +11,17 @@ import logging
 from collections import defaultdict
 from datetime import datetime, date
 
+from sqlalchemy.orm.collections import InstrumentedList
+
 logger = logging.getLogger(__name__)
+
+try:
+    from geoalchemy2.elements import WKBElement
+
+except ImportError:
+    class WKBElement:
+        def __init__(self):
+            raise NotImplementedError("")
 
 try:
     from geoalchemy2.elements import WKBElement
@@ -58,12 +68,15 @@ TYPE_MAP_PY_TO_RAPUI = {decimal.Decimal: T_FLOAT,
                         list: T_LIST,
                         set: T_LIST,
                         tuple: T_LIST,
-                        WKBElement: T_GEOM
+                        WKBElement: T_GEOM,
+                        InstrumentedList: T_LIST
                         }
+
 
 def className(o):
     cls = o if o.__class__ == type else o.__class__
     return str(cls).split("'")[1]
+
 
 def convertFromShape(shapelyShape):
     from shapely.geometry.polygon import Polygon

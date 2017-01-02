@@ -15,7 +15,7 @@ from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure
 
 from vortex.Payload import Payload
-from vortex.Vortex import vortexSendPayload, vortexSendVortexMsg
+from vortex.VortexServer import vortexSendPayload, vortexSendVortexMsg
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +94,9 @@ class AsyncModelHandler(object):
         except Exception as e:
             errback(Failure(e))
             raise
+
+    def shutdown(self):
+        self._ep.shutdown()
 
     def buildModel(self, **kwargs):
         return deferToThread(self.buildModelBlocking, **kwargs)

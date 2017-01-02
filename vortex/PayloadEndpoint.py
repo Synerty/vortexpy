@@ -6,12 +6,14 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
-from copy import copy
+import inspect
 import logging
-import weakref
-
 import types
+import weakref
+from copy import copy
+from typing import Callable, Union
 
+from vortex.Payload import Payload, VortexMsgList
 from vortex.PayloadIO import PayloadIO
 
 logger = logging.getLogger(__name__)
@@ -75,19 +77,38 @@ class PayloadEndpoint(object):
         return copy(self._filt)
 
     def check(self, payload):
-        items = set()
-        for key, value in list(payload.filt.items()):
-            # We don't compare complex structures
-            if isinstance(value, dict) or isinstance(value, list):
-                continue
-            items.add((key, value))
-        return set(self._filt.items()).issubset(items)
+        def removeUnhashable(filt):
+            items = set()
+            for key, value in list(filt.items()):
+                # We don't compare complex structures
+                if isinstance(value, dict) or isinstance(value, list):
+                    continue
 
-    def process(self, payload, **kwargs):
+                if (inspect.isclass(value)
+                    and (issubclass(value, dict) or issubclass(value, list))):
+                    raise Exception("Class type passed instead of an instance"
+                                    " key:%s, value:%s" % (key, value))
+
+                items.add((key, value))
+            return items
+
+        theirFilt = removeUnhashable(payload.filt)
+        ourFilt = removeUnhashable(self._filt)
+
+        return set(ourFilt).issubset(theirFilt)
+
+    def process(self, payload: Payload,
+                vortexUuid: str, vortexName: str, httpSession,
+                sendResponse: Callable[[Union[VortexMsgList, bytes]], None]):
+
         if self.check(payload):
             callable_ = self._wref()
             if callable_:
-                return callable_(payload, **kwargs)
+                return callable_(payload,
+                                 vortexUuid=vortexUuid,
+                                 vortexName=vortexName,
+                                 httpSession=httpSession,
+                                 sendResponse=sendResponse)
             else:
                 PayloadIO().remove(self)
 

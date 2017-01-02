@@ -6,14 +6,15 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
+from typing import Union
 
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.error import ConnectionDone, ConnectionLost
-from twisted.internet.protocol import Protocol
+from twisted.internet.protocol import Protocol, connectionDone
 from twisted.web._newclient import ResponseDone, ResponseNeverReceived, ResponseFailed
 from twisted.web.http import _DataLoss
 
-from vortex.Payload import Payload
+from vortex.Payload import Payload, VortexMsgList
 from vortex.PayloadIO import PayloadIO
 
 
@@ -22,6 +23,7 @@ class VortexPayloadClientProtocol(Protocol):
         self._vortexClient = vortexClient
         self._data = b""
         self._serverVortexUuid = None
+        self._serverVortexName = None
         self._logger = logger
 
     def _beat(self):
@@ -32,6 +34,10 @@ class VortexPayloadClientProtocol(Protocol):
     def serverVortexUuid(self):
         return self._serverVortexUuid
 
+    @property
+    def serverVortexName(self):
+        return self._serverVortexName
+
     def dataReceived(self, bytes):
         if bytes.startswith(b"<"):
             raise Exception("Not Logged In")
@@ -40,7 +46,8 @@ class VortexPayloadClientProtocol(Protocol):
         self._beat()
         self._processData()
 
-    def connectionLost(self, reasonFailure):
+    def connectionLost(self, reason=connectionDone):
+        reasonFailure = reason
         self._processData()
         if isinstance(reasonFailure.value, ResponseDone):
             self._logger.debug("Closed cleanly by server")
@@ -92,10 +99,27 @@ class VortexPayloadClientProtocol(Protocol):
                 if payload.isEmpty():
                     if Payload.vortexUuidKey in payload.filt:
                         self._serverVortexUuid = payload.filt[Payload.vortexUuidKey]
+
+                    if Payload.vortexNameKey in payload.filt:
+                        self._serverVortexName = payload.filt[Payload.vortexNameKey]
+
                     self._beat()
                     return
 
-                PayloadIO().process(payload, vortexUuid=self._serverVortexUuid)
+                def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):
+                    """ Send Response
+
+                    Sends a response back to where this payload come from.
+
+                    """
+                    return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs)
+
+                PayloadIO().process(payload,
+                                    vortexUuid=self._serverVortexUuid,
+                                    vortexName=self._serverVortexName,
+                                    httpSession=None,
+                                    sendResponse=sendResponse
+                                    )
 
             except Exception as e:
                 self._logger.exception(e)

@@ -11,6 +11,7 @@ import logging
 import zlib
 from base64 import b64encode, b64decode
 from datetime import datetime
+from typing import List
 
 from twisted.internet.threads import deferToThread
 
@@ -19,6 +20,9 @@ from .SerialiseUtil import T_RAPUI_PAYLOAD
 
 logger = logging.getLogger(__name__)
 
+
+PayloadList = List['Payload']
+VortexMsgList = List[bytes]
 
 def printFailure(failure):
     logger.error(failure)
@@ -42,11 +46,13 @@ class Payload(Jsonable):
     __rapuiSerialiseType__ = T_RAPUI_PAYLOAD
 
     vortexUuidKey = '__vortexUuid__'
+    vortexNameKey = '__vortexName__'
 
     def __init__(self, filt=None, replyFilt=None, tuples=None, result=None):
         '''
         Constructor
         '''
+        self.to = None
         self.filt = filt if filt != None else {}
         self.replyFilt = replyFilt if replyFilt != None else {}
         self.tuples = tuples if tuples != None else []
@@ -61,7 +67,9 @@ class Payload(Jsonable):
 
     def isEmpty(self):
         return ((not self.filt
-                 or (self.vortexUuidKey in self.filt and len(self.filt) == 1))
+                 or (self.vortexNameKey in self.filt
+                     and self.vortexUuidKey in self.filt
+                     and len(self.filt) == 2))
                 and not self.replyFilt
                 and not self.tuples
                 and not self.result)
@@ -78,7 +86,7 @@ class Payload(Jsonable):
         return json.dumps(self.toJsonDict())
 
     # -------------------------------------------
-    # Vortex Message Methods
+    # VortexServer Message Methods
     def toVortexMsg(self, compressionLevel: int = 9) -> bytes:
         # return b64encode(zlib.compress(self._toXmlDocStr(), compressionLevel))
         jsonStr = self._toJson()
@@ -86,7 +94,7 @@ class Payload(Jsonable):
 
     @deferToThreadWrap
     def toVortexMsgDefer(self, compressionLevel: int = 9) -> bytes:
-        return self.fromVortexMsg(compressionLevel=compressionLevel)
+        return self.toVortexMsg(compressionLevel=compressionLevel)
 
     def fromVortexMsg(self, vortexMsg: bytes):
         # return self._fromXmlDocStr(zlib.decompress(b64decode(vortexMsg)))

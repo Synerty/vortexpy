@@ -18,5 +18,5 @@ class VortexTest(unittest.TestCase):
         self.port = setupVortexServer()
 
     def testVortexConnect(self):
-        client = VortexClient()
+        client = VortexClient("unittest")
         return client.connect("127.0.0.1", self.port)

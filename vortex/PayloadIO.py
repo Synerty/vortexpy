@@ -7,12 +7,13 @@
  * Support : support@synerty.com
 """
 import logging
-import traceback
 from datetime import datetime
+from typing import Callable, Union
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
-from twisted.python.failure import Failure
+
+from vortex.Payload import Payload, VortexMsgList
 
 logger = logging.getLogger(name="PayloadIO")
 
@@ -50,26 +51,30 @@ class PayloadIO(object):
         '''
         return list(self._endpoints)
 
-    def process(self, payload, **kwargs):
+    def process(self, payload: Payload,
+                vortexUuid: str, vortexName: str, httpSession,
+                sendResponse: Callable[[Union[VortexMsgList, bytes]], None]):
+
         immutableEndpoints = list(self._endpoints)
         for endpoint in immutableEndpoints:
-            reactor.callLater(0, self._processLater, endpoint, payload, **kwargs)
+            reactor.callLater(0, self._processLater, endpoint, payload,
+                              vortexUuid, vortexName, httpSession, sendResponse)
 
-    def _processLater(self, endpoint, payload, **kwargs):
+    def _processLater(self, endpoint,
+                      payload, vortexUuid: str, vortexName: str, httpSession,
+                      sendResponse: Callable[[bytes], None]):
         startDate = datetime.utcnow()
 
         def respondToException(exception):
-            ''' Respond To Exception
+            """ Respond To Exception
             Putting the exception into a failure messes with the stack, hence the
             common function
-            '''
-            from vortex.Vortex import vortexSendPayload
-            from vortex.Payload import Payload
+            """
+            sendResponse(Payload(filt=payload.filt,
+                                 result=str(exception)))
 
-            vortexSendPayload(Payload(filt=payload.filt,
-                                      result=str(exception)),
-                              kwargs['vortexUuid'])
             logger.exception(exception)
+            logger.error(payload.filt)
 
         def errback(failure):
             respondToException(failure.value)
@@ -84,7 +89,8 @@ class PayloadIO(object):
                     endpoint))
 
         try:
-            d = endpoint.process(payload, **kwargs)
+            d = endpoint.process(payload,
+                                 vortexUuid, vortexName, httpSession, sendResponse)
             if isinstance(d, Deferred):
                 d.addCallback(callback)
                 d.addErrback(errback)

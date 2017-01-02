@@ -31,7 +31,7 @@ class ForkChildVortexClientProtocol(VortexPayloadClientProtocol):
         exit(0)
 
 class ForkChildVortex(object):
-    ''' Vortex
+    ''' VortexServer
     The static instance of the controller
     '''
 

@@ -56,7 +56,7 @@ def setupVortexServer(portNum=8345):
     import subprocess
     ip = subprocess.getoutput("/sbin/ifconfig").split("\n")[1].split()[1][5:]
 
-    logger.info('Vortex test is alive and listening on http://%s:%s/vortex',
+    logger.info('VortexServer test is alive and listening on http://%s:%s/vortex',
                 ip, port)
     return port
 

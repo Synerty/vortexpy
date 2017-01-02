@@ -9,11 +9,12 @@
 import logging
 from copy import copy
 
-from twisted.internet.defer import maybeDeferred
+from twisted.internet.defer import Deferred, fail, succeed
+from twisted.python import failure
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
-from vortex.Vortex import vortexSendVortexMsg
+from vortex.VortexServer import vortexSendVortexMsg
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class ModelHandler(object):
 
         self._ep = PayloadEndpoint(self._payloadFilter, self._process)
 
-    def _process(self, payload, vortexUuid, session, **kwargs):
+    def _process(self, payload, vortexUuid, **kwargs):
         # Execute preprocess functions
         self.preProcess(payload, vortexUuid, **kwargs)
 
@@ -39,14 +40,16 @@ class ModelHandler(object):
                                      vortexUuid=vortexUuid,
                                      payload=payload,
                                      payloadReplyFilt=payload.replyFilt,
-                                     session=session)
+                                     **kwargs)
 
         # Execute the post process function
         self.postProcess(payload.filt, vortexUuid)
 
     def sendModelUpdate(self, vortexUuid=None,
-                        payload=None, payloadReplyFilt=None,
-                        session=None, userAccess=None):
+                        payload=None,
+                        payloadReplyFilt=None,
+                        userAccess=None,
+                        **kwargs):
 
         payloadFilt = payload.filt if payload else None
 
@@ -76,20 +79,33 @@ class ModelHandler(object):
 
             return failure
 
-        d = maybeDeferred(self.buildModel,
-                          payloadFilt=payload.filt if payload else None,
-                          payload=payload,
-                          vortexUuid=vortexUuid,
-                          userAccess=userAccess)
+        result = self.buildModel(payloadFilt=payload.filt if payload else None,
+                                 payload=payload,
+                                 vortexUuid=vortexUuid,
+                                 userAccess=userAccess,
+                                 **kwargs)
+
+        if isinstance(result, Deferred):
+            d = result
+        elif isinstance(result, failure.Failure):
+            d = fail(result)
+        else:
+            d = succeed(result)
+
         d.addCallback(_sendModelUpdateCallback)
         d.addErrback(_sendModelUpdateErrback)
+
         # deferToThread doesn't like this, and it never used to return anything anyway
         # return d
+
+    def shutdown(self):
+        self._ep.shutdown()
 
     def buildModel(self, payloadFilt=None,
                    vortexUuid=None,
                    userAccess=None,
-                   payload=Payload()):
+                   payload=Payload(),
+                   session=None):
         raise NotImplementedError()
 
     def preProcess(self, payload, vortextUuid, **kwargs):

@@ -50,7 +50,7 @@ class Jsonable(object):
             valueType = V_NULL if value is None else toRapuiType(value)
         except KeyError as e:
             raise KeyError("%s field name is %s, type is %s",
-                           e.message, name, value.__class__)
+                           e, name, value.__class__)
 
         # Payloads and Tuples
         if isinstance(value, Jsonable):

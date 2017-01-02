@@ -33,7 +33,7 @@ class PayloadPyTest(unittest.TestCase):
         # Create Payload
         origPayload = makeTestPayloadA()
 
-        # To Vortex Message
+        # To VortexServer Message
         vortexMsg = origPayload.toVortexMsg()
         # print vortexMsg
 

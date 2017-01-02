@@ -106,8 +106,16 @@ def addTupleType(cls):
 
             shortFieldNames.add(shortName)
 
+    if getattr(cls, "__fieldNames__"):
+        fields = list(set(fields + cls.__fieldNames__))
+
     fields.sort()
     cls.__fieldNames__ = fields
+
+    # Just check that the field names are defined.
+    for fieldName in fields:
+        if not hasattr(cls, fieldName):
+            raise Exception("Tuple %s doesn't have field %s" % (tupleType, fieldName))
 
     return cls
 
@@ -160,6 +168,7 @@ class Tuple(Jsonable):
     ''' Tuple Type, EG com.synerty.rapui.UnitTestTuple'''
     __tupleType__ = None
     __tupleTypeShort__ = None
+    __fieldNames__ = None
     __rapuiSerialiseType__ = T_RAPUI_TUPLE
 
     def __init__(self, **kwargs):

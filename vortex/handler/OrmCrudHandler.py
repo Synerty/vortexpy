@@ -16,7 +16,7 @@ from twisted.internet.threads import deferToThread
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadFilterKeys import plIdKey, plDeleteKey
-from vortex.Vortex import vortexSendPayload, vortexSendVortexMsg
+from vortex.VortexServer import vortexSendPayload, vortexSendVortexMsg
 
 
 class OrmCrudHandlerExtension(object):
@@ -160,6 +160,9 @@ class OrmCrudHandler(object):
         self._ext = _OrmCrudExtensionProcessor()
 
         self._retreiveAll = retreiveAll
+
+    def shutdown(self):
+        self._ep.shutdown()
 
     def addExtension(self, Tuple):
         return self._ext.addExtension(Tuple)

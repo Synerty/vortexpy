@@ -7,23 +7,12 @@
  * Support : support@synerty.com
 """
 import logging
-import uuid
-from http.cookiejar import CookieJar
-from datetime import datetime
-from urllib.parse import urlencode
 
-from rapui.DeferUtil import printFailure, deferToThreadWrap
-from PayloadIO import PayloadIO
-from twisted.internet import reactor, task
-from twisted.internet.defer import succeed, inlineCallbacks
+from .PayloadIO import PayloadIO
+from twisted.internet.defer import inlineCallbacks
 from twisted.internet.protocol import Protocol
-from twisted.web._newclient import ResponseDone, ResponseNeverReceived
-from twisted.web.client import Agent, CookieAgent
-from twisted.web.http_headers import Headers
-from twisted.web.iweb import IBodyProducer
-from zope.interface.declarations import implements
 
-from Payload import Payload
+from .Payload import Payload
 
 logger = logging.getLogger(name=__name__)
 

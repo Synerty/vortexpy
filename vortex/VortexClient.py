@@ -10,23 +10,22 @@ import logging
 import uuid
 from datetime import datetime
 from http.cookiejar import CookieJar
-from typing import Union, List
+from typing import Union, Optional
 from urllib.parse import urlencode
 
 from twisted.internet import reactor, task
-from twisted.internet.defer import succeed
+from twisted.internet.defer import succeed, Deferred
 from twisted.web.client import Agent, CookieAgent
 from twisted.web.http_headers import Headers
 from twisted.web.iweb import IBodyProducer
 from zope.interface.declarations import implementer
 
-from vortex.Payload import Payload
+from vortex.Payload import Payload, VortexMsgList
+from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadClientProtocol import VortexPayloadClientProtocol
 
 logger = logging.getLogger(name=__name__)
 
-PayloadList = List[Payload]
-VortexMsgList = List[bytes]
 
 @implementer(IBodyProducer)
 class _VortexClientPayloadProducer(object):
@@ -49,18 +48,19 @@ class _VortexClientPayloadProducer(object):
         pass
 
 
-class VortexClient(object):
-    """ Vortex Client
+class VortexClient(VortexABC):
+    """ VortexServer Client
     Connects to a votex server
     """
 
-    def __init__(self):
+    def __init__(self, name: str):
+        self._vortexName = name
+        self._vortexUuid = str(uuid.uuid1())
+
         self._server = None
         self._port = None
 
         self._connectionBroken = False
-
-        self._vortexUuid = str(uuid.uuid1())
 
         self._cookieJar = CookieJar()
 
@@ -74,13 +74,33 @@ class VortexClient(object):
 
         self.__protocol = None
 
+    @property
+    def localVortexInfo(self) -> VortexInfo:
+        return VortexInfo(name=self._vortexName,
+                          uuid=self._vortexUuid)
+
+    @property
+    def remoteVortexInfo(self) -> [VortexInfo]:
+        if not self.__protocol:
+            return []
+
+        if not self.__protocol.serverVortexUuid:
+            return []
+
+        return [VortexInfo(name=self.__protocol.serverVortexName,
+                           uuid=self.__protocol.serverVortexUuid)]
+
+    @property
+    def name(self):
+        return self._vortexName
+
     def connect(self, server, port):
         self._server = server
         self._port = port
 
         self._beat()
         self._beatLoopingCall.start(5.0)
-        return self.send()
+        return self.sendVortexMsg()
 
     def disconnect(self):
         self.__protocol.transport.loseConnection()
@@ -92,19 +112,19 @@ class VortexClient(object):
         """
         self._reconnectVortexMsgs.append(payload.toVortexMsg())
 
-    def send(self, payloads: Union[PayloadList, Payload, None] = None):
-        if payloads is None:
+    def sendVortexMsg(self,
+                      vortexMsgs: Union[VortexMsgList, bytes, None] = None,
+                      vortexUuid: Optional[str] = None) -> Deferred:
+
+        if vortexMsgs is None:
             vortexMsgs = self._reconnectVortexMsgs
 
-        elif isinstance(payloads, list):
-            vortexMsgs = [p.toVortexMsg() for p in payloads]
-
-        else:
-            vortexMsgs = [payloads.toVortexMsg()]
+        if not isinstance(vortexMsgs, list):
+            vortexMsgs = [vortexMsgs]
 
         return task.deferLater(reactor, 0, self.sendVortexMsg, vortexMsgs)
 
-    def sendVortexMsg(self, vortexMsgs: Union[VortexMsgList, bytes]):
+    def _sendVortexMsgLater(self, vortexMsgs: VortexMsgList, vortexUuid: Optional[str]):
         assert self._server
         assert vortexMsgs
 
@@ -118,7 +138,7 @@ class VortexClient(object):
                 return False
 
             elif self._connectionBroken:
-                logger.info("Vortex client %s:%s reconnected",
+                logger.info("VortexServer client %s:%s reconnected",
                             self._server, self._port)
 
             self._connectionBroken = False
@@ -132,6 +152,7 @@ class VortexClient(object):
 
         args = {
             'vortexUuid': self._vortexUuid,
+            'vortexName': self._vortexName
         }
 
         uri = ("http://%s:%s/vortex?%s"
@@ -139,7 +160,7 @@ class VortexClient(object):
 
         d = agent.request(
             b'POST', uri,
-            Headers({b'User-Agent': [b'Synerty Vortex Client'],
+            Headers({b'User-Agent': [b'Synerty VortexServer Client'],
                      b'Content-Type': [b'text/plain']}),
             bodyProducer)
 
@@ -154,10 +175,10 @@ class VortexClient(object):
             return
 
         self._connectionBroken = True
-        logger.info("Vortex client dead, reconnecting %s:%s"
+        logger.info("VortexServer client dead, reconnecting %s:%s"
                     % (self._server, self._port))
 
-        d = self.send()
+        d = self.sendVortexMsg()
 
-        # Add a errback that handles the failure. The next ***back will be a callback
+        # Add a errback that handles the failure.
         d.addErrback(lambda _: None)
