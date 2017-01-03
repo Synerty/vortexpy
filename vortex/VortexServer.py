@@ -49,7 +49,8 @@ class VortexServer(VortexABC):
 
         # Start our heart beat
         self._beatLoopingCall = task.LoopingCall(self._beat)
-        self._beatLoopingCall.start(self.HEART_BEAT_PERIOD)
+        d = self._beatLoopingCall.start(self.HEART_BEAT_PERIOD)
+        d.addErrback(lambda f:logger.exception(f.value))
 
     def name(self):
         return self._name
@@ -212,7 +213,7 @@ class VortexServer(VortexABC):
         if not isinstance(vortexMsgs, list):
             vortexMsgs = [vortexMsgs]
 
-        return reactor.deferLater(0, self._sendVortexMsgLater, vortexMsgs,
+        return task.deferLater(reactor, 0, self._sendVortexMsgLater, vortexMsgs,
                                   vortexUuid=vortexUuid)
 
     def _sendVortexMsgLater(self, vortexMsgs: VortexMsgList, vortexUuid: Optional[str]):

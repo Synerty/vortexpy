@@ -122,9 +122,16 @@ class VortexClient(VortexABC):
         if not isinstance(vortexMsgs, list):
             vortexMsgs = [vortexMsgs]
 
-        return task.deferLater(reactor, 0, self.sendVortexMsg, vortexMsgs)
+        # Check if the vortexUuid matches the destination uuid
+        #
+        # if vortexUuid and vortexUuid != self._
+        #
+        # if not self.__protocol.serverVortexUuid:
+        #     return []
 
-    def _sendVortexMsgLater(self, vortexMsgs: VortexMsgList, vortexUuid: Optional[str]):
+        return task.deferLater(reactor, 0, self._sendVortexMsgLater, vortexMsgs)
+
+    def _sendVortexMsgLater(self, vortexMsgs: VortexMsgList):
         assert self._server
         assert vortexMsgs
 

@@ -20,9 +20,9 @@ from .SerialiseUtil import T_RAPUI_PAYLOAD
 
 logger = logging.getLogger(__name__)
 
-
 PayloadList = List['Payload']
 VortexMsgList = List[bytes]
+
 
 def printFailure(failure):
     logger.error(failure)
@@ -53,9 +53,9 @@ class Payload(Jsonable):
         Constructor
         '''
         self.to = None
-        self.filt = filt if filt != None else {}
-        self.replyFilt = replyFilt if replyFilt != None else {}
-        self.tuples = tuples if tuples != None else []
+        self.filt = {} if filt is None else filt
+        self.replyFilt = {} if replyFilt is None else replyFilt
+        self.tuples = [] if tuples is None else tuples
         self.result = result
         self.date = datetime.utcnow()
 
@@ -88,7 +88,6 @@ class Payload(Jsonable):
     # -------------------------------------------
     # VortexServer Message Methods
     def toVortexMsg(self, compressionLevel: int = 9) -> bytes:
-        # return b64encode(zlib.compress(self._toXmlDocStr(), compressionLevel))
         jsonStr = self._toJson()
         return b64encode(zlib.compress(jsonStr.encode("UTF-8"), compressionLevel))
 
@@ -97,7 +96,6 @@ class Payload(Jsonable):
         return self.toVortexMsg(compressionLevel=compressionLevel)
 
     def fromVortexMsg(self, vortexMsg: bytes):
-        # return self._fromXmlDocStr(zlib.decompress(b64decode(vortexMsg)))
         jsonStr = zlib.decompress(b64decode(vortexMsg)).decode("UTF-8")
         return self._fromJson(jsonStr)
 

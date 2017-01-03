@@ -38,8 +38,8 @@ class VortexResource(Resource):
         return b"You have reached the vortex. It only likes POST methods."
 
     def render_POST(self, request):
-        remoteVortexUuid = request.args[b'vortexUuid'][0]
-        remoteVortexName = request.args[b'vortexName'][0]
+        remoteVortexUuid = request.args[b'vortexUuid'][0].decode()
+        remoteVortexName = request.args[b'vortexName'][0].decode()
 
         if self.__vortex.isShutdown():
             return None
