@@ -1,5 +1,9 @@
 from abc import ABCMeta, abstractproperty, abstractmethod
-from typing import Optional
+from typing import Optional, Union, Callable
+
+from vortex.Payload import VortexMsgList
+
+SendVortexMsgResponseCallable = Callable[[Union[VortexMsgList, bytes]], None]
 
 
 class VortexInfo:
@@ -7,13 +11,15 @@ class VortexInfo:
 
     This class stores details about the end of a vortex.
     """
+
     def __init__(self, name, uuid):
         self.name, self.uuid = name, uuid
 
+    def __repr__(self):
+        return "VortexInfo, Name=%s, UUID=%s" % (self.name, self.uuid)
+
 
 class VortexABC(metaclass=ABCMeta):
-
-
     @abstractproperty
     def localVortexInfo(self) -> VortexInfo:
         pass

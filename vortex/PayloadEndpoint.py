@@ -15,6 +15,7 @@ from typing import Callable, Union
 
 from vortex.Payload import Payload, VortexMsgList
 from vortex.PayloadIO import PayloadIO
+from vortex.VortexABC import SendVortexMsgResponseCallable
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class PayloadEndpoint(object):
     def __init__(self, filt, callable_):
         '''
         @param filt: The filter to match against payloads
-        @param callable: This will be called and passed the payload if it matches
+        @param callable_: This will be called and passed the payload if it matches
         '''
         if not "key" in filt:
             e = Exception("There is no 'key' in the payload filt"
@@ -80,8 +81,12 @@ class PayloadEndpoint(object):
         def removeUnhashable(filt):
             items = set()
             for key, value in list(filt.items()):
+                # We can compare an array of primitives
+                if isinstance(value, list):
+                    value = tuple(sorted(value))
+
                 # We don't compare complex structures
-                if isinstance(value, dict) or isinstance(value, list):
+                if isinstance(value, dict):
                     continue
 
                 if (inspect.isclass(value)
@@ -99,7 +104,7 @@ class PayloadEndpoint(object):
 
     def process(self, payload: Payload,
                 vortexUuid: str, vortexName: str, httpSession,
-                sendResponse: Callable[[Union[VortexMsgList, bytes]], None]):
+                sendResponse: SendVortexMsgResponseCallable):
 
         if self.check(payload):
             callable_ = self._wref()

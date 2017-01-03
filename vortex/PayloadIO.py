@@ -14,6 +14,7 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 
 from vortex.Payload import Payload, VortexMsgList
+from vortex.VortexABC import SendVortexMsgResponseCallable
 
 logger = logging.getLogger(name="PayloadIO")
 
@@ -53,7 +54,7 @@ class PayloadIO(object):
 
     def process(self, payload: Payload,
                 vortexUuid: str, vortexName: str, httpSession,
-                sendResponse: Callable[[Union[VortexMsgList, bytes]], None]):
+                sendResponse: SendVortexMsgResponseCallable):
 
         immutableEndpoints = list(self._endpoints)
         for endpoint in immutableEndpoints:
@@ -62,7 +63,7 @@ class PayloadIO(object):
 
     def _processLater(self, endpoint,
                       payload, vortexUuid: str, vortexName: str, httpSession,
-                      sendResponse: Callable[[bytes], None]):
+                      sendResponse: SendVortexMsgResponseCallable):
         startDate = datetime.utcnow()
 
         def respondToException(exception):

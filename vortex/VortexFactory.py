@@ -1,3 +1,5 @@
+import logging
+from collections import defaultdict
 from typing import Union, List, Optional
 
 from twisted.internet.defer import Deferred, DeferredList
@@ -7,6 +9,8 @@ from vortex.VortexABC import VortexABC
 from vortex.VortexClient import VortexClient
 from vortex.VortexResource import VortexResource
 from vortex.VortexServer import VortexServer
+
+logger = logging.getLogger(__name__)
 
 broadcast = None
 
@@ -23,8 +27,8 @@ VortexUuidList = List[str]
 
 
 class VortexFactory:
-    __vortexServersByName = {}
-    __vortexClientsByName = {}
+    __vortexServersByName = defaultdict(list)
+    __vortexClientsByName = defaultdict(list)
     __remoteVortexexByLocalVortex = {}
 
     def __init__(self):
@@ -36,15 +40,22 @@ class VortexFactory:
 
         results = []
 
-        vortexes = (list(cls.__vortexServersByName.values())
-                    + list(cls.__vortexServersByName.values()))
+        vortexes = []
 
+        for vortexList in cls.__vortexServersByName.values():
+            vortexes += vortexList
+
+        for vortexList in cls.__vortexClientsByName.values():
+            vortexes += vortexList
+
+        # logger.debug("-" * 80)
         for vortex in vortexes:
             uuids = []
+            # logger.debug("FROM : %s", vortex.localVortexInfo)
             for remoteVortexInfo in vortex.remoteVortexInfo:
-                if remoteVortexInfo.name == name:
-                    uuids.append(remoteVortexInfo.uuid)
-                elif remoteVortexInfo.uuid == uuid:
+                # logger.debug("        REMOTE : %s", remoteVortexInfo)
+                if ((name is None or remoteVortexInfo.name == name)
+                    and (uuid is None or remoteVortexInfo.uuid == uuid)):
                     uuids.append(remoteVortexInfo.uuid)
 
             if uuids:
@@ -68,11 +79,13 @@ class VortexFactory:
         """
 
         vortexServer = VortexServer(name)
+        cls.__vortexServersByName[name].append(vortexServer)
+
         vortexResource = VortexResource(vortexServer)
         rootResource.putChild(b"vortex", vortexResource)
 
     @classmethod
-    def createClient(cls, name: str, host: str, port: int):
+    def createClient(cls, name: str, host: str, port: int) -> Deferred:
         """ Create Client
 
         Connect to a vortex Server.
@@ -81,17 +94,20 @@ class VortexFactory:
         :param host: The hostname of the remote vortex.
         :param port: The port of the remote vortex.
 
+        :return: A deferred from the VortexClient.connect method
         """
 
+        logger.info('Connecting to Peek Server %s:%s', host, port)
+
         vortexClient = VortexClient(name)
+        cls.__vortexClientsByName[name].append(vortexClient)
+
         return vortexClient.connect(host, port)
 
     @classmethod
-    def vortexClient(cls, name: str) -> VortexClient:
-        if not name in cls.__vortexClientsByName:
-            raise NoVortexException("VortexClient %s doesn't exist" % name)
-
-        return cls.__vortexClientsByName[name]
+    def getLocalVortexClients(cls, localVortexName: str) -> List[VortexClient]:
+        return list(filter(lambda x: x.name == localVortexName,
+                           cls.__vortexClientsByName.values()))
 
     @classmethod
     def sendVortexMsg(cls,
@@ -118,8 +134,9 @@ class VortexFactory:
 
         vortexAndUuids = cls._getVortexSendRefs(destVortexName, destVortexUuid)
         if not vortexAndUuids:
-            raise NoVortexException("Can not find vortexes named %s to send message to"
-                                     % destVortexName)
+            raise NoVortexException("Can not find vortexes to send message to,"
+                                    " name=%s, uuid=%s"
+                                    % (destVortexName, destVortexUuid))
 
         deferreds = []
         for vortex, uuids in vortexAndUuids:
@@ -128,9 +145,9 @@ class VortexFactory:
 
         return DeferredList(deferreds)
 
-    # def vortexIsClientAlive(vortexUuid):
-    #     return VortexServer().isVortexAlive(vortexUuid)
-    #
-    #
-    # def vortexClientIpPort(vortexUuid):
-    #     return VortexServer().vortexClientIpPort(vortexUuid)
+        # def vortexIsClientAlive(vortexUuid):
+        #     return VortexServer().isVortexAlive(vortexUuid)
+        #
+        #
+        # def vortexClientIpPort(vortexUuid):
+        #     return VortexServer().vortexClientIpPort(vortexUuid)
