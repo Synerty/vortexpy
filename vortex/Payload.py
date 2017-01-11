@@ -96,7 +96,7 @@ class Payload(Jsonable):
         return self.toVortexMsg(compressionLevel=compressionLevel)
 
     def fromVortexMsg(self, vortexMsg: bytes):
-        jsonStr = zlib.decompress(b64decode(vortexMsg)).decode("UTF-8")
+        jsonStr = zlib.decompress(b64decode(vortexMsg)).decode()
         return self._fromJson(jsonStr)
 
     @deferToThreadWrap

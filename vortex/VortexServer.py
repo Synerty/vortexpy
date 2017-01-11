@@ -12,6 +12,7 @@ from typing import Optional, Union
 from weakref import WeakValueDictionary
 
 from twisted.internet import task, reactor
+from twisted.internet.defer import Deferred
 from twisted.python.components import registerAdapter
 from twisted.web.server import Session
 from zope.interface import Interface, Attribute
@@ -34,7 +35,7 @@ class VortexServer(VortexABC):
     The static instance of the controller
     '''
 
-    HEART_BEAT_PERIOD = 5.0
+    HEART_BEAT_PERIOD = 1.0
     HEART_BEAT_TIMEOUT = 35.0
 
     def __init__(self, name: str):
@@ -181,7 +182,7 @@ class VortexServer(VortexABC):
             payload.filt.pop(rapuiServerEcho)
             self.sendVortexMsg(payload.toVortexMsg(), vortexUuid)
 
-        def sendResponse(vortexMsg: bytes):
+        def sendResponse(vortexMsg: bytes) -> Deferred:
             """ Send Back
 
             Sends a response back to where this payload come from.
@@ -223,6 +224,7 @@ class VortexServer(VortexABC):
         This also means it doesn't matter what thread this is called from
 
         """
+
         if vortexUuid == self._uuid:
             for vortexMsg in vortexMsgs:
                 PayloadIO().process(

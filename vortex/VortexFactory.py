@@ -2,13 +2,17 @@ import logging
 from collections import defaultdict
 from typing import Union, List, Optional
 
+from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
+from txws import WebSocketFactory
 
 from vortex.Payload import VortexMsgList
 from vortex.VortexABC import VortexABC
 from vortex.VortexClient import VortexClient
 from vortex.VortexResource import VortexResource
 from vortex.VortexServer import VortexServer
+from vortex.VortexWebsocket import VortexWebsocketServerProtocol, \
+    VortexWebsocketServerFactory
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +87,25 @@ class VortexFactory:
 
         vortexResource = VortexResource(vortexServer)
         rootResource.putChild(b"vortex", vortexResource)
+
+    @classmethod
+    def createWebsocketServer(cls, name: str, port: int) -> None:
+        """ Create Server
+
+        Create a vortex server, VortexServer clients connect to this vortex serer via HTTP(S)
+
+        VortexServer clients will connect and provide their names. This allows the factory to
+        abstract away the vortex UUIDs from their names.
+
+        :param name: The name of the local vortex.
+        :param port: The tcp port to listen on
+        :return: None
+        """
+
+        vortexServer = VortexServer(name)
+        cls.__vortexServersByName[name].append(vortexServer)
+        vortexWebsocketServerFactory = VortexWebsocketServerFactory(vortexServer)
+        reactor.listenTCP(port, WebSocketFactory(vortexWebsocketServerFactory))
 
     @classmethod
     def createClient(cls, name: str, host: str, port: int) -> Deferred:

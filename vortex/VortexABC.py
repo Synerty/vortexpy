@@ -1,9 +1,11 @@
 from abc import ABCMeta, abstractproperty, abstractmethod
 from typing import Optional, Union, Callable
 
+from twisted.internet.defer import Deferred
+
 from vortex.Payload import VortexMsgList
 
-SendVortexMsgResponseCallable = Callable[[Union[VortexMsgList, bytes]], None]
+SendVortexMsgResponseCallable = Callable[[Union[VortexMsgList, bytes]], Deferred]
 
 
 class VortexInfo:
