@@ -119,3 +119,10 @@ Handlers are the provided classes that handle data from the PayloadEndpoints.
                   It can handle an array of tuples, of different types, and has various
                   hooks allowing the data to be customised before being stored or retreived.
 * AsyncModelHandler : Experimental handler that will likely be deleted.
+
+
+#Change Log
+
+#### 0.3.0
+
+Implemented PY side WebSockets
