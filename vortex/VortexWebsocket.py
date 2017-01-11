@@ -7,13 +7,12 @@
  * Support : support@synerty.com
 """
 import logging
-import urllib
 from datetime import datetime
+from struct import pack
 from urllib.parse import urlparse, parse_qs
 
 import six
 import txws
-from struct import pack
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.protocol import Protocol, connectionDone, Factory
 
@@ -46,7 +45,9 @@ def make_hybi07_frame(buf, opcode=0x1):
     header = chr(0x80 | opcode)
     return six.b(header) + length + buf
 
+
 txws.make_hybi07_frame = make_hybi07_frame
+
 
 class VortexWebsocketServerProtocol(Protocol):
     def __init__(self, vortex: VortexServer, addr):
@@ -64,7 +65,6 @@ class VortexWebsocketServerProtocol(Protocol):
         # self.transport.setBinaryMode(True)
 
         params = parse_qs(urlparse(self.transport.location).query)
-
 
         self._remoteVortexUuid = params['vortexUuid'][0]
         self._remoteVortexName = params['vortexName'][0]
@@ -85,14 +85,17 @@ class VortexWebsocketServerProtocol(Protocol):
         if self._vortex.isShutdown():
             return None
 
-        self._dataBuffer += data
+        # self._dataBuffer += data
+        #
+        # while b"." in self._dataBuffer:
+        #     index = self._dataBuffer.index(b".")
+        #     chunk = self._dataBuffer[:index]
+        #     self._dataBuffer = self._dataBuffer[index + 1:]
+        #
+        #     self._processVortexMsg(chunk)
 
-        while b"." in self._dataBuffer:
-            index = self._dataBuffer.index(b".")
-            chunk = self._dataBuffer[:index]
-            self._dataBuffer = self._dataBuffer[index + 1:]
-
-            self._processVortexMsg(chunk)
+        d = self._processVortexMsg(data)
+        d.addErrback(lambda f: logger.exception(f.value))
 
     def connectionLost(self, reason=connectionDone):
         if self._conn:

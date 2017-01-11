@@ -1,13 +1,11 @@
 import logging
-from typing import List
 
 from vortex.PayloadFilterKeys import plDeleteKey
 from vortex.handler.ModelHandler import ModelHandler
-
-
 from vortex.test.TestTuple import TestTuple
 
 logger = logging.getLogger(__name__)
+
 
 # If there were reallying going to a DB, we'd use OrmCrudHandler
 class VortexJSTupleLoaderTestHandler(ModelHandler):
@@ -27,8 +25,10 @@ class VortexJSTupleLoaderTestHandler(ModelHandler):
                 # Else this was a save, just update some data and return id
                 data = payload.tuples
                 for testTuple in data:
-                    testTuple.aInt += 10
-                    testTuple.aBoolTrue = not testTuple.aBoolTrue
+                    testTuple.aInt = (testTuple.aInt if testTuple.aInt else 0) + 10
+                    testTuple.aBoolTrue = not (testTuple.aBoolTrue
+                                               if testTuple.aBoolTrue
+                                               else 0)
 
         else:
             # Else this is to get new data.
@@ -37,11 +37,12 @@ class VortexJSTupleLoaderTestHandler(ModelHandler):
                 uniStr = "#%s double hyphen :-( — “fancy quotes”" % num
                 data.append(TestTuple(aInt=num,
                                       aBoolTrue=bool(num % 2),
-                                      aString= "This is tuple #%s" % num,
+                                      aString="This is tuple #%s" % num,
                                       aStrWithUnicode=uniStr))
 
         return data
 
+
 __handler = VortexJSTupleLoaderTestHandler({
-                    "key": "vortex.tuple-loader.test.data"
-                })
+    "key": "vortex.tuple-loader.test.data"
+})
