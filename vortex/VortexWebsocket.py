@@ -137,8 +137,7 @@ class VortexWebsocketConnection(VortexConnectionABC):
 
     def write(self, payloadVortexStr: bytes):
         assert not self._closed
-        self._transport.write(Payload(
-            tuples=["Hi from Vortex! %s" % datetime.utcnow()]).toVortexMsg())
+        self._transport.write(payloadVortexStr)
 
     def close(self):
         self._transport.loseConnection()
