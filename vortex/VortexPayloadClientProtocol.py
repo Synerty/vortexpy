@@ -93,36 +93,50 @@ class VortexPayloadClientProtocol(Protocol):
             vortexMsg = self._data[:nextChunk]
             self._data = self._data[nextChunk + 1:]
 
+            nextChunk = getNextChunk()
+            self._beat()
+
+            # If the vortex message is omitted entirly, then this is just a heart beat.
+            if len(vortexMsg) == 0:
+                continue
+
             try:
                 payload = yield Payload().fromVortexMsgDefer(vortexMsg)
 
                 if payload.isEmpty():
-                    if Payload.vortexUuidKey in payload.filt:
-                        self._serverVortexUuid = payload.filt[Payload.vortexUuidKey]
-
-                    if Payload.vortexNameKey in payload.filt:
-                        self._serverVortexName = payload.filt[Payload.vortexNameKey]
-
-                    self._beat()
-                    return
-
-                def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):
-                    """ Send Response
-
-                    Sends a response back to where this payload come from.
-
-                    """
-                    return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs)
-
-                PayloadIO().process(payload,
-                                    vortexUuid=self._serverVortexUuid,
-                                    vortexName=self._serverVortexName,
-                                    httpSession=None,
-                                    sendResponse=sendResponse
-                                    )
+                    self._processServerInfoPayload(payload)
+                else:
+                    self._deliverPayload(payload)
 
             except Exception as e:
                 self._logger.exception(e)
                 raise
 
-            nextChunk = getNextChunk()
+    def _processServerInfoPayload(self, payload):
+        """ Process Server Info Payload
+
+        The first payload a server sends to the client contains information about it's
+        self.
+
+        """
+        if Payload.vortexUuidKey in payload.filt:
+            self._serverVortexUuid = payload.filt[Payload.vortexUuidKey]
+
+        if Payload.vortexNameKey in payload.filt:
+            self._serverVortexName = payload.filt[Payload.vortexNameKey]
+
+    def _deliverPayload(self, payload):
+        def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):
+            """ Send Response
+
+            Sends a response back to where this payload come from.
+
+            """
+            return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs)
+
+        PayloadIO().process(payload,
+                            vortexUuid=self._serverVortexUuid,
+                            vortexName=self._serverVortexName,
+                            httpSession=None,
+                            sendResponse=sendResponse
+                            )

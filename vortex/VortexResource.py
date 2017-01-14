@@ -81,7 +81,6 @@ class VortexResource(Resource):
 
 
 class VortexResourceConnection(VortexConnectionABC):
-
     def __init__(self, vortexServer: VortexServer,
                  remoteVortexUuid: str,
                  remoteVortexName: str,
@@ -105,11 +104,15 @@ class VortexResourceConnection(VortexConnectionABC):
         # Start our heart beat
         self._beatLoopingCall = task.LoopingCall(self._beat)
         d = self._beatLoopingCall.start(HEART_BEAT_PERIOD)
-        d.addErrback(lambda f:logger.exception(f.value))
+        d.addErrback(lambda f: logger.exception(f.value))
 
     def _beat(self):
+        if self._closed or self._request.finished or self._request.channel is None:
+            self._beatLoopingCall.stop()
+            return
+
         # Send the heartbeats
-        self.write(Payload().toVortexMsg())
+        self._request.write(b'.')
 
         # Touch the session
         self._request.getSession().touch()
@@ -144,11 +147,12 @@ class VortexResourceConnection(VortexConnectionABC):
             self._write(payloadVortexStr)
 
     def _write(self, payloadVortexStr: bytes):
-        if self._request.finished:
+        if self._request.finished or self._request.channel is None:
             logger.error("VORTEX CLOSED, CAN'T WRITE PAYLOAD")
             self._closed = True
             self._vortexServer.connectionClosed(self)
             return
+
         self._request.write(payloadVortexStr)
         self._request.write(b'.')
 
