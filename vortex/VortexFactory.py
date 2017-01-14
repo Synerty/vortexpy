@@ -11,8 +11,7 @@ from vortex.VortexABC import VortexABC
 from vortex.VortexClient import VortexClient
 from vortex.VortexResource import VortexResource
 from vortex.VortexServer import VortexServer
-from vortex.VortexWebsocket import VortexWebsocketServerProtocol, \
-    VortexWebsocketServerFactory
+from vortex.VortexWebsocket import VortexWebsocketServerFactory
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +43,8 @@ class VortexFactory:
 
         results = []
 
-        vortexes = []
-
-        for vortexList in cls.__vortexServersByName.values():
-            vortexes += vortexList
-
-        for vortexList in cls.__vortexClientsByName.values():
-            vortexes += vortexList
-
         # logger.debug("-" * 80)
-        for vortex in vortexes:
+        for vortex in cls._allVortexes():
             uuids = []
             # logger.debug("FROM : %s", vortex.localVortexInfo)
             for remoteVortexInfo in vortex.remoteVortexInfo:
@@ -66,6 +57,20 @@ class VortexFactory:
                 results.append((vortex, uuids))
 
         return results
+
+    @classmethod
+    def _allVortexes(cls):
+        """ All Vortexes
+
+        :return: A list of all the vortexes, both client and server
+        """
+        vortexes = []
+        for vortexList in cls.__vortexServersByName.values():
+            vortexes += vortexList
+        for vortexList in cls.__vortexClientsByName.values():
+            vortexes += vortexList
+
+        return vortexes
 
     @classmethod
     def createServer(cls, name: str, rootResource) -> None:
@@ -131,6 +136,16 @@ class VortexFactory:
     def getLocalVortexClients(cls, localVortexName: str) -> List[VortexClient]:
         return list(filter(lambda x: x.name == localVortexName,
                            cls.__vortexClientsByName.values()))
+
+    @classmethod
+    def getRemoteVortexUuids(cls) -> List[str]:
+        remoteUuids = []
+
+        for vortex in  cls._allVortexes():
+            for remoteVortexInfo in vortex.remoteVortexInfo:
+                remoteUuids.append(remoteVortexInfo.uuid)
+
+        return remoteUuids
 
     @classmethod
     def sendVortexMsg(cls,

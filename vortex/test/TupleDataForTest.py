@@ -6,33 +6,16 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
-from Tuple import TupleField, Tuple, addTupleType
+from vortex.test.TestTuple import TestTuple
 
 
-@addTupleType
-class TestTuple(Tuple):
-    '''
-    classdocs
-    '''
-    __tupleType__ = 'rapui.synerty.TestTuple'
-    aInt = TupleField()
-    aFloat = TupleField()
-    aString = TupleField()
-    aDate = TupleField()
-    aBoolTrue = TupleField()
-    aBoolFalse = TupleField()
-    aSet = TupleField()
-    aList = TupleField()
-    aDict = TupleField()
-    aSubTuple = TupleField()
-    aListOfSubTuples = TupleField()
+def makeTestTupleData(count=5):
+    tuples = []
+    for num in range(count):
+        uniStr = "#%s double hyphen :-( — “fancy quotes”" % num
+        tuples.append(TestTuple(aInt=num,
+                              aBoolTrue=bool(num % 2),
+                              aString="This is tuple #%s" % num,
+                              aStrWithUnicode=uniStr))
 
-
-@addTupleType
-class TestSubTuple(Tuple):
-    ''' Test Sub Tuple
-    This tuple will test if we can have tuples in tuples and still serialise and
-    deserialise them.
-    '''
-    __tupleType__ = 'rapui.synerty.TestSubTuple'
-    subInt = TupleField()
+    return tuples

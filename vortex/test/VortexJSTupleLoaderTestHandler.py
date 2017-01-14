@@ -3,6 +3,7 @@ import logging
 from vortex.PayloadFilterKeys import plDeleteKey
 from vortex.handler.ModelHandler import ModelHandler
 from vortex.test.TestTuple import TestTuple
+from vortex.test.TupleDataForTest import makeTestTupleData
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +33,7 @@ class VortexJSTupleLoaderTestHandler(ModelHandler):
 
         else:
             # Else this is to get new data.
-
-            for num in range(5):
-                uniStr = "#%s double hyphen :-( — “fancy quotes”" % num
-                data.append(TestTuple(aInt=num,
-                                      aBoolTrue=bool(num % 2),
-                                      aString="This is tuple #%s" % num,
-                                      aStrWithUnicode=uniStr))
+            data = makeTestTupleData()
 
         return data
 

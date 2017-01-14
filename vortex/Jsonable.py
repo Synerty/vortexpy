@@ -9,6 +9,7 @@
 import logging
 import traceback
 from copy import copy
+from json import JSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,9 @@ from .SerialiseUtil import *
 # JSON Constants
 ###############################################################################
 
+# Globally mess with the json dump separators for more compact json
+JSONEncoder.item_separator = ','
+JSONEncoder.key_separator = ':'
 
 
 class Jsonable(object):

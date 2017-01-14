@@ -17,7 +17,7 @@ from FastXml import FastXml
 from Tuple import TUPLE_TYPES_BY_NAME, TupleHash
 from tuples_test.TestTuple import TestSubTuple, TestTuple
 
-
+json.dump()
 
 def makeTupleA():
     tuple_ = TestTuple()

@@ -156,10 +156,11 @@ class TupleField(object):
     class _Map():
         pass
 
-    def __init__(self, defaultValue=None, comment="", shortName=None, jsonExclude=False):
+    def __init__(self, defaultValue=None, typingType=None, comment="", shortName=None, jsonExclude=False):
         self.name = None
         self.shortName = None
         self.defaultValue = defaultValue
+        self.typingType = typingType
         self.comment = comment
         self.jsonExclude = jsonExclude
 

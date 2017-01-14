@@ -14,6 +14,7 @@ from twisted.web.http import HTTPChannel
 from twisted.web.resource import Resource
 
 from vortex.VortexFactory import VortexFactory
+from vortex.test.TupleDataObservableTestHandler import NotifyTestTimer
 
 logging.basicConfig(format='%(asctime)s %(levelname)s %(name)s:%(message)s'
                     , datefmt='%d-%b-%Y %H:%M:%S'
@@ -63,6 +64,10 @@ def setupVortexServer(portNum=8345, wsPortNum=8344):
                 ' http://%s:%s/vortex', ip, port)
     logger.info('VortexServerWebsocket test is alive and listening on port ws://%s:%s',
                 ip, wsPortNum)
+    logger.debug("Logging debug messages enabled")
+
+    NotifyTestTimer.startTupleUpdateNotifyer()
+
     return port
 
 

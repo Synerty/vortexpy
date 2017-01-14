@@ -6,3 +6,6 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
+
+from . import TupleDataObservableTestHandler
+from . import VortexJSTupleLoaderTestHandler
