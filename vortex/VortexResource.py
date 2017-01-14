@@ -16,6 +16,7 @@ from twisted.internet.defer import inlineCallbacks
 from twisted.web.resource import Resource
 from twisted.web.server import NOT_DONE_YET
 
+from vortex.VortexServer import HEART_BEAT_PERIOD
 from .Payload import Payload
 from .VortexConnectionABC import VortexConnectionABC
 from .VortexServer import VortexServer
@@ -44,22 +45,22 @@ class VortexResource(Resource):
         if self.__vortex.isShutdown():
             return None
 
-        session = request.getSession()
+        httpSession = request.getSession()
         conn = VortexResourceConnection(self.__vortex,
                                         remoteVortexUuid,
                                         remoteVortexName,
-                                        request, session)
+                                        request)
 
         data = request.content.read()
         if len(data):
             for vortexStr in data.strip(b'.').split(b'.'):
-                self._processVortexMsg(session, conn, vortexStr.decode("UTF-8"))
+                self._processVortexMsg(httpSession, conn, vortexStr.decode("UTF-8"))
 
         # Request will be around for a while, do some cleanups
         request.content = BytesIO()
         request.args = {}
 
-        self.__vortex.connectionOpened(session, conn)
+        self.__vortex.connectionOpened(httpSession, conn)
 
         def connClosed(err):
             logger.debug("VortexServer connection ended by client")
@@ -80,16 +81,17 @@ class VortexResource(Resource):
 
 
 class VortexResourceConnection(VortexConnectionABC):
+
     def __init__(self, vortexServer: VortexServer,
                  remoteVortexUuid: str,
                  remoteVortexName: str,
-                 request, session):
+                 request):
         VortexConnectionABC.__init__(self,
                                      logger,
                                      vortexServer,
                                      remoteVortexUuid=remoteVortexUuid,
                                      remoteVortexName=remoteVortexName,
-                                     httpSessionUuid=session.uid)
+                                     httpSessionUuid=request.getSession().uid)
 
         self._request = request
         self._request.responseHeaders.setRawHeaders(b'content-type'
@@ -99,6 +101,18 @@ class VortexResourceConnection(VortexConnectionABC):
 
         self._requestReadyCheckTimer = task.LoopingCall(self._checkIfRequestIsReady)
         self._requestReadyCheckTimer.start(0.001)
+
+        # Start our heart beat
+        self._beatLoopingCall = task.LoopingCall(self._beat)
+        d = self._beatLoopingCall.start(HEART_BEAT_PERIOD)
+        d.addErrback(lambda f:logger.exception(f.value))
+
+    def _beat(self):
+        # Send the heartbeats
+        self.write(Payload().toVortexMsg())
+
+        # Touch the session
+        self._request.getSession().touch()
 
     @property
     def ip(self):
@@ -139,5 +153,8 @@ class VortexResourceConnection(VortexConnectionABC):
         self._request.write(b'.')
 
     def close(self):
+        if self._beatLoopingCall.running:
+            self._beatLoopingCall.stop()
+
         self._closed = True
         self._request.finish()

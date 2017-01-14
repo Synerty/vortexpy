@@ -29,15 +29,13 @@ logger = logging.getLogger(__name__)
 VortexServer
 '''
 
+HEART_BEAT_PERIOD = 5.0
+HEART_BEAT_TIMEOUT = 35.0
 
 class VortexServer(VortexABC):
     ''' VortexServer
     The static instance of the controller
     '''
-
-    HEART_BEAT_PERIOD = 1.0
-    HEART_BEAT_TIMEOUT = 35.0
-
     def __init__(self, name: str):
         # Simple initialisations up the top
         self._name = name
@@ -47,11 +45,6 @@ class VortexServer(VortexABC):
         # Store all our sessions
         self._httpSessionsBySessionUuid = WeakValueDictionary()
         self._connectionByVortexUuid = {}
-
-        # Start our heart beat
-        self._beatLoopingCall = task.LoopingCall(self._beat)
-        d = self._beatLoopingCall.start(self.HEART_BEAT_PERIOD)
-        d.addErrback(lambda f:logger.exception(f.value))
 
     def name(self):
         return self._name
@@ -79,9 +72,6 @@ class VortexServer(VortexABC):
     def shutdown(self):
         self._shutdown = True
 
-        if self._beatLoopingCall.running:
-            self._beatLoopingCall.stop()
-
         for sess in list(self._httpSessionsBySessionUuid.values()):
             sess.expire()
 
@@ -100,20 +90,6 @@ class VortexServer(VortexABC):
             return None
 
         return "%s:%s" % (connection.ip, connection.port)
-
-    def _beat(self):
-        # print "VortexServer - beat"
-        # Send the heartbeats
-        self.sendVortexMsg(Payload().toVortexMsg())
-
-        # Make sure we only touch the sessions that have connections
-        httpSessionUuids = set([conn.httpSessionUuid
-                                for conn in list(self._connectionByVortexUuid.values())])
-
-        # Touch all the sessions
-        for sess in list(self._httpSessionsBySessionUuid.values()):
-            if sess and sess.uid in httpSessionUuids:
-                sess.touch()
 
     def connectionOpened(self, httpSession, vortexConnection):
         # print "VortexServer - connectionOpened"
@@ -259,7 +235,7 @@ class VortexSessionI(Interface):
 @implementer(VortexSessionI)
 class VortexSession(object):
     def __init__(self, session):
-        session.sessionTimeout = VortexServer.HEART_BEAT_TIMEOUT
+        session.sessionTimeout = HEART_BEAT_TIMEOUT
         self.connections = {}
 
 
