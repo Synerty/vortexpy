@@ -13,12 +13,13 @@ from urllib.parse import urlparse, parse_qs
 
 import six
 import txws
+from twisted.internet import task
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.protocol import Protocol, connectionDone, Factory
 
 from .Payload import Payload
 from .VortexConnectionABC import VortexConnectionABC
-from .VortexServer import VortexServer
+from .VortexServer import VortexServer, HEART_BEAT_PERIOD, HEART_BEAT_TIMEOUT
 
 logger = logging.getLogger(name=__name__)
 
@@ -85,6 +86,10 @@ class VortexWebsocketServerProtocol(Protocol):
         if self._vortex.isShutdown():
             return None
 
+        if data in ('.', b'.'):
+            self._conn.beatReceived()
+            return
+
         # self._dataBuffer += data
         #
         # while b"." in self._dataBuffer:
@@ -126,6 +131,29 @@ class VortexWebsocketConnection(VortexConnectionABC):
 
         self._transport = transport
         self._addr = addr
+
+        # Start our heart beat
+        self._beatLoopingCall = task.LoopingCall(self._beat)
+        d = self._beatLoopingCall.start(HEART_BEAT_PERIOD)
+        d.addErrback(lambda f: logger.exception(f.value))
+
+        self._lastHeartBeatTime = datetime.utcnow()
+
+    def beatReceived(self):
+        self._lastHeartBeatTime = datetime.utcnow()
+
+    def _beat(self):
+        if self._closed:
+            self._beatLoopingCall.stop()
+            return
+
+        if (datetime.utcnow() - self._lastHeartBeatTime).seconds > HEART_BEAT_TIMEOUT:
+            self._beatLoopingCall.stop()
+            self.close()
+            return
+
+        # Send the heartbeats
+        self._transport.write(b'.')
 
     @property
     def ip(self):
