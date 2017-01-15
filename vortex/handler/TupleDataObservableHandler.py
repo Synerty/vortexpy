@@ -4,7 +4,6 @@ from collections import defaultdict
 
 from vortex.Payload import deferToThreadWrap, Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
-from vortex.Tuple import tupleForTupleName
 from vortex.TupleSelector import TupleSelector
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
@@ -24,33 +23,6 @@ class TuplesProviderABC(metaclass=ABCMeta):
         send back,
         """
 
-
-class TuplesProviderForDB(TuplesProviderABC):
-    def __init__(self, ormSessionCreatorFunc):
-        self._ormSessionCreatorFunc = ormSessionCreatorFunc
-
-    def makeVortexMsg(self, filt: dict, tupleSelector: TupleSelector) -> bytes:
-        """ Make VortexMsg for DB
-
-        Considerations for this method.
-
-        #.  It must return a vortexMsg (bytes), this ensures all the database access
-                and lazy loading is completed in this thread, in this session.
-
-        #.  It must ensure the session is closed on/after exit.
-
-        """
-
-        TupleClass = tupleForTupleName(tupleSelector.name)
-
-        with self._ormSessionCreatorFunc() as ormSession:
-            qry = ormSession.query(TupleClass)
-            for key, value in tupleSelector.selector.items():
-                qry = qry.filter(**{getattr(TupleClass, key): value})
-
-            return Payload(filt=filt, tuples=qry.all()).toVortexMsg()
-
-
 class TupleDataObservableHandler:
     def __init__(self, observableName, tuplesProvider: TuplesProviderABC,
                  additionalFilt=None):
@@ -67,9 +39,7 @@ class TupleDataObservableHandler:
     def shutdown(self):
         self._endpoint.shutdown()
 
-    def _createVortexMsg(self, tupleSelector: TupleSelector) -> bytes:
-        filt = dict(tupleSelector=tupleSelector)
-        filt.update(self._filt)
+    def _createVortexMsg(self, filt, tupleSelector: TupleSelector) -> bytes:
         vortexMsg = self._tuplesProvider.makeVortexMsg(filt, tupleSelector)
         return vortexMsg
 
@@ -79,7 +49,7 @@ class TupleDataObservableHandler:
 
         self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(vortexUuid)
 
-        d = sendResponse(self._createVortexMsg(tupleSelector))
+        d = sendResponse(self._createVortexMsg(payload.filt, tupleSelector))
         d.addErrback(lambda f: logger.exception(f.value))
 
     @deferToThreadWrap
@@ -95,7 +65,9 @@ class TupleDataObservableHandler:
             return
 
         # Create the vortexMsg
-        vortexMsg = self._createVortexMsg(tupleSelector)
+        filt = dict(tupleSelector=tupleSelector)
+        filt.update(self._filt)
+        vortexMsg = self._createVortexMsg(filt, tupleSelector)
 
         # Send the vortex messages
         for vortexUuid in observingUuids:

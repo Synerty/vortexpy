@@ -4,7 +4,7 @@ from datetime import datetime
 from twisted.internet import task
 
 from vortex.Payload import Payload
-from vortex.TupleDataObservableHandler import TuplesProviderABC, \
+from vortex.handler.TupleDataObservableHandler import TuplesProviderABC, \
     TupleDataObservableHandler
 from vortex.TupleSelector import TupleSelector
 from vortex.test.TupleDataForTest import makeTestTupleData
