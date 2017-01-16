@@ -3,6 +3,7 @@ from uuid import uuid1
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
+from twisted.python.failure import Failure
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
@@ -33,12 +34,13 @@ class PayloadResponse(Deferred):
 
     PROCESSING = "Processing"
     # NO_ENDPOINT = "No Endpoint"
-    # FAILED = "Failed"
+    FAILED = "Failed"
     SUCCESS = "Success"
     TIMED_OUT = "Timed Out"
 
-    def __init__(self, payload: Payload, timeout: int = 10):
+    def __init__(self, payload: Payload, timeout: int = 10, resultCheck=True):
         Deferred.__init__(self)
+        self._resultCheck = resultCheck
 
         self._messageId = str(uuid1())
         payload.filt["PayloadResponse.messageId"] = self._messageId
@@ -66,5 +68,10 @@ class PayloadResponse(Deferred):
         if self.called:
             raise Exception("Received response after timeout.")
 
-        self._status = self.SUCCESS
-        self.callback(payload)
+        if self._resultCheck and not payload.result in (None, True):
+            self._status = self.FAILED
+            self.errback(Failure(Exception(payload.result)))
+
+        else:
+            self._status = self.SUCCESS
+            self.callback(payload)
