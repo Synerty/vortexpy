@@ -22,21 +22,11 @@ class VortexPayloadClientProtocol(Protocol):
     def __init__(self, logger, vortexClient=None):
         self._vortexClient = vortexClient
         self._data = b""
-        self._serverVortexUuid = None
-        self._serverVortexName = None
         self._logger = logger
 
     def _beat(self):
         if self._vortexClient:
             self._vortexClient._beat()
-
-    @property
-    def serverVortexUuid(self):
-        return self._serverVortexUuid
-
-    @property
-    def serverVortexName(self):
-        return self._serverVortexName
 
     def dataReceived(self, bytes):
         if bytes.startswith(b"<"):
@@ -89,7 +79,7 @@ class VortexPayloadClientProtocol(Protocol):
 
         nextChunk = getNextChunk()
 
-        while nextChunk:
+        while nextChunk is not None: # NOT ZERO
             vortexMsg = self._data[:nextChunk]
             self._data = self._data[nextChunk + 1:]
 
@@ -119,11 +109,9 @@ class VortexPayloadClientProtocol(Protocol):
         self.
 
         """
-        if Payload.vortexUuidKey in payload.filt:
-            self._serverVortexUuid = payload.filt[Payload.vortexUuidKey]
-
-        if Payload.vortexNameKey in payload.filt:
-            self._serverVortexName = payload.filt[Payload.vortexNameKey]
+        if Payload.vortexUuidKey in payload.filt and self._vortexClient:
+            self._vortexClient._setNameAndUuid(name=payload.filt[Payload.vortexNameKey],
+                                               uuid=payload.filt[Payload.vortexUuidKey])
 
     def _deliverPayload(self, payload):
         def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):

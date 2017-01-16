@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 
 from twisted.internet import reactor, task
 from twisted.internet.defer import succeed, Deferred
+from twisted.python.failure import Failure
 from twisted.web.client import Agent, CookieAgent
 from twisted.web.http_headers import Headers
 from twisted.web.iweb import IBodyProducer
@@ -52,6 +53,10 @@ class VortexClient(VortexABC):
     """ VortexServer Client
     Connects to a votex server
     """
+    RETRY_DELAY = 1.5  # Seconds
+
+    # The time it takes after recieving a response from the server to receive the
+    INFO_PAYLOAD_TIMEOUT = 5  # Seconds
 
     def __init__(self, name: str):
         self._vortexName = name
@@ -60,7 +65,10 @@ class VortexClient(VortexABC):
         self._server = None
         self._port = None
 
-        self._connectionBroken = False
+        self._retrying = False
+
+        self._serverVortexUuid = None
+        self._serverVortexName = None
 
         self._cookieJar = CookieJar()
 
@@ -84,11 +92,11 @@ class VortexClient(VortexABC):
         if not self.__protocol:
             return []
 
-        if not self.__protocol.serverVortexUuid:
+        if not self._serverVortexUuid:
             return []
 
-        return [VortexInfo(name=self.__protocol.serverVortexName,
-                           uuid=self.__protocol.serverVortexUuid)]
+        return [VortexInfo(name=self._serverVortexName,
+                           uuid=self._serverVortexUuid)]
 
     @property
     def name(self):
@@ -98,9 +106,25 @@ class VortexClient(VortexABC):
         self._server = server
         self._port = port
 
+        if self._serverVortexName:
+            raise Exception("Reconnecting is not implemented")
+
         self._beat()
         self._beatLoopingCall.start(5.0)
-        return self.sendVortexMsg()
+
+        deferred = Deferred()
+
+        def checkUuid():
+            if self._serverVortexName:
+                deferred.callback(True)
+            else:
+                reactor.callLater(0.1, checkUuid)
+
+        checkUuid()
+        self.sendVortexMsg()
+
+        return deferred
+
 
     def disconnect(self):
         self.__protocol.transport.loseConnection()
@@ -135,20 +159,25 @@ class VortexClient(VortexABC):
         assert self._server
         assert vortexMsgs
 
-        if not isinstance(vortexMsgs, list):
-            vortexMsgs = [vortexMsgs]
+        def ebSendAgain(failure):
+            self._retrying = True
+            logger.debug("Retrying send of %s messages : %s",
+                         len(vortexMsgs), failure.value)
+
+            return task.deferLater(reactor, self.RETRY_DELAY,
+                                   self._sendVortexMsgLater, vortexMsgs)
 
         def cbRequest(response):
             if response.code != 200:
-                logger.error("Connection to vortex %s:%s failed",
-                             self._server, self._port)
-                return False
+                msg = "Connection to vortex %s:%s failed" % (self._server, self._port)
+                logger.error(msg)
+                return Failure(Exception(msg))
 
-            elif self._connectionBroken:
+            elif self._retrying:
                 logger.info("VortexServer client %s:%s reconnected",
                             self._server, self._port)
 
-            self._connectionBroken = False
+            self._retrying = False
             self.__protocol = VortexPayloadClientProtocol(logger, vortexClient=self)
             response.deliverBody(self.__protocol)
             return True
@@ -172,16 +201,25 @@ class VortexClient(VortexABC):
             bodyProducer)
 
         d.addCallback(cbRequest)
+        d.addErrback(ebSendAgain)  # Must be after cbRequest
         return d
 
     def _beat(self):
+        """ Beat, Called by protocol """
         self._beatTime = datetime.utcnow()
+
+    def _setNameAndUuid(self, name, uuid):
+        """ Set Name And Uuid, Called by protocol """
+        self._serverVortexName = name
+        self._serverVortexUuid = uuid
 
     def _checkBeat(self):
         if not (datetime.utcnow() - self._beatTime).seconds > self._beatTimeout:
             return
 
-        self._connectionBroken = True
+        if self._retrying:
+            return
+
         logger.info("VortexServer client dead, reconnecting %s:%s"
                     % (self._server, self._port))
 
