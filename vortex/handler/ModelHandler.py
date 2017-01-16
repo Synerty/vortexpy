@@ -7,6 +7,7 @@
  * Support : support@synerty.com
 """
 import logging
+from abc import ABCMeta, abstractmethod
 from copy import copy
 
 from twisted.internet.defer import Deferred, fail, succeed
@@ -19,7 +20,7 @@ from vortex.VortexFactory import VortexFactory
 logger = logging.getLogger(__name__)
 
 
-class ModelHandler(object):
+class ModelHandler(metaclass=ABCMeta):
     def __init__(self, payloadFilter):
         ''' Create Model Hanlder
 
@@ -64,6 +65,7 @@ class ModelHandler(object):
         result = self.buildModel(payloadFilt=payload.filt if payload else None,
                                  payload=payload,
                                  vortexUuid=vortexUuid,
+                                 payloadReplyFilt=filt,
                                  **kwargs)
 
         if isinstance(result, Deferred):
@@ -76,9 +78,8 @@ class ModelHandler(object):
         d.addCallback(self._sendModelUpdateCallback, filt, vortexUuid)
         d.addErrback(self._sendModelUpdateErrback, filt, vortexUuid)
 
-
         # deferToThread doesn't like this, and it never used to return anything anyway
-        d.addErrback(lambda _ : True) # stop "Unhandled error in Deferred" messages
+        d.addErrback(lambda _: True)  # stop "Unhandled error in Deferred" messages
         # return d
 
     def _sendModelUpdateCallback(self, value, filt, vortexUuid):
@@ -112,11 +113,18 @@ class ModelHandler(object):
     def shutdown(self):
         self._ep.shutdown()
 
+    @abstractmethod
     def buildModel(self, payloadFilt=None,
                    vortexUuid=None,
                    payload=Payload(),
-                   session=None):
-        raise NotImplementedError()
+                   payloadReplyFilt=None):
+        """ Build Model
+
+        :param payloadFilt: xx
+        :param vortexUuid: xx
+        :param payload: xx
+        :param payloadReplyFilt:
+        """
 
     def preProcess(self, payload, vortextUuid, **kwargs):
         pass

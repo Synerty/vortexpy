@@ -22,6 +22,8 @@ class VortexPayloadClientProtocol(Protocol):
     def __init__(self, logger, vortexClient=None):
         self._vortexClient = vortexClient
         self._data = b""
+        self._serverVortexUuid = None
+        self._serverVortexName = None
         self._logger = logger
 
     def _beat(self):
@@ -109,9 +111,16 @@ class VortexPayloadClientProtocol(Protocol):
         self.
 
         """
-        if Payload.vortexUuidKey in payload.filt and self._vortexClient:
-            self._vortexClient._setNameAndUuid(name=payload.filt[Payload.vortexNameKey],
-                                               uuid=payload.filt[Payload.vortexUuidKey])
+
+        if Payload.vortexUuidKey in payload.filt:
+            self._serverVortexUuid = payload.filt[Payload.vortexUuidKey]
+
+        if Payload.vortexNameKey in payload.filt:
+            self._serverVortexName = payload.filt[Payload.vortexNameKey]
+
+        if self._vortexClient:
+            self._vortexClient._setNameAndUuid(name=self._serverVortexName,
+                                               uuid=self._serverVortexUuid)
 
     def _deliverPayload(self, payload):
         def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):

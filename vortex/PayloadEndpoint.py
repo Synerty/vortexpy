@@ -109,7 +109,7 @@ class PayloadEndpoint(object):
         if self.check(payload):
             callable_ = self._wref()
             if callable_:
-                return callable_(payload,
+                return callable_(payload=payload,
                                  vortexUuid=vortexUuid,
                                  vortexName=vortexName,
                                  httpSession=httpSession,

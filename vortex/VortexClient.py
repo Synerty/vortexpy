@@ -219,6 +219,8 @@ class VortexClient(VortexABC):
 
         if self._retrying:
             return
+        
+        self._retrying = True
 
         logger.info("VortexServer client dead, reconnecting %s:%s"
                     % (self._server, self._port))

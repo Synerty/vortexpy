@@ -131,7 +131,8 @@ class Jsonable(object):
 
             from .Tuple import TUPLE_TYPES_BY_NAME
             if not tupleType in TUPLE_TYPES_BY_NAME:
-                raise Exception("Tuple type |%s| not registered within this program.")
+                raise Exception("Tuple type |%s| not registered within this program.",
+                                tupleType)
 
             try:
                 from .Tuple import TUPLE_TYPES_BY_NAME
@@ -139,7 +140,7 @@ class Jsonable(object):
 
             except Exception as e:
                 logger.critical(traceback.format_exc())
-                raise Exception("%s for tuple type %s" % (e.message, tupleType))
+                raise Exception("%s for tuple type %s" % (str(e), tupleType))
 
         # Payload
         if valueType == T_RAPUI_PAYLOAD:
