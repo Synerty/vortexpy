@@ -32,6 +32,8 @@ class PayloadResponse(Deferred):
 
     """
 
+    __messageIdKey = "PayloadResponse.messageId"
+
     PROCESSING = "Processing"
     # NO_ENDPOINT = "No Endpoint"
     FAILED = "Failed"
@@ -43,7 +45,7 @@ class PayloadResponse(Deferred):
         self._resultCheck = resultCheck
 
         self._messageId = str(uuid1())
-        payload.filt["PayloadResponse.messageId"] = self._messageId
+        payload.filt[self.__messageIdKey] = self._messageId
 
         self._status = self.PROCESSING
         self._date = datetime.utcnow()
@@ -55,6 +57,16 @@ class PayloadResponse(Deferred):
         # noinspection PyTypeChecker
         self.addTimeout(timeout, reactor)
         self.addErrback(self._timedOut)
+
+    @classmethod
+    def isResponsePayload(cls, payload):
+        """ Is Response Payload
+
+        The PayloadResponse tags the payloads, so it expects a unique message back.
+
+        :returns: True if this payload has been tagged by a PayloadResponse class
+        """
+        return cls.__messageIdKey in payload.filt
 
     @property
     def status(self):

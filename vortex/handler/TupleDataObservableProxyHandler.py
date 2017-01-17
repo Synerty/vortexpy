@@ -10,9 +10,18 @@ from vortex.VortexFactory import VortexFactory
 logger = logging.getLogger(__name__)
 
 
-class TupleDataObservableProxy:
-    def __init__(self, observableName, proxyToVortexName: str, additionalFilt=None):
+class TupleDataObservableProxyHandler:
+    def __init__(self, observableName, proxyToVortexName: str,
+                 additionalFilt=None, subscriptionsEnabled=True):
+        """ Constructor
+
+        :param observableName: The name of this and the other observable
+        :param proxyToVortexName: The vortex dest name to proxy requests to
+        :param additionalFilt: Any additional filter keys that are required
+        :param subscriptionsEnabled: Should subscriptions be enabled (default)
+        """
         self._proxyToVortexName = proxyToVortexName
+        self._subscriptionsEnabled = subscriptionsEnabled
         self._filt = dict(name=observableName,
                           key="tupleDataObservable")
         if additionalFilt:
@@ -26,20 +35,26 @@ class TupleDataObservableProxy:
         self._endpoint.shutdown()
 
 
-    def _process(self, payload: Payload, vortexUuid: str,
-                 sendResponse: SendVortexMsgResponseCallable, **kwargs):
-        if payload.tuples:
-            self._processSubscribeFromFrontend(payload, vortexUuid)
-        else:
+    def _process(self, payload: Payload, vortexUuid: str, vortexName:str,
+                sendResponse: SendVortexMsgResponseCallable, **kwargs):
+        if vortexName == self._proxyToVortexName:
             self._processUpdateFromBackend(payload)
+        else:
+            self._processSubscribeFromFrontend(payload, vortexUuid, sendResponse)
 
-    def _processSubscribeFromFrontend(self, payload: Payload, vortexUuid: str):
+    def _processSubscribeFromFrontend(self, payload: Payload, vortexUuid: str,
+                sendResponse: SendVortexMsgResponseCallable):
         tupleSelector = payload.filt["tupleSelector"]
-
-        self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(vortexUuid)
 
         # Track the response, log an error if it fails
         pr = PayloadResponse(payload, timeout=15)
+
+        # Add support for just getting data, no subscription.
+        if not "nosub" in payload.filt and self._subscriptionsEnabled:
+            self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(vortexUuid)
+        else:
+            pr.addCallback(lambda payload: sendResponse(payload.toVortexMsg()))
+
         pr.addCallback(lambda _:logger.debug("Received response from observable"))
         pr.addErrback(lambda f: logger.exception(f.value))
 

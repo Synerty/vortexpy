@@ -25,7 +25,19 @@ class TuplesProviderABC(metaclass=ABCMeta):
 
 class TupleDataObservableHandler:
     def __init__(self, observableName, tuplesProvider: TuplesProviderABC,
-                 additionalFilt=None):
+                 additionalFilt=None, subscriptionsEnabled=True):
+        """ Constructor
+
+        :param observableName: The name of this observable
+
+        :param tuplesProvider: The clas that provides us with vortex messages when we
+            want a tuple.
+
+        :param additionalFilt: Any additional filter keys that are required
+
+        :param subscriptionsEnabled: Should subscriptions be enabled (default)
+        """
+        self._subscriptionsEnabled = subscriptionsEnabled
         self._filt = dict(name=observableName,
                           key="tupleDataObservable")
         if additionalFilt:
@@ -47,7 +59,9 @@ class TupleDataObservableHandler:
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
         tupleSelector = payload.filt["tupleSelector"]
 
-        self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(vortexUuid)
+        # Add support for just getting data, no subscription.
+        if not "nosub" in payload.filt and self._subscriptionsEnabled:
+            self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(vortexUuid)
 
         d = sendResponse(self._createVortexMsg(payload.filt, tupleSelector))
         d.addErrback(lambda f: logger.exception(f.value))

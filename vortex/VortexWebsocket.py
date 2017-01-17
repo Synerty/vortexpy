@@ -129,6 +129,8 @@ class VortexWebsocketConnection(VortexConnectionABC):
                                      remoteVortexName=remoteVortexName,
                                      httpSessionUuid=httpSession)
 
+        self._lastHeartBeatTime = datetime.utcnow()
+
         self._transport = transport
         self._addr = addr
 
@@ -136,8 +138,6 @@ class VortexWebsocketConnection(VortexConnectionABC):
         self._beatLoopingCall = task.LoopingCall(self._beat)
         d = self._beatLoopingCall.start(HEART_BEAT_PERIOD)
         d.addErrback(lambda f: logger.exception(f.value))
-
-        self._lastHeartBeatTime = datetime.utcnow()
 
     def beatReceived(self):
         self._lastHeartBeatTime = datetime.utcnow()
