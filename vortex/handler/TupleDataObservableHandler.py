@@ -24,14 +24,10 @@ class TuplesProviderABC(metaclass=ABCMeta):
         """
 
 class TupleDataObservableHandler:
-    def __init__(self, observableName, tuplesProvider: TuplesProviderABC,
-                 additionalFilt=None, subscriptionsEnabled=True):
+    def __init__(self, observableName, additionalFilt=None, subscriptionsEnabled=True):
         """ Constructor
 
         :param observableName: The name of this observable
-
-        :param tuplesProvider: The clas that provides us with vortex messages when we
-            want a tuple.
 
         :param additionalFilt: Any additional filter keys that are required
 
@@ -44,15 +40,32 @@ class TupleDataObservableHandler:
             self._filt.update(additionalFilt)
 
         self._endpoint = PayloadEndpoint(self._filt, self._process)
-        self._tuplesProvider = tuplesProvider
 
         self._vortexUuidsByTupleSelectors = defaultdict(list)
+        
+        self._tupleProvidersByTupleName = {}
+
+    def addTupleProvider(self, tupleName, provider:TuplesProviderABC):
+        """ Add Tuple Provider
+
+        """
+        assert not tupleName in self._tupleProvidersByTupleName, (
+            "Tuple name %s is already registered" % tupleName)
+
+        assert isinstance(provider, TuplesProviderABC), (
+            "provider must be an instance of TuplesProviderABC")
+
+        self._tupleProvidersByTupleName[tupleName] = provider
 
     def shutdown(self):
         self._endpoint.shutdown()
 
     def _createVortexMsg(self, filt, tupleSelector: TupleSelector) -> bytes:
-        vortexMsg = self._tuplesProvider.makeVortexMsg(filt, tupleSelector)
+        tupleProvider = self._tupleProvidersByTupleName.get(tupleSelector.name)
+        assert tupleProvider, (
+            "No providers registered for tupleName %s" % tupleSelector.name)
+
+        vortexMsg = tupleProvider.makeVortexMsg(filt, tupleSelector)
         return vortexMsg
 
     def _process(self, payload: Payload, vortexUuid: str,

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from uuid import uuid1
 
@@ -7,6 +8,8 @@ from twisted.python.failure import Failure
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
+
+logger = logging.getLogger(__name__)
 
 
 class PayloadResponse(Deferred):
@@ -56,7 +59,7 @@ class PayloadResponse(Deferred):
 
         # noinspection PyTypeChecker
         self.addTimeout(timeout, reactor)
-        self.addErrback(self._timedOut)
+        self.addErrback(self._timedOut, payload)
 
     @classmethod
     def isResponsePayload(cls, payload):
@@ -72,7 +75,8 @@ class PayloadResponse(Deferred):
     def status(self):
         return self._status
 
-    def _timedOut(self, failure):
+    def _timedOut(self, failure: Failure, payload: Payload):
+        logger.error("Timed out for payload %s", payload.filt)
         self._status = self.TIMED_OUT
         return failure
 

@@ -47,7 +47,8 @@ class TupleDataObservableProxyHandler:
         tupleSelector = payload.filt["tupleSelector"]
 
         # Track the response, log an error if it fails
-        pr = PayloadResponse(payload, timeout=15)
+        # 5 Seconds is long enough
+        pr = PayloadResponse(payload, timeout=5)
 
         # Add support for just getting data, no subscription.
         if not "nosub" in payload.filt and self._subscriptionsEnabled:
