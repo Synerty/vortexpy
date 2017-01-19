@@ -15,8 +15,8 @@ from twisted.internet import task
 from twisted.internet.defer import inlineCallbacks
 from twisted.web.resource import Resource
 from twisted.web.server import NOT_DONE_YET
-
 from vortex.VortexServer import HEART_BEAT_PERIOD
+
 from .Payload import Payload
 from .VortexConnectionABC import VortexConnectionABC
 from .VortexServer import VortexServer
@@ -50,6 +50,12 @@ class VortexResource(Resource):
                                         remoteVortexUuid,
                                         remoteVortexName,
                                         request)
+
+        # Send a heart beat down the new connection, tell it who we are.
+        connectPayloadFilt = {}
+        connectPayloadFilt[Payload.vortexUuidKey] = self.__vortex.uuid()
+        connectPayloadFilt[Payload.vortexNameKey] = self.__vortex.name()
+        conn.write(Payload(filt=connectPayloadFilt).toVortexMsg())
 
         data = request.content.read()
         if len(data):

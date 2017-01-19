@@ -114,12 +114,6 @@ class VortexServer(VortexABC):
         # Update the _connectionsByvortexUuid
         self._connectionByVortexUuid[vortexUuid] = vortexConnection
 
-        # Send a heart beat down the new connection, tell it who we are.
-        connectPayloadFilt = {}
-        connectPayloadFilt[Payload.vortexUuidKey] = self._uuid
-        connectPayloadFilt[Payload.vortexNameKey] = self._name
-        self.sendVortexMsg(Payload(filt=connectPayloadFilt).toVortexMsg(), vortexUuid)
-
     def connectionClosed(self, conn):
         # print "VortexServer - connectionClosed"
 

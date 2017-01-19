@@ -54,10 +54,13 @@ class TupleDataObservableProxyHandler:
         if not "nosub" in payload.filt and self._subscriptionsEnabled:
             self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(vortexUuid)
         else:
-            pr.addCallback(lambda payload: sendResponse(payload.toVortexMsg()))
+            # This is not a lambda, so that it can have a breakpoint
+            def reply(payload):
+                sendResponse(payload.toVortexMsg())
+            pr.addCallback(reply)
 
         pr.addCallback(lambda _:logger.debug("Received response from observable"))
-        pr.addErrback(lambda f: logger.exception(f.value))
+        pr.addErrback(lambda f: logger.error(f.value))
 
         d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
                                         destVortexName=self._proxyToVortexName)

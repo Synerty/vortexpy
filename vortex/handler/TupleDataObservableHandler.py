@@ -2,7 +2,7 @@ import logging
 from abc import abstractmethod, ABCMeta
 from collections import defaultdict
 
-from vortex.Payload import deferToThreadWrap, Payload
+from vortex.Payload import deferToThreadWrap, Payload, printFailure
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.TupleSelector import TupleSelector
 from vortex.VortexABC import SendVortexMsgResponseCallable
@@ -23,6 +23,7 @@ class TuplesProviderABC(metaclass=ABCMeta):
         send back,
         """
 
+
 class TupleDataObservableHandler:
     def __init__(self, observableName, additionalFilt=None, subscriptionsEnabled=True):
         """ Constructor
@@ -33,6 +34,7 @@ class TupleDataObservableHandler:
 
         :param subscriptionsEnabled: Should subscriptions be enabled (default)
         """
+        self._observableName = observableName
         self._subscriptionsEnabled = subscriptionsEnabled
         self._filt = dict(name=observableName,
                           key="tupleDataObservable")
@@ -42,18 +44,20 @@ class TupleDataObservableHandler:
         self._endpoint = PayloadEndpoint(self._filt, self._process)
 
         self._vortexUuidsByTupleSelectors = defaultdict(list)
-        
+
         self._tupleProvidersByTupleName = {}
 
-    def addTupleProvider(self, tupleName, provider:TuplesProviderABC):
+    def addTupleProvider(self, tupleName, provider: TuplesProviderABC):
         """ Add Tuple Provider
 
         """
         assert not tupleName in self._tupleProvidersByTupleName, (
-            "Tuple name %s is already registered" % tupleName)
+            "Observable:%s, Tuple name %s is already registered" %
+            (self._observableName, tupleName))
 
         assert isinstance(provider, TuplesProviderABC), (
-            "provider must be an instance of TuplesProviderABC")
+            "Observable:%s, provider must be an instance of TuplesProviderABC"
+            % self._observableName)
 
         self._tupleProvidersByTupleName[tupleName] = provider
 
@@ -63,7 +67,8 @@ class TupleDataObservableHandler:
     def _createVortexMsg(self, filt, tupleSelector: TupleSelector) -> bytes:
         tupleProvider = self._tupleProvidersByTupleName.get(tupleSelector.name)
         assert tupleProvider, (
-            "No providers registered for tupleName %s" % tupleSelector.name)
+            "Observable:%s, No providers registered for tupleName %s"
+            % (self._observableName, tupleSelector.name))
 
         vortexMsg = tupleProvider.makeVortexMsg(filt, tupleSelector)
         return vortexMsg
@@ -74,7 +79,8 @@ class TupleDataObservableHandler:
 
         # Add support for just getting data, no subscription.
         if not "nosub" in payload.filt and self._subscriptionsEnabled:
-            self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(vortexUuid)
+            self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(
+                vortexUuid)
 
         d = sendResponse(self._createVortexMsg(payload.filt, tupleSelector))
         d.addErrback(lambda f: logger.exception(f.value))
@@ -98,5 +104,6 @@ class TupleDataObservableHandler:
 
         # Send the vortex messages
         for vortexUuid in observingUuids:
-            VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
+            d = VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
                                         destVortexUuid=vortexUuid)
+            d.addErrback(printFailure)

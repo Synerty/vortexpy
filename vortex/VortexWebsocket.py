@@ -76,6 +76,12 @@ class VortexWebsocketServerProtocol(Protocol):
                                                self.transport,
                                                self._addr)
 
+        # Send a heart beat down the new connection, tell it who we are.
+        connectPayloadFilt = {}
+        connectPayloadFilt[Payload.vortexUuidKey] = self._vortex.uuid()
+        connectPayloadFilt[Payload.vortexNameKey] = self._vortex.name()
+        self._conn.write(Payload(filt=connectPayloadFilt).toVortexMsg())
+
         self._vortex.connectionOpened(self._httpSession, self._conn)
 
     def dataReceived(self, data):

@@ -13,7 +13,6 @@ from twisted.internet.error import ConnectionDone, ConnectionLost
 from twisted.internet.protocol import Protocol, connectionDone
 from twisted.web._newclient import ResponseDone, ResponseNeverReceived, ResponseFailed
 from twisted.web.http import _DataLoss
-
 from vortex.Payload import Payload, VortexMsgList
 from vortex.PayloadIO import PayloadIO
 
@@ -81,7 +80,7 @@ class VortexPayloadClientProtocol(Protocol):
 
         nextChunk = getNextChunk()
 
-        while nextChunk is not None: # NOT ZERO
+        while nextChunk is not None:  # NOT ZERO
             vortexMsg = self._data[:nextChunk]
             self._data = self._data[nextChunk + 1:]
 
