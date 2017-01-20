@@ -1,0 +1,22 @@
+import logging
+
+from twisted.internet import defer
+from twisted.internet.defer import Deferred
+
+from vortex.TupleAction import TupleAction
+from vortex.handler.TupleActionProcessor import TupleActionProcessor, \
+    TupleActionProcessorDelegateABC
+from vortex.test.PerformTestActionTuple import PerformTestActionTuple
+
+logger = logging.getLogger(__name__)
+
+
+class TestProcessor(TupleActionProcessorDelegateABC):
+    def processTupleAction(self, tupleAction: TupleAction) -> Deferred:
+        if "FAIL PLEASE" == tupleAction.action:
+            raise Exception("Processing failed scenario, exception raised")
+        return defer.succeed(True)
+
+
+actionProcessor = TupleActionProcessor("vortexTestActions")
+actionProcessor.addDelegate(PerformTestActionTuple.tupleName(), TestProcessor())

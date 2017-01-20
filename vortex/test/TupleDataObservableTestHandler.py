@@ -7,6 +7,7 @@ from vortex.Payload import Payload
 from vortex.handler.TupleDataObservableHandler import TuplesProviderABC, \
     TupleDataObservableHandler
 from vortex.TupleSelector import TupleSelector
+from vortex.test.TestTuple import TestTuple
 from vortex.test.TupleDataForTest import makeTestTupleData
 
 logger = logging.getLogger(__name__)
@@ -46,5 +47,7 @@ class NotifyTestTimer:
         d.addCallback(lambda _: logger.debug("Observable tuple updates started"))
 
 
-observableHandler = TupleDataObservableHandler("vortexTestObservable",
-                                               TestTupleProvider())
+observableHandler = TupleDataObservableHandler("vortexTestObservable")
+observableHandler.addTupleProvider(TestTuple.tupleName(), TestTupleProvider())
+observableHandler.addTupleProvider("testTuples1", TestTupleProvider())
+observableHandler.addTupleProvider("testTuples2", TestTupleProvider())

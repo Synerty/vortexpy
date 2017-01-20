@@ -38,7 +38,7 @@ class TestTuple(Tuple):
     aListOfSubTuples = TupleField()
 
     def __init__(self, *args, **kwargs):
-        logger.debug("TestTuple constructed")
+        # logger.debug("TestTuple constructed")
         Tuple.__init__(self, *args, **kwargs)
 
 

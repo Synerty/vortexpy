@@ -9,3 +9,4 @@
 
 from . import TupleDataObservableTestHandler
 from . import VortexJSTupleLoaderTestHandler
+from . import TupleActionProcessorTestHandler

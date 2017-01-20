@@ -34,16 +34,15 @@ class TupleDataObservableProxyHandler:
     def shutdown(self):
         self._endpoint.shutdown()
 
-
-    def _process(self, payload: Payload, vortexUuid: str, vortexName:str,
-                sendResponse: SendVortexMsgResponseCallable, **kwargs):
+    def _process(self, payload: Payload, vortexUuid: str, vortexName: str,
+                 sendResponse: SendVortexMsgResponseCallable, **kwargs):
         if vortexName == self._proxyToVortexName:
             self._processUpdateFromBackend(payload)
         else:
             self._processSubscribeFromFrontend(payload, vortexUuid, sendResponse)
 
     def _processSubscribeFromFrontend(self, payload: Payload, vortexUuid: str,
-                sendResponse: SendVortexMsgResponseCallable):
+                                      sendResponse: SendVortexMsgResponseCallable):
         tupleSelector = payload.filt["tupleSelector"]
 
         # Track the response, log an error if it fails
@@ -52,15 +51,18 @@ class TupleDataObservableProxyHandler:
 
         # Add support for just getting data, no subscription.
         if not "nosub" in payload.filt and self._subscriptionsEnabled:
-            self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(vortexUuid)
+            self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(
+                vortexUuid)
         else:
             # This is not a lambda, so that it can have a breakpoint
             def reply(payload):
                 sendResponse(payload.toVortexMsg())
+
             pr.addCallback(reply)
 
-        pr.addCallback(lambda _:logger.debug("Received response from observable"))
-        pr.addErrback(lambda f: logger.error(f.value))
+        pr.addCallback(lambda _: logger.debug("Received response from observable"))
+        pr.addErrback(lambda f: logger.error(
+            "Received no response from observable, %s\n%s", f, tupleSelector))
 
         d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
                                         destVortexName=self._proxyToVortexName)
