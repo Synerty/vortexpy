@@ -3,7 +3,7 @@ from abc import abstractmethod, ABCMeta
 from collections import defaultdict
 from typing import Dict, Optional
 
-from twisted.internet.defer import Deferred, DeferredList, maybeDeferred, fail, succeed
+from twisted.internet.defer import Deferred, DeferredList, fail, succeed
 from twisted.python import failure
 
 from vortex.Payload import Payload
@@ -79,28 +79,30 @@ class TupleActionProcessor:
         """
 
         assert len(payload.tuples) == 1, (
-            "TupleActionProcessor: Expected 1 tuples, received %s" % len(payload.tuples))
+            "TupleActionProcessor:%s Expected 1 tuples, received %s" % (
+                self._tupleActionProcessorName, len(payload.tuples)))
 
         tupleAction = payload.tuples[0]
 
         assert isinstance(tupleAction, TupleAction), (
-            "TupleActionProcessor:%s, Expected TupleAction, received %s" % TupleAction)
+            "TupleActionProcessor:%s Expected TupleAction, received %s" % (
+                self._tupleActionProcessorName, tupleAction.__class__))
 
         tupleName = tupleAction.tupleSelector.name
 
         deferredsList = []
 
         if self._defaultDelegate:
-            deferredsList.append(customMaybeDeferred(
+            deferredsList.append(self._customMaybeDeferred(
                 self._defaultDelegate.processTupleAction, tupleAction))
 
         processors = self._tupleProcessorsByTupleName.get(tupleName, [])
 
         for processor in processors:
-            deferredsList.append(customMaybeDeferred(
+            deferredsList.append(self._customMaybeDeferred(
                 processor.processTupleAction, tupleAction))
 
-        dl = DeferredList(deferredsList)
+        dl = DeferredList(deferredsList, consumeErrors=True)
         dl.addCallback(self._endProcessing, payload.filt, sendResponse)
 
     def _endProcessing(self, deferredListResult: list, replyFilt: dict,
@@ -114,7 +116,11 @@ class TupleActionProcessor:
 
         for success, result in deferredListResult:
             if not success:
-                failureMessages.append(str(result))
+                exception = result.value
+                message = (exception.message
+                           if hasattr(exception, 'message')
+                           else str(exception))
+                failureMessages.append(message)
 
         payload = Payload(filt=replyFilt,
                           result='\n'.join(failureMessages) if failureMessages else True)
@@ -124,16 +130,18 @@ class TupleActionProcessor:
                                             failureMessages))
 
 
-def customMaybeDeferred(f, *args, **kw):
+    def _customMaybeDeferred(self, f, *args, **kw):
+        try:
+            result = f(*args, **kw)
+        except Exception as e:
+            logger.error("TupleActionProcessor:%s Failed to process TupleActon",
+                         self._tupleActionProcessorName)
+            logger.exception(e)
+            return fail(failure.Failure(e))
 
-    try:
-        result = f(*args, **kw)
-    except Exception as e:
-        return fail(failure.Failure(e))
-
-    if isinstance(result, Deferred):
-        return result
-    elif isinstance(result, failure.Failure):
-        return fail(result)
-    else:
-        return succeed(result)
+        if isinstance(result, Deferred):
+            return result
+        elif isinstance(result, failure.Failure):
+            return fail(result)
+        else:
+            return succeed(result)
