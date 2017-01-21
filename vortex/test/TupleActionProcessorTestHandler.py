@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class TestProcessor(TupleActionProcessorDelegateABC):
     def processTupleAction(self, tupleAction: TupleAction) -> Deferred:
-        if "FAIL PLEASE" == tupleAction.action:
+        if "FAIL PLEASE" == tupleAction.data:
             raise Exception("Processing failed scenario, exception raised")
         return defer.succeed(True)
 

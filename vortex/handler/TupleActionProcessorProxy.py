@@ -1,5 +1,6 @@
 import logging
 
+from copy import copy
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadResponse import PayloadResponse
@@ -9,7 +10,7 @@ from vortex.VortexFactory import VortexFactory
 logger = logging.getLogger(__name__)
 
 
-class TupleDataObservableProxyHandler:
+class TupleActionProcessorProxy:
     """ Tuple Data Observable Proxy Handler
 
     This class proxies the TupleActions onto another destination, giving the ability
@@ -17,8 +18,8 @@ class TupleDataObservableProxyHandler:
     to a server backend.
     """
 
-    def __init__(self, tupleActionProcessorName, proxyToVortexName: str,
-                 additionalFilt=None):
+    def __init__(self, tupleActionProcessorName,
+                 proxyToVortexName: str, additionalFilt=None):
         """ Constructor
 
         :param tupleActionProcessorName: The name of this and the other action handler
@@ -37,17 +38,24 @@ class TupleDataObservableProxyHandler:
     def shutdown(self):
         self._endpoint.shutdown()
 
-    def _process(self, payload: Payload,
+    def _process(self, payload: Payload, vortexName: str,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
-        tupleSelector = payload.filt["tupleSelector"]
+
+        # Ignore responses from the backend, these are handled by PayloadResponse
+        if vortexName == self._proxyToVortexName:
+            return
+
+        # Keep a copy of the incoming filt, in case they are using PayloadResponse
+        responseFilt = copy(payload.filt)
 
         # Track the response, log an error if it fails
         # 5 Seconds is long enouge.
         # VortexJS defaults to 10s, so we have some room for round trip time.
-        pr = PayloadResponse(payload, timeout=5)
+        pr = PayloadResponse(payload, timeout=5, resultCheck=False)
 
         # This is not a lambda, so that it can have a breakpoint
         def reply(payload):
+            payload.filt = responseFilt
             sendResponse(payload.toVortexMsg())
 
         pr.addCallback(reply)

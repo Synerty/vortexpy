@@ -62,7 +62,7 @@ class VortexServer(VortexABC):
         vortexInfos = []
 
         for conn in self._connectionByVortexUuid.values():
-            vortexInfos.append(VortexInfo(name=conn.vortexName, uuid=conn.vortexUuid))
+            vortexInfos.append(VortexInfo(name=conn.remoteVortexName, uuid=conn.remoteVortexUuid))
 
         return vortexInfos
 
@@ -94,7 +94,7 @@ class VortexServer(VortexABC):
     def connectionOpened(self, httpSession, vortexConnection):
         # print "VortexServer - connectionOpened"
 
-        vortexUuid = vortexConnection.vortexUuid
+        vortexUuid = vortexConnection.remoteVortexUuid
         assert vortexUuid
 
         if httpSession:
@@ -117,7 +117,7 @@ class VortexServer(VortexABC):
     def connectionClosed(self, conn):
         # print "VortexServer - connectionClosed"
 
-        vortexUuid = conn.vortexUuid
+        vortexUuid = conn.remoteVortexUuid
 
         if conn.httpSessionUuid in self._httpSessionsBySessionUuid:
             session = self._httpSessionsBySessionUuid[conn.httpSessionUuid]
@@ -129,9 +129,9 @@ class VortexServer(VortexABC):
                 del conns[vortexUuid]
 
         # cleanup _connectionsByvortexUuid
-        if conn.vortexUuid in self._connectionByVortexUuid:
-            if self._connectionByVortexUuid[conn.vortexUuid] == conn:
-                del self._connectionByVortexUuid[conn.vortexUuid]
+        if conn.remoteVortexUuid in self._connectionByVortexUuid:
+            if self._connectionByVortexUuid[conn.remoteVortexUuid] == conn:
+                del self._connectionByVortexUuid[conn.remoteVortexUuid]
 
     def _sessionExpired(self, httpSessionUuid):
         logger.debug(

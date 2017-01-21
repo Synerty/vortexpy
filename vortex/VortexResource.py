@@ -81,8 +81,8 @@ class VortexResource(Resource):
         payload = yield Payload().fromVortexMsgDefer(vortexMsg)
         self.__vortex.payloadReveived(
             httpSession=httpSession,
-            vortexUuid=conn.vortexUuid,
-            vortexName=conn.vortexName,
+            vortexUuid=conn.remoteVortexUuid,
+            vortexName=conn.remoteVortexName,
             payload=payload)
 
 

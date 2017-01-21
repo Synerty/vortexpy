@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
 
+from copy import copy
 from vortex.Payload import Payload, deferToThreadWrap
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadResponse import PayloadResponse
@@ -45,6 +46,9 @@ class TupleDataObservableProxyHandler:
                                       sendResponse: SendVortexMsgResponseCallable):
         tupleSelector = payload.filt["tupleSelector"]
 
+        # Keep a copy of the incoming filt, in case they are using PayloadResponse
+        responseFilt = copy(payload.filt)
+
         # Track the response, log an error if it fails
         # 5 Seconds is long enough
         pr = PayloadResponse(payload, timeout=5)
@@ -54,8 +58,9 @@ class TupleDataObservableProxyHandler:
             self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(
                 vortexUuid)
         else:
-            # This is not a lambda, so that it can have a breakpoint
+            # Restore the original payload filt (PayloadResponse) and send it back
             def reply(payload):
+                payload.filt = responseFilt
                 sendResponse(payload.toVortexMsg())
 
             pr.addCallback(reply)

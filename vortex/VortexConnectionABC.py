@@ -33,7 +33,7 @@ class VortexConnectionABC(metaclass=ABCMeta):
         return self._httpSessionUuid
 
     @property
-    def vortexUuid(self):
+    def remoteVortexUuid(self):
         """ Vortex UUID
 
         The vortex UUID of the remote vortex which this connection represents.
@@ -42,7 +42,7 @@ class VortexConnectionABC(metaclass=ABCMeta):
         return self._remoteVortexUuid
 
     @property
-    def vortexName(self):
+    def remoteVortexName(self):
         """ Vortex Name
 
         The name of the remote vortex which this connection represents.

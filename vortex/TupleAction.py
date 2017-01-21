@@ -25,5 +25,5 @@ class TupleAction(Tuple):
                                typingType=TupleSelector)
     tupleChanges = TupleField(comment="An array of {old:v,new:v} dicts for the changes",
                               typingType=List[Dict])
-    action = TupleField(comment="OR an action key describing this action",
-                        typingType=str)
+    data = TupleField(comment="Optional data for the update",
+                      typingType=str)
