@@ -5,6 +5,7 @@ from typing import Union
 
 from twisted.internet.defer import fail, Deferred, succeed, inlineCallbacks
 from twisted.python import failure
+from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import deferToThreadWrap, Payload, printFailure
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.TupleSelector import TupleSelector
@@ -76,6 +77,7 @@ class TupleDataObservableHandler:
 
         vortexMsgDefer = self._customMaybeDeferred(
             tupleProvider.makeVortexMsg, filt, tupleSelector)
+        vortexMsgDefer.addErrback(vortexLogFailure, logger)
         return vortexMsgDefer
 
     @inlineCallbacks

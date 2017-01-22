@@ -12,7 +12,7 @@ from copy import copy
 
 from twisted.internet.defer import Deferred, fail, succeed
 from twisted.python import failure
-
+from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.VortexFactory import VortexFactory
@@ -99,7 +99,7 @@ class ModelHandler(metaclass=ABCMeta):
 
     def _sendModelUpdateErrback(self, failure, filt, vortexUuid):
         logger.error("Payload filt is : %s", filt)
-        logger.exception(failure.value)
+        vortexLogFailure(failure, logger)
 
         try:
             encodedXml = Payload(filt=filt, result=str(failure.value)).toVortexMsg()

@@ -5,6 +5,7 @@ from typing import Dict, Optional
 
 from twisted.internet.defer import Deferred, DeferredList, fail, succeed
 from twisted.python import failure
+from vortex.DeferUtil import vortexLogFailure
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
@@ -116,11 +117,10 @@ class TupleActionProcessor:
 
         for success, result in deferredListResult:
             if not success:
-                exception = result.value
-                message = (exception.message
-                           if hasattr(exception, 'message')
-                           else str(exception))
-                failureMessages.append(message)
+                logger.error("TupleActionProcessor:%s Failed to process TupleActon",
+                             self._tupleActionProcessorName)
+                vortexLogFailure(result, logger)
+                failureMessages.append(result.getErrorMessage())
 
         payload = Payload(filt=replyFilt,
                           result='\n'.join(failureMessages) if failureMessages else True)
@@ -134,9 +134,6 @@ class TupleActionProcessor:
         try:
             result = f(*args, **kw)
         except Exception as e:
-            logger.error("TupleActionProcessor:%s Failed to process TupleActon",
-                         self._tupleActionProcessorName)
-            logger.exception(e)
             return fail(failure.Failure(e))
 
         if isinstance(result, Deferred):
