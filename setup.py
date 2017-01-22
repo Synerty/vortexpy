@@ -1,7 +1,7 @@
 import os
 import shutil
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 package_name = "vortexpy"
 package_version = '0.5.3'
@@ -18,7 +18,7 @@ requirements = [
 
 setup(
     name='vortexpy',
-    packages=['vortex', 'vortex.handler'],
+    packages=find_packages(exclude=["test"]),
     # package_data={'vortex': ['*.xml']},
     version=package_version,
     install_requires=requirements,
