@@ -14,7 +14,7 @@ from vortex.VortexFactory import VortexFactory
 logger = logging.getLogger(__name__)
 
 
-class TupleDataObserver:
+class TupleDataObserverClient:
     def __init__(self, destVortexName, observableName, additionalFilt=None):
         """ Constructor
 
@@ -78,9 +78,9 @@ class TupleDataObserver:
 
         self._tellServerWeWantData(tupleSelectors)
 
-    def _receivePayload(self, payload) -> None:
+    def _receivePayload(self, payload, **kwargs) -> None:
         tupleSelector = payload.filt["tupleSelector"]
-        tsStr = tupleSelector.toOrderedJsonStr()
+        tsStr = tupleSelector.toJsonStr()
 
         if tsStr not in self._subjectsByTupleSelector:
             return

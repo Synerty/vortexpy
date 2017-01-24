@@ -6,7 +6,7 @@ from typing import Union
 from twisted.internet.defer import fail, Deferred, succeed, inlineCallbacks
 from twisted.python import failure
 from vortex.DeferUtil import vortexLogFailure
-from vortex.Payload import deferToThreadWrap, Payload, printFailure
+from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.TupleSelector import TupleSelector
 from vortex.VortexABC import SendVortexMsgResponseCallable
@@ -92,7 +92,7 @@ class TupleDataObservableHandler:
 
         vortexMsg = yield self._createVortexMsg(payload.filt, tupleSelector)
         d = sendResponse(vortexMsg)
-        d.addErrback(lambda f: logger.exception(f.value))
+        d.addErrback(lambda f: logger.exception(f.getStackTrace()))
 
     @inlineCallbacks
     def notifyOfTupleUpdate(self, tupleSelector: TupleSelector):
@@ -115,7 +115,7 @@ class TupleDataObservableHandler:
         for vortexUuid in observingUuids:
             d = VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
                                         destVortexUuid=vortexUuid)
-            d.addErrback(printFailure)
+            d.addErrback(vortexLogFailure, logger)
 
     def _customMaybeDeferred(self, f, *args, **kw):
         try:

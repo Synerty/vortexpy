@@ -13,8 +13,7 @@ from base64 import b64encode, b64decode
 from datetime import datetime
 from typing import List
 
-from twisted.internet.threads import deferToThread
-
+from vortex.DeferUtil import deferToThreadWrap
 from .Jsonable import Jsonable
 from .SerialiseUtil import T_RAPUI_PAYLOAD
 
@@ -22,20 +21,6 @@ logger = logging.getLogger(__name__)
 
 PayloadList = List['Payload']
 VortexMsgList = List[bytes]
-
-
-def printFailure(failure):
-    logger.error(failure)
-    return failure
-
-
-def deferToThreadWrap(funcToWrap):
-    def func(*args, **kwargs):
-        d = deferToThread(funcToWrap, *args, **kwargs)
-        d.addErrback(printFailure)
-        return d
-
-    return func
 
 
 class Payload(Jsonable):
@@ -91,7 +76,7 @@ class Payload(Jsonable):
         jsonStr = self._toJson()
         return b64encode(zlib.compress(jsonStr.encode("UTF-8"), compressionLevel))
 
-    @deferToThreadWrap
+    @deferToThreadWrap(logger)
     def toVortexMsgDefer(self, compressionLevel: int = 9) -> bytes:
         return self.toVortexMsg(compressionLevel=compressionLevel)
 
@@ -99,6 +84,6 @@ class Payload(Jsonable):
         jsonStr = zlib.decompress(b64decode(vortexMsg)).decode()
         return self._fromJson(jsonStr)
 
-    @deferToThreadWrap
+    @deferToThreadWrap(logger)
     def fromVortexMsgDefer(self, vortexMsg: bytes):
         return self.fromVortexMsg(vortexMsg)

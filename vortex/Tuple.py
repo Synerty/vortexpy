@@ -9,6 +9,7 @@
 import inspect
 from copy import deepcopy
 from datetime import datetime
+from typing import List
 
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.properties import RelationshipProperty
@@ -195,6 +196,10 @@ class Tuple(Jsonable):
                 raise KeyError("kwarg %s was pased, but tuple %s has no such TupleField"
                                % (key, self.__tupleType__))
             setattr(self, key, val)
+
+    @classmethod
+    def tupleFieldNames(cls) -> List[str]:  # DEPRECIATED
+        return cls.__fieldNames__
 
     @classmethod
     def tupleName(cls):  # DEPRECIATED
