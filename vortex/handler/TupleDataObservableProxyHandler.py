@@ -54,7 +54,7 @@ class TupleDataObservableProxyHandler:
         pr = PayloadResponse(payload, timeout=5)
 
         # Add support for just getting data, no subscription.
-        if not "nosub" in payload.filt and self._subscriptionsEnabled:
+        if payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
             self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(
                 vortexUuid)
         else:

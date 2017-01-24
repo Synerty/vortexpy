@@ -86,7 +86,7 @@ class TupleDataObservableHandler:
         tupleSelector = payload.filt["tupleSelector"]
 
         # Add support for just getting data, no subscription.
-        if not "nosub" in payload.filt and self._subscriptionsEnabled:
+        if payload.filt.get("subscribe", True) in payload.filt and self._subscriptionsEnabled:
             self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(
                 vortexUuid)
 
