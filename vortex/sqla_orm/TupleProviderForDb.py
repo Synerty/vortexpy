@@ -1,4 +1,4 @@
-from vortex.Payload import Payload
+from vortex.Payload import Payload, deferToThreadWrap
 from vortex.Tuple import tupleForTupleName
 from vortex.TupleSelector import TupleSelector
 from vortex.handler.TupleDataObservableHandler import TuplesProviderABC
@@ -8,6 +8,7 @@ class TuplesProviderForDB(TuplesProviderABC):
     def __init__(self, ormSessionCreatorFunc):
         self._ormSessionCreatorFunc = ormSessionCreatorFunc
 
+    @deferToThreadWrap
     def makeVortexMsg(self, filt: dict, tupleSelector: TupleSelector) -> bytes:
         """ Make VortexMsg for DB
 
