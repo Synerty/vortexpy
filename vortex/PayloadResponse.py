@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import Optional
 from uuid import uuid1
 
 from twisted.internet import reactor
@@ -8,6 +9,7 @@ from twisted.python.failure import Failure
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.VortexFactory import VortexFactory
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,23 @@ class PayloadResponse(Deferred):
     SUCCESS = "Success"
     TIMED_OUT = "Timed Out"
 
-    def __init__(self, payload: Payload, timeout: int = 10, resultCheck=True):
+    def __init__(self, payload: Payload,
+                 destVortexName: Optional[str] = None,
+                 destVortexUuid: Optional[str] = None,
+                 timeout: int = 10, resultCheck=True):
+        """ Constructor
+
+        Tag and optionally send a payload.
+
+        The timeout starts as soon as the constructor is called.
+
+        :param payload The payload to send to the remote and, and wait for a response for
+        :param destVortexName The name of the vortex to send to.
+        :param destVortexUuid The UUID of the vortex to send a payload to.
+        :param timeout The timeout to wait for a response
+        :param resultCheck Should the response payload.result be checked, if it fails
+                    it errback will be called.
+        """
         Deferred.__init__(self)
         self._resultCheck = resultCheck
 
@@ -52,14 +70,17 @@ class PayloadResponse(Deferred):
 
         self._status = self.PROCESSING
         self._date = datetime.utcnow()
-        # self._vortexUuid = None
-        # self._filt = payload.filt
 
         self._endpoint = PayloadEndpoint(payload.filt, self._process)
 
         # noinspection PyTypeChecker
         self.addTimeout(timeout, reactor)
         self.addErrback(self._timedOut, payload)
+
+        if destVortexName or destVortexUuid:
+            VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
+                                        destVortexName=destVortexName,
+                                        destVortexUuid=destVortexUuid)
 
     @classmethod
     def isResponsePayload(cls, payload):
