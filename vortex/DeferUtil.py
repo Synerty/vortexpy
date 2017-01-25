@@ -1,3 +1,5 @@
+import logging
+
 from twisted.internet.threads import deferToThread
 
 
@@ -13,7 +15,15 @@ def printFailure(failure, logger):
     return failure
 
 
-def deferToThreadWrap(logger):
+def deferToThreadWrapWithLogger(logger):
+    assert isinstance(logger, logging.Logger), """Usage:
+    import logging
+    logger = logging.getLogger(__name__)
+    @deferToThreadWrapWithLogger(logger)
+    def myFunction(arg1, kw=True):
+        pass
+    """
+
     def wrapper(funcToWrap):
         def func(*args, **kwargs):
             d = deferToThread(funcToWrap, *args, **kwargs)
@@ -21,4 +31,5 @@ def deferToThreadWrap(logger):
             return d
 
         return func
+
     return wrapper

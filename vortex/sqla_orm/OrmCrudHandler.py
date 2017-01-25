@@ -51,20 +51,14 @@ class _OrmCrudExtensionProcessor(object):
     def __init__(self):
         self.extensions = {}
 
-    def addExtension(self, Tuple):
-        def f(clsOrInstance):
-            if issubclass(cls, OrmCrudHandlerExtension):
-                self.extensions[Tuple.tupleType()] = cls()
-
-            elif isinstance(cls, OrmCrudHandlerExtension):
-                self.extensions[Tuple.tupleType()] = clsOrInstance
-
-            else:
-                raise Exception("Expected class or instance of type"
-                                " OrmCrudHandlerExtension, received %s" % cls)
+    def addExtensionClassDecorator(self, Tuple):
+        def f(cls):
+            self.extensions[Tuple.tupleType()] = cls()
             return cls
-
         return f
+
+    def addExtensionObject(self, Tuple, ormCrudHandlerExtension):
+        self.extensions[Tuple.tupleType()] = ormCrudHandlerExtension
 
     def uiData(self, tuples, session, payloadFilt):
         if not self.extensions:
@@ -174,8 +168,11 @@ class OrmCrudHandler(object):
     def shutdown(self):
         self._ep.shutdown()
 
-    def addExtension(self, Tuple):
-        return self._ext.addExtension(Tuple)
+    def addExtension(self, Tuple, ormCrudHandlerExtension=None):
+        if ormCrudHandlerExtension:
+            self._ext.addExtensionObject(Tuple, ormCrudHandlerExtension)
+            return
+        return self._ext.addExtensionClassDecorator(Tuple)
 
     def process(self, payload,
                 vortexUuid: str,

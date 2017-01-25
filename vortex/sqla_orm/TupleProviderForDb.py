@@ -1,14 +1,18 @@
-from vortex.Payload import Payload, deferToThreadWrap
+import logging
+
+from vortex.DeferUtil import deferToThreadWrapWithLogger
+from vortex.Payload import Payload
 from vortex.Tuple import tupleForTupleName
 from vortex.TupleSelector import TupleSelector
 from vortex.handler.TupleDataObservableHandler import TuplesProviderABC
 
+logger = logging.getLogger(__name__)
 
 class TuplesProviderForDB(TuplesProviderABC):
     def __init__(self, ormSessionCreatorFunc):
         self._ormSessionCreatorFunc = ormSessionCreatorFunc
 
-    @deferToThreadWrap
+    @deferToThreadWrapWithLogger(logger)
     def makeVortexMsg(self, filt: dict, tupleSelector: TupleSelector) -> bytes:
         """ Make VortexMsg for DB
 
@@ -23,10 +27,12 @@ class TuplesProviderForDB(TuplesProviderABC):
 
         TupleClass = tupleForTupleName(tupleSelector.name)
 
-        with self._ormSessionCreatorFunc() as ormSession:
-            qry = ormSession.query(TupleClass)
-            for key, value in tupleSelector.selector.items():
-                qry = qry.filter(**{getattr(TupleClass, key): value})
+        ormSession = self._ormSessionCreatorFunc()
+        qry = ormSession.query(TupleClass)
+        for key, value in tupleSelector.selector.items():
+            qry = qry.filter(getattr(TupleClass, key)==value)
 
-            return Payload(filt=filt, tuples=qry.all()).toVortexMsg()
+        vortexMsg = Payload(filt=filt, tuples=qry.all()).toVortexMsg()
+        ormSession.close()
+        return vortexMsg
 

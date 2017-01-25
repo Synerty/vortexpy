@@ -3,7 +3,7 @@ from collections import defaultdict
 
 from copy import copy
 
-from vortex.DeferUtil import deferToThreadWrap
+from vortex.DeferUtil import deferToThreadWrapWithLogger
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadResponse import PayloadResponse
@@ -75,7 +75,7 @@ class TupleDataObservableProxyHandler:
                                         destVortexName=self._proxyToVortexName)
         d.addErrback(lambda f: logger.exception(f.value))
 
-    @deferToThreadWrap(logger)
+    @deferToThreadWrapWithLogger(logger)
     def _processUpdateFromBackend(self, payload: Payload):
         tupleSelector = payload.filt["tupleSelector"]
 
