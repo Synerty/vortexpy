@@ -46,6 +46,9 @@ class OrmCrudHandlerExtension(object):
     def beforeDelete(self, tuple_, tuples, session, payloadFilt):
         return True
 
+    def afterDeleteCommit(self, tuple_, tuples, session, payloadFilt):
+        return True
+
 
 class _OrmCrudExtensionProcessor(object):
     def __init__(self):
@@ -139,6 +142,15 @@ class _OrmCrudExtensionProcessor(object):
             extension = self.extensions.get(tuple_.tupleType())
             if extension:
                 extension.beforeDelete(tuple_, tuples, session, payloadFilt)
+
+    def afterDeleteCommit(self, tuples, session, payloadFilt):
+        if not self.extensions:
+            return
+
+        for tuple_ in tuples:
+            extension = self.extensions.get(tuple_.tupleType())
+            if extension:
+                extension.afterDeleteCommit(tuple_, tuples, session, payloadFilt)
 
 
 class OrmCrudHandler(object):
@@ -257,7 +269,7 @@ class OrmCrudHandler(object):
 
     def _getDeclarativeById(self, session, id_):
         qry = session.query(self._Declarative)
-        if self._retreiveAll and id_ is not None:
+        if self._retreiveAll and id_ is None:
             return qry.all()
 
         try:
@@ -325,13 +337,32 @@ class OrmCrudHandler(object):
 
     def _delete(self, session, tuples, filtId, payloadFilt):
         self._ext.beforeDelete(tuples, session, payloadFilt)
-        phId = tuples[0].id if len(tuples) else filtId
 
-        ph = self._getDeclarativeById(session, phId)
-        if ph is not None:
-            session.delete(ph)
-            session.commit()
-        return Payload(result=True)
+        if len(tuples):
+            phIds = [t.id for t in tuples]
+        else:
+            phIds = [filtId]
+
+        for phId in phIds:
+            ph = self._getDeclarativeById(session, phId)
+            try:
+                # Try to iterate it
+                for item in iter(ph):
+                    session.delete(item)
+
+            except TypeError:
+                # If it's not an iterator
+                if ph is not None:
+                    session.delete(ph)
+
+        session.commit()
+
+        returnTuples = []
+        if self._retreiveAll:
+            returnTuples = self.createDeclarative(session, payloadFilt)
+
+        self._ext.afterDeleteCommit(returnTuples, session, payloadFilt)
+        return Payload(tuples=returnTuples, result=True)
 
     def sendModelUpdate(self, objId,
                         vortexUuid=None,
