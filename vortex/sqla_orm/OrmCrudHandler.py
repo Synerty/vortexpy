@@ -52,8 +52,16 @@ class _OrmCrudExtensionProcessor(object):
         self.extensions = {}
 
     def addExtension(self, Tuple):
-        def f(cls):
-            self.extensions[Tuple.tupleType()] = cls()
+        def f(clsOrInstance):
+            if issubclass(cls, OrmCrudHandlerExtension):
+                self.extensions[Tuple.tupleType()] = cls()
+
+            elif isinstance(cls, OrmCrudHandlerExtension):
+                self.extensions[Tuple.tupleType()] = clsOrInstance
+
+            else:
+                raise Exception("Expected class or instance of type"
+                                " OrmCrudHandlerExtension, received %s" % cls)
             return cls
 
         return f
