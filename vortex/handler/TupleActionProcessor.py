@@ -1,12 +1,12 @@
 import logging
 from abc import abstractmethod, ABCMeta
-from collections import defaultdict
 from typing import Dict, Optional
 
 from twisted.internet.defer import Deferred, DeferredList, fail, succeed
 from twisted.python import failure
-from vortex.DeferUtil import vortexLogFailure
+from twisted.python.failure import Failure
 
+from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.TupleAction import TupleAction
@@ -51,9 +51,9 @@ class TupleActionProcessor:
 
         self._endpoint = PayloadEndpoint(self._filt, self._process)
 
-        self._tupleProcessorsByTupleName = defaultdict(list)
+        self._tupleProcessorsByTupleName = {}
 
-    def addDelegate(self, tupleName: str, processor: TupleActionProcessorDelegateABC):
+    def setDelegate(self, tupleName: str, processor: TupleActionProcessorDelegateABC):
         """ Add Tuple Action Processor Delegate
 
         :param tupleName: The tuple name to process actions for.
@@ -69,7 +69,7 @@ class TupleActionProcessor:
             " instance of TupleActionProcessorDelegateABC"
             % self._tupleActionProcessorName)
 
-        self._tupleProcessorsByTupleName[tupleName].append(processor)
+        self._tupleProcessorsByTupleName[tupleName] = processor
 
     def shutdown(self):
         self._endpoint.shutdown()
@@ -91,44 +91,45 @@ class TupleActionProcessor:
 
         tupleName = tupleAction.tupleSelector.name
 
-        deferredsList = []
+        processor = self._tupleProcessorsByTupleName.get(tupleName)
+        if processor:
+            delegate = processor.processTupleAction
 
-        if self._defaultDelegate:
-            deferredsList.append(self._customMaybeDeferred(
-                self._defaultDelegate.processTupleAction, tupleAction))
+        elif self._defaultDelegate:
+            delegate =self._defaultDelegate.processTupleAction
 
-        processors = self._tupleProcessorsByTupleName.get(tupleName, [])
+        else:
+            raise Exception("No delegate registered for %s" % tupleName)
 
-        for processor in processors:
-            deferredsList.append(self._customMaybeDeferred(
-                processor.processTupleAction, tupleAction))
+        d = self._customMaybeDeferred(delegate, tupleAction)
+        d.addCallback(self._callback, payload.filt, tupleName, sendResponse)
+        d.addErrback(self._errback, payload.filt, tupleName, sendResponse)
 
-        dl = DeferredList(deferredsList, consumeErrors=True)
-        dl.addCallback(self._endProcessing, payload.filt, sendResponse)
 
-    def _endProcessing(self, deferredListResult: list, replyFilt: dict,
+    def _callback(self, result, replyFilt: dict, tupleName:str,
                        sendResponse: SendVortexMsgResponseCallable):
-        """ End Processing
 
-        Handle the deferred list results and respond to the requester.
-        """
-
-        failureMessages = []
-
-        for success, result in deferredListResult:
-            if not success:
-                logger.error("TupleActionProcessor:%s Failed to process TupleActon",
-                             self._tupleActionProcessorName)
-                vortexLogFailure(result, logger)
-                failureMessages.append(result.getErrorMessage())
-
-        payload = Payload(filt=replyFilt,
-                          result='\n'.join(failureMessages) if failureMessages else True)
+        payload = Payload(filt=replyFilt, tuples=[result])
 
         d = sendResponse(payload.toVortexMsg())
-        d.addErrback(lambda f: logger.error("Failed to TupleAction response\n%s",
-                                            failureMessages))
+        d.addErrback(lambda f: logger.error("Failed to send TupleAction response for %s",
+                                            tupleName))
 
+    def _errback(self, result: Failure, replyFilt: dict,tupleName:str,
+                       sendResponse: SendVortexMsgResponseCallable):
+
+        logger.error("TupleActionProcessor:%s Failed to process TupleActon",
+                     self._tupleActionProcessorName)
+
+        vortexLogFailure(result, logger)
+        failureMessage = result.getErrorMessage()
+
+        payload = Payload(filt=replyFilt, result=failureMessage)
+
+        d = sendResponse(payload.toVortexMsg())
+        d.addErrback(lambda f: logger.error("Failed to send TupleAction response for %s\n%s",
+                                            tupleName,
+                                            failureMessage))
 
     def _customMaybeDeferred(self, f, *args, **kw):
         try:
