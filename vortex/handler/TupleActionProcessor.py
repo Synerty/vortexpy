@@ -109,7 +109,9 @@ class TupleActionProcessor:
     def _callback(self, result, replyFilt: dict, tupleName:str,
                        sendResponse: SendVortexMsgResponseCallable):
 
-        payload = Payload(filt=replyFilt, tuples=[result])
+        if not isinstance(result, list):
+            result = [result]
+        payload = Payload(filt=replyFilt, tuples=result)
 
         d = sendResponse(payload.toVortexMsg())
         d.addErrback(lambda f: logger.error("Failed to send TupleAction response for %s",
