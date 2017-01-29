@@ -3,11 +3,11 @@ import logging
 from twisted.internet.threads import deferToThread
 
 
-def vortexLogFailure(failure, logger):
+def vortexLogFailure(failure, logger, consumeError=False, successValue=True):
     if not hasattr(failure, '_vortexLogged'):
         logger.error(failure.getTraceback())
         failure._vortexFailureLogged = True
-    return failure
+    return successValue if consumeError else failure
 
 
 def printFailure(failure, logger):

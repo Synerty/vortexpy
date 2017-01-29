@@ -9,7 +9,7 @@ from twisted.python.failure import Failure
 from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
-from vortex.TupleAction import TupleAction
+from vortex.TupleAction import TupleActionABC
 from vortex.VortexABC import SendVortexMsgResponseCallable
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class TupleActionProcessorDelegateABC(metaclass=ABCMeta):
     @abstractmethod
-    def processTupleAction(self, tupleAction: TupleAction) -> Deferred:
+    def processTupleAction(self, tupleAction: TupleActionABC) -> Deferred:
         """ Process Tuple Action
 
         The method generates the vortexMsg for the vortex to send.
@@ -85,11 +85,11 @@ class TupleActionProcessor:
 
         tupleAction = payload.tuples[0]
 
-        assert isinstance(tupleAction, TupleAction), (
+        assert isinstance(tupleAction, TupleActionABC), (
             "TupleActionProcessor:%s Expected TupleAction, received %s" % (
                 self._tupleActionProcessorName, tupleAction.__class__))
 
-        tupleName = tupleAction.tupleSelector.name
+        tupleName = tupleAction.tupleName()
 
         processor = self._tupleProcessorsByTupleName.get(tupleName)
         if processor:

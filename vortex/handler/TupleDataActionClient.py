@@ -5,7 +5,7 @@ from twisted.internet.defer import Deferred
 
 from vortex.Payload import Payload
 from vortex.PayloadResponse import PayloadResponse
-from vortex.TupleAction import TupleAction
+from vortex.TupleAction import TupleActionABC
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class TupleDataActionClient:
         if additionalFilt:
             self._filt.update(additionalFilt)
 
-    def pushAction(self, tupleAction: TupleAction, additionalFilt=None) -> Deferred:
+    def pushAction(self, tupleAction: TupleActionABC, additionalFilt=None) -> Deferred:
         """ Push Action
 
         This pushes the action, either locally or to the server, depending on the
