@@ -46,6 +46,14 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
                                                uuid=self._serverVortexUuid)
         """
 
+    @abstractmethod
+    def _createResponseSenderCallable(self):
+        """
+        EG :
+        def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):
+            return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs)
+        """
+
     def dataReceived(self, bytes):
         if bytes.startswith(b"<"):
             raise Exception("Not Logged In")
@@ -57,29 +65,17 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
     def connectionLost(self, reason=connectionDone):
         reasonFailure = reason
         self._processData()
-        if isinstance(reasonFailure.value, ResponseDone):
-            self._logger.debug("Closed cleanly by other end")
-
-        elif isinstance(reasonFailure.value, ResponseNeverReceived):
-            self._logger.debug("Other end didn't answer")
-
-        elif (isinstance(reasonFailure.value, ResponseFailed)
-              and len(reasonFailure.value.reasons) == 2
-              and isinstance(reasonFailure.value.reasons[0].value, ConnectionDone)
-              and isinstance(reasonFailure.value.reasons[1].value, _DataLoss)):
+        if (reasonFailure.check(ConnectionDone)):
             self._logger.info("Connection closed by other end (it may be shutting down)")
 
-        elif (isinstance(reasonFailure.value, ResponseFailed)
-              and len(reasonFailure.value.reasons) == 2
-              and isinstance(reasonFailure.value.reasons[0].value, ConnectionLost)
-              and isinstance(reasonFailure.value.reasons[1].value, _DataLoss)):
+        elif isinstance(reasonFailure.value, ConnectionLost):
             self._logger.info("Connection to other end lost (We may be shutting down)")
 
         else:
             self._logger.error("Closed with error")
             try:
-                for reason in reasonFailure.value.reasons:
-                    self._logger.exception(reason)
+                self._logger.exception(reason.getErrorMessage())
+                self._logger.exception(reason.getTraceback())
             except:
                 self._logger.exception(reasonFailure.value)
 
@@ -137,18 +133,13 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
         self._nameAndUuidReceived(name=self._serverVortexName,
                                   uuid=self._serverVortexUuid)
 
+
+
     def _deliverPayload(self, payload):
-        def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):
-            """ Send Response
-
-            Sends a response back to where this payload come from.
-
-            """
-            return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs)
 
         PayloadIO().process(payload,
                             vortexUuid=self._serverVortexUuid,
                             vortexName=self._serverVortexName,
                             httpSession=None,
-                            sendResponse=sendResponse
+                            sendResponse=self._createResponseSenderCallable()
                             )

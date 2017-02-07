@@ -6,12 +6,14 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList
 from txws import WebSocketFactory
 
+from vortex.VortexServerHttpResource import VortexServerHttpResource
 from vortex.Payload import VortexMsgList
 from vortex.VortexABC import VortexABC
-from vortex.VortexClient import VortexClient
-from vortex.VortexResource import VortexServerResource
+from vortex.VortexClientHttp import VortexClientHttp
+from vortex.VortexClientTcp import VortexClientTcp
 from vortex.VortexServer import VortexServer
-from vortex.VortexWebsocket import VortexWebsocketServerFactory
+from vortex.VortexServerTcp import VortexTcpServerFactory
+from vortex.VortexServerWebsocket import VortexWebsocketServerFactory
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +92,7 @@ class VortexFactory:
         vortexServer = VortexServer(name)
         cls.__vortexServersByName[name].append(vortexServer)
 
-        vortexResource = VortexServerResource(vortexServer)
+        vortexResource = VortexServerHttpResource(vortexServer)
         rootResource.putChild(b"vortex", vortexResource)
 
     @classmethod
@@ -113,7 +115,26 @@ class VortexFactory:
         reactor.listenTCP(port, WebSocketFactory(vortexWebsocketServerFactory))
 
     @classmethod
-    def createClient(cls, name: str, host: str, port: int) -> Deferred:
+    def createTcpServer(cls, name: str, port: int) -> None:
+        """ Create Server
+
+        Create a vortex server, VortexServer clients connect to this vortex serer via HTTP(S)
+
+        VortexServer clients will connect and provide their names. This allows the factory to
+        abstract away the vortex UUIDs from their names.
+
+        :param name: The name of the local vortex.
+        :param port: The tcp port to listen on
+        :return: None
+        """
+
+        vortexServer = VortexServer(name)
+        cls.__vortexServersByName[name].append(vortexServer)
+        vortexTcpServerFactory = VortexTcpServerFactory(vortexServer)
+        reactor.listenTCP(port, vortexTcpServerFactory)
+
+    @classmethod
+    def createHttpClient(cls, name: str, host: str, port: int) -> Deferred:
         """ Create Client
 
         Connect to a vortex Server.
@@ -122,18 +143,38 @@ class VortexFactory:
         :param host: The hostname of the remote vortex.
         :param port: The port of the remote vortex.
 
-        :return: A deferred from the VortexClient.connect method
+        :return: A deferred from the VortexHttpClient.connect method
         """
 
-        logger.info('Connecting to Peek Server %s:%s', host, port)
+        logger.info('Connecting to Peek Server HTTP %s:%s', host, port)
 
-        vortexClient = VortexClient(name)
+        vortexClient = VortexClientHttp(name)
         cls.__vortexClientsByName[name].append(vortexClient)
 
         return vortexClient.connect(host, port)
 
     @classmethod
-    def getLocalVortexClients(cls, localVortexName: str) -> List[VortexClient]:
+    def createTcpClient(cls, name: str, host: str, port: int) -> Deferred:
+        """ Create Client
+
+        Connect to a vortex Server.
+
+        :param name: The name of the local vortex.
+        :param host: The hostname of the remote vortex.
+        :param port: The port of the remote vortex.
+
+        :return: A deferred from the VortexTcpClient.connect method
+        """
+
+        logger.info('Connecting to Peek Server TCP %s:%s', host, port)
+
+        vortexClient = VortexClientTcp(name)
+        cls.__vortexClientsByName[name].append(vortexClient)
+
+        return vortexClient.connect(host, port)
+
+    @classmethod
+    def getLocalVortexClients(cls, localVortexName: str) -> List[VortexABC]:
         return list(filter(lambda x: x.name == localVortexName,
                            cls.__vortexClientsByName.values()))
 

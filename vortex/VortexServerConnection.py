@@ -44,23 +44,25 @@ class VortexServerConnection(VortexConnectionABC):
 
         # Start our heart beat
         self._beatLoopingCall = task.LoopingCall(self._beat)
-        d = self._beatLoopingCall.start(HEART_BEAT_PERIOD)
+        d = self._beatLoopingCall.start(HEART_BEAT_PERIOD, now=False)
         d.addErrback(lambda f: logger.exception(f.value))
 
     def beatReceived(self):
         self._lastHeartBeatTime = datetime.utcnow()
 
     def _beat(self):
+        # If we're closed, do nothing
         if self._closed:
             self._beatLoopingCall.stop()
             return
 
+        # If we havn't heard from the client, then close the connection
         if (datetime.utcnow() - self._lastHeartBeatTime).seconds > HEART_BEAT_TIMEOUT:
             self._beatLoopingCall.stop()
             self.close()
             return
 
-        # Send the heartbeats
+        # Otherwise, Send the heartbeats
         self._transport.write(b'.')
 
     @property
@@ -74,6 +76,7 @@ class VortexServerConnection(VortexConnectionABC):
     def write(self, payloadVortexStr: bytes):
         assert not self._closed
         self._transport.write(payloadVortexStr)
+        self._transport.write(b'.')
 
     def close(self):
         self._transport.loseConnection()

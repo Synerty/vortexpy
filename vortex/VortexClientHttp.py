@@ -23,7 +23,6 @@ from zope.interface.declarations import implementer
 
 from vortex.Payload import Payload, VortexMsgList
 from vortex.VortexABC import VortexABC, VortexInfo
-from vortex.VortexPayloadClientProtocol import VortexPayloadClientProtocol
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 
 logger = logging.getLogger(name=__name__)
