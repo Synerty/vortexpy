@@ -6,6 +6,8 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
+import logging
+from abc import ABCMeta, abstractmethod
 from typing import Union
 
 from twisted.internet.defer import inlineCallbacks
@@ -13,21 +15,36 @@ from twisted.internet.error import ConnectionDone, ConnectionLost
 from twisted.internet.protocol import Protocol, connectionDone
 from twisted.web._newclient import ResponseDone, ResponseNeverReceived, ResponseFailed
 from twisted.web.http import _DataLoss
+
 from vortex.Payload import Payload, VortexMsgList
 from vortex.PayloadIO import PayloadIO
 
+logger = logging.getLogger(name=__name__)
 
-class VortexPayloadClientProtocol(Protocol):
-    def __init__(self, logger, vortexClient=None):
-        self._vortexClient = vortexClient
+
+class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
+    def __init__(self, logger):
         self._data = b""
         self._serverVortexUuid = None
         self._serverVortexName = None
         self._logger = logger
 
+    @abstractmethod
     def _beat(self):
+        """
+        EG :
         if self._vortexClient:
             self._vortexClient._beat()
+        """
+
+    @abstractmethod
+    def _nameAndUuidReceived(self, name, uuid):
+        """
+        EG :
+        if self._vortexClient:
+            self._vortexClient._setNameAndUuid(name=self._serverVortexName,
+                                               uuid=self._serverVortexUuid)
+        """
 
     def dataReceived(self, bytes):
         if bytes.startswith(b"<"):
@@ -41,22 +58,22 @@ class VortexPayloadClientProtocol(Protocol):
         reasonFailure = reason
         self._processData()
         if isinstance(reasonFailure.value, ResponseDone):
-            self._logger.debug("Closed cleanly by server")
+            self._logger.debug("Closed cleanly by other end")
 
         elif isinstance(reasonFailure.value, ResponseNeverReceived):
-            self._logger.debug("Server didn't answer")
+            self._logger.debug("Other end didn't answer")
 
         elif (isinstance(reasonFailure.value, ResponseFailed)
               and len(reasonFailure.value.reasons) == 2
               and isinstance(reasonFailure.value.reasons[0].value, ConnectionDone)
               and isinstance(reasonFailure.value.reasons[1].value, _DataLoss)):
-            self._logger.info("Connection closed by server (Server may be shutting down)")
+            self._logger.info("Connection closed by other end (it may be shutting down)")
 
         elif (isinstance(reasonFailure.value, ResponseFailed)
               and len(reasonFailure.value.reasons) == 2
               and isinstance(reasonFailure.value.reasons[0].value, ConnectionLost)
               and isinstance(reasonFailure.value.reasons[1].value, _DataLoss)):
-            self._logger.info("Connection to server lost (We may be shutting down)")
+            self._logger.info("Connection to other end lost (We may be shutting down)")
 
         else:
             self._logger.error("Closed with error")
@@ -117,9 +134,8 @@ class VortexPayloadClientProtocol(Protocol):
         if Payload.vortexNameKey in payload.filt:
             self._serverVortexName = payload.filt[Payload.vortexNameKey]
 
-        if self._vortexClient:
-            self._vortexClient._setNameAndUuid(name=self._serverVortexName,
-                                               uuid=self._serverVortexUuid)
+        self._nameAndUuidReceived(name=self._serverVortexName,
+                                  uuid=self._serverVortexUuid)
 
     def _deliverPayload(self, payload):
         def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):

@@ -24,6 +24,7 @@ from zope.interface.declarations import implementer
 from vortex.Payload import Payload, VortexMsgList
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadClientProtocol import VortexPayloadClientProtocol
+from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 
 logger = logging.getLogger(name=__name__)
 
@@ -47,6 +48,21 @@ class _VortexClientPayloadProducer(object):
 
     def stopProducing(self):
         pass
+
+
+class VortexPayloadHttpClientProtocol(VortexPayloadProtocol):
+    def __init__(self, logger, vortexClient=None):
+        VortexPayloadProtocol.__init__(self, logger)
+        self._vortexClient = vortexClient
+
+    def _beat(self):
+        if self._vortexClient:
+            self._vortexClient._beat()
+
+    def _nameAndUuidReceived(self, name, uuid):
+        if self._vortexClient:
+            self._vortexClient._setNameAndUuid(name=self._serverVortexName,
+                                               uuid=self._serverVortexUuid)
 
 
 class VortexClientHttp(VortexABC):
@@ -178,7 +194,7 @@ class VortexClientHttp(VortexABC):
                             self._server, self._port)
 
             self._retrying = False
-            self.__protocol = VortexPayloadClientProtocol(logger, vortexClient=self)
+            self.__protocol = VortexPayloadHttpClientProtocol(logger, vortexClient=self)
             response.deliverBody(self.__protocol)
             return True
 

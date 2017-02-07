@@ -27,7 +27,7 @@ class DummyListenerFactory(Factory):
 
 
 
-class VortexClientText(unittest.TestCase):
+class VortexClientTest(unittest.TestCase):
     def setUp(self):
         port = 9009
         host = "localhost"
