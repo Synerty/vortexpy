@@ -24,7 +24,7 @@ from .VortexServer import VortexServer
 logger = logging.getLogger(name=__name__)
 
 
-class VortexResource(Resource):
+class VortexServerResource(Resource):
     """ VortexServer Resource
       This resource is the server endpoint for the vortex.
     """

@@ -9,7 +9,7 @@ from txws import WebSocketFactory
 from vortex.Payload import VortexMsgList
 from vortex.VortexABC import VortexABC
 from vortex.VortexClient import VortexClient
-from vortex.VortexResource import VortexResource
+from vortex.VortexResource import VortexServerResource
 from vortex.VortexServer import VortexServer
 from vortex.VortexWebsocket import VortexWebsocketServerFactory
 
@@ -90,7 +90,7 @@ class VortexFactory:
         vortexServer = VortexServer(name)
         cls.__vortexServersByName[name].append(vortexServer)
 
-        vortexResource = VortexResource(vortexServer)
+        vortexResource = VortexServerResource(vortexServer)
         rootResource.putChild(b"vortex", vortexResource)
 
     @classmethod

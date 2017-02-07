@@ -49,7 +49,7 @@ class _VortexClientPayloadProducer(object):
         pass
 
 
-class VortexClient(VortexABC):
+class VortexClientHttp(VortexABC):
     """ VortexServer Client
     Connects to a votex server
     """
