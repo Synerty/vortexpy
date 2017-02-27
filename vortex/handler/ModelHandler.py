@@ -62,11 +62,14 @@ class ModelHandler(metaclass=ABCMeta):
             if payloadFilt:
                 filt.update(payloadFilt)
 
-        result = self.buildModel(payloadFilt=payload.filt if payload else None,
+        try:
+            result = self.buildModel(payloadFilt=payload.filt if payload else None,
                                  payload=payload,
                                  vortexUuid=vortexUuid,
                                  payloadReplyFilt=filt,
                                  **kwargs)
+        except Exception as e:
+            result = failure.Failure(e)
 
         if isinstance(result, Deferred):
             d = result
