@@ -72,7 +72,7 @@ class PayloadIO(object):
             common function
             """
             sendResponse(Payload(filt=payload.filt,
-                                 result=str(exception)))
+                                 result=str(exception)).toVortexMsg())
 
             logger.exception(exception)
             logger.error(payload.filt)
