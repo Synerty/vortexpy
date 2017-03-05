@@ -113,6 +113,8 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
                     self._deliverPayload(payload)
 
             except Exception as e:
+                print(vortexMsg)
+                print(e)
                 self._logger.exception(e)
                 raise
 

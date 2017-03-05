@@ -1,7 +1,8 @@
 import logging
 from collections import defaultdict
-
 from copy import copy
+
+from twisted.python.failure import Failure
 
 from vortex.DeferUtil import deferToThreadWrapWithLogger
 from vortex.Payload import Payload
@@ -9,6 +10,7 @@ from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadResponse import PayloadResponse
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
+from twisted.internet.defer import TimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +55,7 @@ class TupleDataObservableProxyHandler:
 
         # Track the response, log an error if it fails
         # 5 Seconds is long enough
-        pr = PayloadResponse(payload, timeout=5)
+        pr = PayloadResponse(payload, timeout=5, logTimeoutError=False)
 
         # Add support for just getting data, no subscription.
         if payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
@@ -67,9 +69,14 @@ class TupleDataObservableProxyHandler:
 
             pr.addCallback(reply)
 
+        def handlePrFailure(f: Failure):
+            if f.check(TimeoutError):
+                logger.error("Received no response from observable %s", tupleSelector)
+            else:
+                logger.error("Unexpected error, %s\n%s", f, tupleSelector)
+
         pr.addCallback(lambda _: logger.debug("Received response from observable"))
-        pr.addErrback(lambda f: logger.error(
-            "Received no response from observable, %s\n%s", f, tupleSelector))
+        pr.addErrback(handlePrFailure)
 
         d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
                                         destVortexName=self._proxyToVortexName)

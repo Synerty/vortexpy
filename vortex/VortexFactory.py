@@ -1,17 +1,19 @@
 import logging
 from collections import defaultdict
-from typing import Union, List, Optional
 
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList
+from twisted.internet.defer import Deferred, DeferredList, succeed
+from twisted.python.failure import Failure
 from txws import WebSocketFactory
+from typing import Union, List, Optional
 
-from vortex.VortexServerHttpResource import VortexServerHttpResource
-from vortex.Payload import VortexMsgList
+from vortex.Payload import VortexMsgList, Payload
+from vortex.PayloadIO import PayloadIO
 from vortex.VortexABC import VortexABC
 from vortex.VortexClientHttp import VortexClientHttp
 from vortex.VortexClientTcp import VortexClientTcp
 from vortex.VortexServer import VortexServer
+from vortex.VortexServerHttpResource import VortexServerHttpResource
 from vortex.VortexServerTcp import VortexTcpServerFactory
 from vortex.VortexServerWebsocket import VortexWebsocketServerFactory
 
@@ -182,7 +184,7 @@ class VortexFactory:
     def getRemoteVortexUuids(cls) -> List[str]:
         remoteUuids = []
 
-        for vortex in  cls._allVortexes():
+        for vortex in cls._allVortexes():
             for remoteVortexInfo in vortex.remoteVortexInfo:
                 remoteUuids.append(remoteVortexInfo.uuid)
 
@@ -224,9 +226,41 @@ class VortexFactory:
 
         return DeferredList(deferreds)
 
-        # def vortexIsClientAlive(vortexUuid):
-        #     return VortexServer().isVortexAlive(vortexUuid)
-        #
-        #
-        # def vortexClientIpPort(vortexUuid):
-        #     return VortexServer().vortexClientIpPort(vortexUuid)
+
+    @classmethod
+    def sendVortexMsgLocally(cls, vortexMsgs: Union[VortexMsgList, bytes]) -> Deferred:
+        """ Send VortexMsg
+
+        Sends a payload to the remote vortex.
+
+        :param vortexMsgs: The vortex message(s) to deliver locally.
+
+        :return: A C{Deferred} which will callback when the message has been delivered.
+        """
+
+        vortexUuid= "local"
+        vortexName= "local"
+        httpSession = "local"
+        sendResponse= VortexFactory.sendVortexMsgLocally
+
+        vortexMsgs = [vortexMsgs] if isinstance(vortexMsgs, bytes) else vortexMsgs
+
+        def send(payload):
+            try:
+                PayloadIO().process(
+                    payload=payload,
+                    vortexUuid=vortexUuid,
+                    vortexName=vortexName,
+                    httpSession=httpSession,
+                    sendResponse=sendResponse
+                )
+                return succeed(True)
+
+            except Exception as e:
+                return Failure(e)
+
+        deferreds = []
+        for vortexMsg in vortexMsgs:
+            deferreds.append(send(Payload().fromVortexMsg(vortexMsg)))
+
+        return DeferredList(deferreds)

@@ -9,6 +9,9 @@
 import logging
 import uuid
 from datetime import datetime
+
+import twisted
+from twisted.internet.error import ConnectionDone
 from typing import Union, Optional
 
 from twisted.internet import reactor
@@ -58,6 +61,11 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
         self.transport.write(b'.')
 
     def write(self, payloadVortexStr: bytes):
+        if not twisted.python.threadable.isInIOThread():
+            e = Exception("Write called from NON main thread")
+            logger.exception(e)
+            raise
+
         assert not self._closed
         self.transport.write(payloadVortexStr)
         self.transport.write(b'.')
@@ -132,7 +140,8 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         return self.__protocol
 
     def clientConnectionLost(self, connector, reason):
-        logger.debug('Lost connection.  Reason: %s', reason)
+        if not reason.check(ConnectionDone):
+            logger.debug('Lost connection.  Reason: %s', reason)
         ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
     def clientConnectionFailed(self, connector, reason):
@@ -255,7 +264,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         logger.info("VortexServer client dead, reconnecting %s:%s", self._server,
                     self._port)
 
-        d = self.connect()
+        d = self.connect(self._server, self._port)
 
         # Add a errback that handles the failure.
         d.addErrback(lambda _: None)

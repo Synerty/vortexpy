@@ -1,6 +1,9 @@
 import logging
-
 from copy import copy
+
+from twisted.internet.defer import TimeoutError
+from twisted.python.failure import Failure
+
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadResponse import PayloadResponse
@@ -51,18 +54,23 @@ class TupleActionProcessorProxy:
         # Track the response, log an error if it fails
         # 5 Seconds is long enouge.
         # VortexJS defaults to 10s, so we have some room for round trip time.
-        pr = PayloadResponse(payload, timeout=5, resultCheck=False)
+        pr = PayloadResponse(payload, timeout=5, resultCheck=False, logTimeoutError=False)
 
         # This is not a lambda, so that it can have a breakpoint
         def reply(payload):
             payload.filt = responseFilt
             sendResponse(payload.toVortexMsg())
 
+        def handlePrFailure(f: Failure):
+            if f.check(TimeoutError):
+                logger.error("Received no response for %s", payload.filt['tupleSelector'])
+            else:
+                logger.error("Processing exception, %s\n%s", f, payload.tuples)
+
         pr.addCallback(reply)
 
         pr.addCallback(lambda _: logger.debug("Received action response from server"))
-        pr.addErrback(lambda f: logger.error(
-            "Received no response, %s\n%s", f, payload.tuples))
+        pr.addErrback(handlePrFailure)
 
         d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
                                         destVortexName=self._proxyToVortexName)
