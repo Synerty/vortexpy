@@ -48,7 +48,9 @@ class PayloadResponse(Deferred):
     def __init__(self, payload: Payload,
                  destVortexName: Optional[str] = None,
                  destVortexUuid: Optional[str] = None,
-                 timeout: int = 10, resultCheck=True):
+                 timeout: int = 10,
+                 resultCheck=True,
+                 logTimeoutError=True):
         """ Constructor
 
         Tag and optionally send a payload.
@@ -64,6 +66,7 @@ class PayloadResponse(Deferred):
         """
         Deferred.__init__(self)
         self._resultCheck = resultCheck
+        self._logTimeoutError = logTimeoutError
 
         self._messageId = str(uuid1())
         payload.filt[self.__messageIdKey] = self._messageId
@@ -97,7 +100,8 @@ class PayloadResponse(Deferred):
         return self._status
 
     def _timedOut(self, failure: Failure, payload: Payload):
-        logger.error("Timed out for payload %s", payload.filt)
+        if self._logTimeoutError:
+            logger.error("Timed out for payload %s", payload.filt)
         self._status = self.TIMED_OUT
         return failure
 
