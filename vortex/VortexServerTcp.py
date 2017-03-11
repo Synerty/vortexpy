@@ -41,8 +41,6 @@ class VortexTcpServerProtocol(VortexPayloadProtocol):
             self._conn.beatReceived()
 
     def _nameAndUuidReceived(self, name, uuid):
-        # self.transport.setBinaryMode(True)
-
         self._remoteVortexUuid = uuid
         self._remoteVortexName = name
         self._conn = VortexServerConnection(self._vortex,

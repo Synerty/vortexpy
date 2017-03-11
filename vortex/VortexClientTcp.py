@@ -11,14 +11,13 @@ import uuid
 from datetime import datetime
 
 import twisted
-from twisted.internet.error import ConnectionDone
-from typing import Union, Optional
-
 from twisted.internet import reactor
 from twisted.internet import task, defer
 from twisted.internet.defer import Deferred
+from twisted.internet.error import ConnectionDone, ConnectionRefusedError
 from twisted.internet.protocol import connectionDone, ReconnectingClientFactory
-
+from typing import Union, Optional
+from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import Payload, VortexMsgList
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
@@ -51,6 +50,7 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
     def _createResponseSenderCallable(self):
         def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):
             return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs)
+
         return sendResponse
 
     def _sendBeat(self):
@@ -64,7 +64,7 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
         if not twisted.python.threadable.isInIOThread():
             e = Exception("Write called from NON main thread")
             logger.exception(e)
-            raise
+            raise e
 
         assert not self._closed
         self.transport.write(payloadVortexStr)
@@ -99,6 +99,9 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
 
     # The time it takes after recieving a response from the server to receive the
     INFO_PAYLOAD_TIMEOUT = 5  # Seconds
+
+    # Set the ReconnectingClientFactory max delay
+    maxDelay = 1
 
     def __init__(self, name: str):
         self._vortexName = name
@@ -145,7 +148,10 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
     def clientConnectionFailed(self, connector, reason):
-        logger.debug('Connection failed. Reason: %s', reason)
+        if reason.check(ConnectionRefusedError):
+            logger.debug("Connection refused (We'll retry)")
+        else:
+            logger.debug('Connection failed. Reason: %s', reason)
         ReconnectingClientFactory.clientConnectionFailed(self, connector,
                                                          reason)
 
@@ -181,11 +187,8 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         self._port = port
 
         self._beat()
-        self._beatTimeoutLoopingCall.start(5.0)
-
-        return self._reconnect()
-
-    def _reconnect(self):
+        d = self._beatTimeoutLoopingCall.start(5.0, now=False)
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
 
         deferred = Deferred()
 
@@ -261,10 +264,8 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
 
         self._retrying = True
 
-        logger.info("VortexServer client dead, reconnecting %s:%s", self._server,
-                    self._port)
+        logger.info("VortexServer client dead, reconnecting %s:%s",
+                    self._server, self._port)
 
-        d = self.connect(self._server, self._port)
-
-        # Add a errback that handles the failure.
-        d.addErrback(lambda _: None)
+        if self.__protocol:
+            self.__protocol.close()

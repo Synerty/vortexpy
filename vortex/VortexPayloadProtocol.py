@@ -91,13 +91,16 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
                 # There is no '.' in it, wait for more data.
                 return None
 
-        nextChunk = getNextChunk()
-
-        while nextChunk is not None:  # NOT ZERO
+        while getNextChunk() is not None:  # NOT ZERO
+            nextChunk = getNextChunk()
             vortexMsg = self._data[:nextChunk]
+
+            if b"." in vortexMsg:
+                print(vortexMsg)
+                raise Exception("Something went wrong, there is a '.' in the msg")
+
             self._data = self._data[nextChunk + 1:]
 
-            nextChunk = getNextChunk()
             self._beat()
 
             # If the vortex message is omitted entirly, then this is just a heart beat.
