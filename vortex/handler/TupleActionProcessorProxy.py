@@ -3,6 +3,7 @@ from copy import copy
 
 from twisted.internet.defer import TimeoutError
 from twisted.python.failure import Failure
+from vortex.DeferUtil import vortexLogFailure
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
@@ -74,4 +75,4 @@ class TupleActionProcessorProxy:
 
         d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
                                         destVortexName=self._proxyToVortexName)
-        d.addErrback(lambda f: logger.exception(f.value))
+        d.addErrback(vortexLogFailure, logger, consumeError=True)

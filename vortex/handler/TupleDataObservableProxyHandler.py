@@ -4,7 +4,7 @@ from copy import copy
 
 from twisted.python.failure import Failure
 
-from vortex.DeferUtil import deferToThreadWrapWithLogger
+from vortex.DeferUtil import deferToThreadWrapWithLogger, vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadResponse import PayloadResponse
@@ -65,7 +65,9 @@ class TupleDataObservableProxyHandler:
             # Restore the original payload filt (PayloadResponse) and send it back
             def reply(payload):
                 payload.filt = responseFilt
-                sendResponse(payload.toVortexMsg())
+                d = sendResponse(payload.toVortexMsg())
+                d.addErrback(vortexLogFailure, logger, consumeError=True)
+                logger.debug("Received response from observable")
 
             pr.addCallback(reply)
 
@@ -75,12 +77,11 @@ class TupleDataObservableProxyHandler:
             else:
                 logger.error("Unexpected error, %s\n%s", f, tupleSelector)
 
-        pr.addCallback(lambda _: logger.debug("Received response from observable"))
-        pr.addErrback(handlePrFailure)
+        pr.addErrback(vortexLogFailure, logger, consumeError=True)
 
         d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
                                         destVortexName=self._proxyToVortexName)
-        d.addErrback(lambda f: logger.exception(f.value))
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
 
     @deferToThreadWrapWithLogger(logger)
     def _processUpdateFromBackend(self, payload: Payload):
@@ -101,5 +102,6 @@ class TupleDataObservableProxyHandler:
 
         # Send the vortex messages
         for vortexUuid in observingUuids:
-            VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
+            d = VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
                                         destVortexUuid=vortexUuid)
+            d.addErrback(vortexLogFailure, logger, consumeError=True)
