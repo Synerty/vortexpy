@@ -13,7 +13,12 @@ if os.path.isdir(egg_info):
 requirements = [
     "SQLAlchemy >= 1.0.14",  # Database abstraction layer
     "GeoAlchemy2",  # Geospatial addons to SQLAlchemy
-    "txWS>=0.9.1"
+    "txWS>=0.9.1",
+
+    # txWS requires these, if we try to offline install the packages, txWS setup_requires
+    # causes issues
+    "vcversioner",
+    "six"
 ]
 
 setup(
