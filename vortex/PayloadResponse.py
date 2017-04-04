@@ -1,4 +1,6 @@
 import logging
+import sys
+from copy import copy
 from datetime import datetime
 from typing import Optional
 from uuid import uuid1
@@ -85,6 +87,13 @@ class PayloadResponse(Deferred):
                                         destVortexName=destVortexName,
                                         destVortexUuid=destVortexUuid)
 
+        self._filt = payload.filt
+        self._destVortexName = destVortexName
+        try:
+            raise Exception()
+        except:
+            self._stack = sys.exc_info()[2]
+
     @classmethod
     def isResponsePayload(cls, payload):
         """ Is Response Payload
@@ -105,13 +114,19 @@ class PayloadResponse(Deferred):
         self._status = self.TIMED_OUT
         return failure
 
-    def _process(self, payload, **kwargs):
+    def _process(self, payload, vortexName, **kwargs):
+        if self._destVortexName and vortexName != self._destVortexName:
+            logger.debug("Received response from a vortex other than the dest vortex, "
+                   "Expected %s, Received %s", self._destVortexName, vortexName)
+            return
+
         if self.called:
-            raise Exception("Received response after timeout.")
+            logger.error("Received response after timeout for %s" % self._filt)
+            return
 
         if self._resultCheck and not payload.result in (None, True):
             self._status = self.FAILED
-            self.errback(Failure(Exception(payload.result)))
+            self.errback(Failure(Exception(payload.result).with_traceback(self._stack)))
 
         else:
             self._status = self.SUCCESS

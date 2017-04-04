@@ -21,17 +21,17 @@ logger = logging.getLogger(__name__)
 
 
 class PayloadEndpoint(object):
-    '''
+    """
     The payload endpoint is responsible for matching payloads filters against
     filters defined in the endpoint. If the end point filters are within the
     payload filter then the payload will be passed to the supplied callable.
-    '''
+    """
 
     def __init__(self, filt, callable_):
-        '''
+        """
         @param filt: The filter to match against payloads
         @param callable_: This will be called and passed the payload if it matches
-        '''
+        """
         if not "key" in filt:
             e = Exception("There is no 'key' in the payload filt"
                           ", There must be one for routing")

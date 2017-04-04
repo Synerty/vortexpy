@@ -176,6 +176,14 @@ class VortexFactory:
         return vortexClient.connect(host, port)
 
     @classmethod
+    def isVortexNameLocal(cls, vortexName: str) -> bool:
+        for vortex in cls._allVortexes():
+            if vortex.localVortexInfo.name == vortexName:
+                return True
+
+        return False
+
+    @classmethod
     def getLocalVortexClients(cls, localVortexName: str) -> List[VortexABC]:
         return list(filter(lambda x: x.name == localVortexName,
                            cls.__vortexClientsByName.values()))
@@ -226,7 +234,6 @@ class VortexFactory:
 
         return DeferredList(deferreds)
 
-
     @classmethod
     def sendVortexMsgLocally(cls, vortexMsgs: Union[VortexMsgList, bytes]) -> Deferred:
         """ Send VortexMsg
@@ -238,10 +245,10 @@ class VortexFactory:
         :return: A C{Deferred} which will callback when the message has been delivered.
         """
 
-        vortexUuid= "local"
-        vortexName= "local"
+        vortexUuid = "local"
+        vortexName = "local"
         httpSession = "local"
-        sendResponse= VortexFactory.sendVortexMsgLocally
+        sendResponse = VortexFactory.sendVortexMsgLocally
 
         vortexMsgs = [vortexMsgs] if isinstance(vortexMsgs, bytes) else vortexMsgs
 
