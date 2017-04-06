@@ -1,8 +1,8 @@
 import logging
 import sys
 
-from twisted.internet.defer import succeed, fail, Deferred
-from twisted.internet.error import TimeoutError
+from twisted.internet.defer import succeed, fail, Deferred, TimeoutError
+from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure
 from typing import Optional
 
@@ -60,10 +60,13 @@ class _VortexRPC:
     
     """
 
+    __registeredFuncNames = set()
+
     def __init__(self, func, listeningVortexName: str,
                  timeoutSeconds: float,
                  acceptOnlyFromVortex: Optional[str],
-                 additionalFilt: dict):
+                 additionalFilt: dict,
+                 deferToThread: bool):
         """
     
         :param listeningVortexName: If the local vortex name matches this name, then
@@ -77,37 +80,58 @@ class _VortexRPC:
                 
         :param additionalFilt: If specified, the items from this dict will be added
                                 to the filt that this RPCs handler listens on.
+                
+        :param deferToThread: Should the function be called in a thread, or in the 
+                        reactors main loop.
         
         """
 
         self.__func = func
+        self.__funcSelf = None
         self.__listeningVortexName = listeningVortexName
         self.__timeoutSeconds = timeoutSeconds
         self.__acceptOnlyFromVortex = acceptOnlyFromVortex
+        self.__deferToThread = deferToThread
 
-        self._funcName = ''
+        self.__funcName = ''
         if func.__globals__["__spec__"]:
-            self._funcName += func.__globals__["__spec__"].name
-        self._funcName += "." + func.__qualname__
+            self.__funcName += func.__globals__["__spec__"].name
+        self.__funcName += "." + func.__qualname__
+
+        if self.__funcName in self.__registeredFuncNames:
+            raise Exception("RPC function name %s is already registered" % self.__funcName)
+        self.__registeredFuncNames.add(self.__funcName)
 
         # Define the FILT
         self._filt = {
             '_internal': 'vortexRPC',
-            'key': self._funcName
+            'key': self.__funcName
         }
         self._filt.update(additionalFilt)
 
         # Define the Endpoint
 
-    def start(self):
+    def start(self, funcSelf=None):
+        """ Start 
+        
+        If this is a class method, then bind the function to the
+                            object passed in by bindToSelf.
+        
+        :param funcSelf: The object to bind the class instance methods self to.
+                            
+        """
         if VortexFactory.isVortexNameLocal(self.__listeningVortexName):
             self.__ep = PayloadEndpoint(self._filt, self._processCall)
-            logger.debug("RPC %s listening", self._funcName)
+            logger.debug("RPC %s listening", self.__funcName)
 
         else:
             logger.error("Ignoring request to start listening for RPC %s "
                          "as vortex name %s is not local",
-                         self._funcName, self.__listeningVortexName)
+                         self.__funcName, self.__listeningVortexName)
+
+        self.__funcSelf = funcSelf
+
+        return self
 
     def shutdown(self):
         """ Shutdown 
@@ -115,6 +139,8 @@ class _VortexRPC:
         Shuts down the RPC PayloadEndpoint
         """
         self.__ep.shutdown()
+        self.__func = None
+        self.__funcSelf = None
 
     def _processCall(self, payload, vortexName, sendResponse, *args, **kwargs):
         """ Process
@@ -125,7 +151,7 @@ class _VortexRPC:
         # If the sending vortex, is local, then ignore it, RPC can not be called locally
         if VortexFactory.isVortexNameLocal(vortexName):
             logger.warning("Received RPC call to %s, from local vortex %s, ignoring it"
-                           , self._funcName, vortexName)
+                           , self.__funcName, vortexName)
             return
 
         # Apply the "allow" logic
@@ -139,7 +165,7 @@ class _VortexRPC:
         assert isinstance(argsTuple, _VortexRPCArgTuple), (
             "argsTuple is not an instance of %s" % _VortexRPCArgTuple)
 
-        logger.debug("Received RPC call for %s", self._funcName)
+        logger.debug("Received RPC call for %s", self.__funcName)
 
         # Call the method and setup the callbacks
         d = self.callLocally(argsTuple.args, argsTuple.kwargs)
@@ -165,7 +191,7 @@ class _VortexRPC:
         except:
             stack = sys.exc_info()[2]
 
-        logger.debug("Calling RPC for %s", self._funcName)
+        logger.debug("Calling RPC for %s", self.__funcName)
 
         payload = Payload(filt=self._filt,
                           tuples=[_VortexRPCArgTuple(args=args, kwargs=kwargs)])
@@ -198,7 +224,7 @@ class _VortexRPC:
         assert isinstance(resultTuple, _VortexRPCResultTuple), (
             "resultTuple is not an instance of %s" % _VortexRPCResultTuple)
 
-        logger.debug("Received RPC result for %s", self._funcName)
+        logger.debug("Received RPC result for %s", self.__funcName)
 
         # Return the remote result
         return resultTuple.result
@@ -211,10 +237,10 @@ class _VortexRPC:
 
         """
 
-        if failure.check([TimeoutError]):
-            logger.debug("Received RPC timeout for %s", self._funcName)
+        if failure.check(TimeoutError):
+            logger.error("Received RPC timeout for %s", self.__funcName)
 
-            return Failure(Exception("RPC call timed out for %s", self._funcName)
+            return Failure(Exception("RPC call timed out for %s", self.__funcName)
                            .with_traceback(stack),
                            exc_tb=stack)
 
@@ -228,7 +254,14 @@ class _VortexRPC:
         
         """
         try:
-            result = self.__func(*args, **kwargs)
+            if self.__funcSelf:
+                args = [self.__funcSelf] + args
+
+            if self.__deferToThread:
+                result = deferToThread(self.__func, *args, **kwargs)
+
+            else:
+                result = self.__func(*args, **kwargs)
 
         except Exception as e:
             return fail(Failure(e))
@@ -246,7 +279,8 @@ class _VortexRPC:
 def vortexRPC(listeningVortexName: str,
               timeoutSeconds: float = 10.0,
               acceptOnlyFromVortex: Optional[str] = None,
-              additionalFilt: Optional[dict] = None):
+              additionalFilt: Optional[dict] = None,
+              deferToThread: bool = False):
     """ Vortex RPC Decorator
     
     :param listeningVortexName: If the local vortex name matches this name, then
@@ -260,6 +294,9 @@ def vortexRPC(listeningVortexName: str,
             
     :param additionalFilt: If specified, the items from this dict will be added
                             to the filt that this RPCs handler listens on.
+            
+    :param deferToThread: Should the function be called in a thread, or in the 
+                        reactors main loop.
     
     :return A wrapped function, that will now work as an RPC call.
     
@@ -294,6 +331,7 @@ def vortexRPC(listeningVortexName: str,
 
     def decorator(func):
         return _VortexRPC(func, listeningVortexName, timeoutSeconds,
-                          acceptOnlyFromVortex, additionalFilt)
+                          acceptOnlyFromVortex, additionalFilt,
+                          deferToThread)
 
     return decorator

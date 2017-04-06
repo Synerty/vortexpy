@@ -3,7 +3,7 @@ import sys
 from copy import copy
 from datetime import datetime
 from typing import Optional
-from uuid import uuid1
+from uuid import uuid1, uuid4
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -70,7 +70,7 @@ class PayloadResponse(Deferred):
         self._resultCheck = resultCheck
         self._logTimeoutError = logTimeoutError
 
-        self._messageId = str(uuid1())
+        self._messageId = str(uuid4())
         payload.filt[self.__messageIdKey] = self._messageId
 
         self._status = self.PROCESSING
@@ -109,12 +109,20 @@ class PayloadResponse(Deferred):
         return self._status
 
     def _timedOut(self, failure: Failure, payload: Payload):
+        if self._endpoint:
+            self._endpoint.shutdown()
+            self._endpoint = None
+
         if self._logTimeoutError:
             logger.error("Timed out for payload %s", payload.filt)
         self._status = self.TIMED_OUT
         return failure
 
     def _process(self, payload, vortexName, **kwargs):
+        if self._endpoint:
+            self._endpoint.shutdown()
+            self._endpoint = None
+
         if self._destVortexName and vortexName != self._destVortexName:
             logger.debug("Received response from a vortex other than the dest vortex, "
                    "Expected %s, Received %s", self._destVortexName, vortexName)
