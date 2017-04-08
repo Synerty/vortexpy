@@ -31,6 +31,7 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
         VortexPayloadProtocol.__init__(self, logger)
         self._vortexClient = vortexClient
 
+
         self._closed = False
 
         # Start our heart beat
@@ -43,6 +44,9 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
             self._vortexClient._beat()
 
     def _nameAndUuidReceived(self, name, uuid):
+        from vortex.VortexFactory import VortexFactory
+        VortexFactory._notifyOfVortexStatusChange(name, online=True)
+
         if self._vortexClient:
             self._vortexClient._setNameAndUuid(name=self._serverVortexName,
                                                uuid=self._serverVortexUuid)
@@ -79,6 +83,9 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
         self.write(Payload(filt=connectPayloadFilt).toVortexMsg())
 
     def connectionLost(self, reason=connectionDone):
+        from vortex.VortexFactory import VortexFactory
+        VortexFactory._notifyOfVortexStatusChange(self._serverVortexName, online=False)
+
         if self._sendBeatLoopingCall.running:
             self._sendBeatLoopingCall.stop()
         self._closed = False

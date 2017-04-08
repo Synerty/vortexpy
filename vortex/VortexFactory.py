@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
 
+from rx.subjects import Subject
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList, succeed
 from twisted.python.failure import Failure
@@ -37,6 +38,8 @@ class VortexFactory:
     __vortexServersByName = defaultdict(list)
     __vortexClientsByName = defaultdict(list)
     __remoteVortexexByLocalVortex = {}
+
+    __vortexStatusChangeSubjectsByName = {}
 
     def __init__(self):
         raise Exception("Vortex Factory should not be instantiated")
@@ -271,3 +274,27 @@ class VortexFactory:
             deferreds.append(send(Payload().fromVortexMsg(vortexMsg)))
 
         return DeferredList(deferreds)
+
+    @classmethod
+    def subscribeToVortexStatusChange(cls, vortexName:str) -> Subject:
+        """ Subscribe to Vortex Status Change
+        
+        Subscribing to the returned observable/subject will provided updates of when the
+        vortex goes offline, or online.
+        
+        .. warning:: This is only implemented for TCP Client vortexes.
+        
+        :param vortexName: The name of the vortex to subscribe to the status for.
+                            This will be the name of the remote vortex.
+        
+        """
+        if not vortexName in cls.__vortexStatusChangeSubjectsByName:
+            cls.__vortexStatusChangeSubjectsByName[vortexName] = Subject()
+        return cls.__vortexStatusChangeSubjectsByName[vortexName]
+
+    @classmethod
+    def _notifyOfVortexStatusChange(cls, vortexName:str, online:bool) -> None:
+        logger.debug("Vortex %s went %s", vortexName, ("online" if online else "offline"))
+
+        if vortexName in cls.__vortexStatusChangeSubjectsByName:
+            cls.__vortexStatusChangeSubjectsByName[vortexName].on_next(online)
