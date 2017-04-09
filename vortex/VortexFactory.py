@@ -41,8 +41,14 @@ class VortexFactory:
 
     __vortexStatusChangeSubjectsByName = {}
 
+    __isShutdown = False
+
     def __init__(self):
         raise Exception("Vortex Factory should not be instantiated")
+
+    @classmethod
+    def shutdown(cls) -> None:
+        cls.__isShutdown = True
 
     @classmethod
     def _getVortexSendRefs(cls, name=None, uuid=None) -> (VortexABC, [str]):
@@ -294,6 +300,9 @@ class VortexFactory:
 
     @classmethod
     def _notifyOfVortexStatusChange(cls, vortexName:str, online:bool) -> None:
+        if cls.__isShutdown:
+            return
+
         logger.debug("Vortex %s went %s", vortexName, ("online" if online else "offline"))
 
         if vortexName in cls.__vortexStatusChangeSubjectsByName:
