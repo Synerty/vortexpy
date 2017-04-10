@@ -50,7 +50,7 @@ class PayloadResponse(Deferred):
     def __init__(self, payload: Payload,
                  destVortexName: Optional[str] = None,
                  destVortexUuid: Optional[str] = None,
-                 timeout: int = 10,
+                 timeout: float = 10.0,
                  resultCheck=True,
                  logTimeoutError=True):
         """ Constructor

@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from twisted.internet.defer import succeed, fail, Deferred, TimeoutError
+from twisted.internet.defer import succeed, fail, Deferred, TimeoutError, inlineCallbacks
 from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure
 from typing import Optional
@@ -66,7 +66,8 @@ class _VortexRPC:
                  timeoutSeconds: float,
                  acceptOnlyFromVortex: Optional[str],
                  additionalFilt: dict,
-                 deferToThread: bool):
+                 deferToThread: bool,
+                 inlineCallbacks: bool):
         """
     
         :param listeningVortexName: If the local vortex name matches this name, then
@@ -83,6 +84,9 @@ class _VortexRPC:
                 
         :param deferToThread: Should the function be called in a thread, or in the 
                         reactors main loop.
+            
+        :param inlineCallbacks: Should the function be wrapped in the twisted 
+                @inlinecallbacks decorator before it's called?.
         
         """
 
@@ -92,6 +96,7 @@ class _VortexRPC:
         self.__timeoutSeconds = timeoutSeconds
         self.__acceptOnlyFromVortex = acceptOnlyFromVortex
         self.__deferToThread = deferToThread
+        self.__inlineCallbacks = inlineCallbacks
 
         self.__funcName = ''
         if func.__globals__["__spec__"]:
@@ -257,7 +262,10 @@ class _VortexRPC:
             if self.__funcSelf:
                 args = [self.__funcSelf] + args
 
-            if self.__deferToThread:
+            if self.__inlineCallbacks:
+                result = inlineCallbacks(self.__func)(*args, **kwargs)
+
+            elif self.__deferToThread:
                 result = deferToThread(self.__func, *args, **kwargs)
 
             else:
@@ -280,7 +288,8 @@ def vortexRPC(listeningVortexName: str,
               timeoutSeconds: float = 10.0,
               acceptOnlyFromVortex: Optional[str] = None,
               additionalFilt: Optional[dict] = None,
-              deferToThread: bool = False):
+              deferToThread: bool = False,
+              inlineCallbacks: bool = False):
     """ Vortex RPC Decorator
     
     :param listeningVortexName: If the local vortex name matches this name, then
@@ -297,6 +306,9 @@ def vortexRPC(listeningVortexName: str,
             
     :param deferToThread: Should the function be called in a thread, or in the 
                         reactors main loop.
+            
+    :param inlineCallbacks: Should the function be wrapped in the twisted 
+            @inlinecallbacks decorator before it's called?.
     
     :return A wrapped function, that will now work as an RPC call.
     
@@ -332,6 +344,6 @@ def vortexRPC(listeningVortexName: str,
     def decorator(func):
         return _VortexRPC(func, listeningVortexName, timeoutSeconds,
                           acceptOnlyFromVortex, additionalFilt,
-                          deferToThread)
+                          deferToThread, inlineCallbacks)
 
     return decorator
