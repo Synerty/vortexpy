@@ -67,7 +67,7 @@ class TupleDataObservableProxyHandler:
                 payload.filt = responseFilt
                 d = sendResponse(payload.toVortexMsg())
                 d.addErrback(vortexLogFailure, logger, consumeError=True)
-                logger.debug("Received response from observable")
+                # logger.debug("Received response from observable")
 
             pr.addCallback(reply)
 
