@@ -53,7 +53,8 @@ V_TRUE = '1'
 V_FALSE = '0'
 
 ISO8601_ORA = 'YYYY-MM-DD HH24:MI:SS.FF6'
-ISO8601 = '%Y-%m-%d %H:%M:%S.%f'
+ISO8601 = '%Y-%m-%d %H:%M:%S.%f%z'
+ISO8601_NOTZ = '%Y-%m-%d %H:%M:%S.%f'
 
 TYPE_MAP_PY_TO_RAPUI = {decimal.Decimal: T_FLOAT,
                         float: T_FLOAT,
@@ -177,6 +178,8 @@ def toStr(obj):
 
 def fromStr(val: str, typeName: str):
     if typeName == T_DATETIME:
+        if len(val) <= len('2017-06-06 09:40:37.097068'):
+            return datetime.strptime(val, ISO8601_NOTZ)
         return datetime.strptime(val, ISO8601)
 
     if typeName == T_BOOL:
