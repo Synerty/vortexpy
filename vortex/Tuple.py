@@ -198,7 +198,7 @@ class Tuple(Jsonable):
             setattr(self, key, val)
 
     @classmethod
-    def tupleFieldNames(cls) -> List[str]:  # DEPRECIATED
+    def tupleFieldNames(cls) -> List[str]:
         return cls.__fieldNames__
 
     @classmethod

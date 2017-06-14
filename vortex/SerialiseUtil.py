@@ -8,9 +8,10 @@
 """
 import decimal
 import logging
-from collections import defaultdict
 from datetime import datetime, date
 
+from base64 import b64encode, b64decode
+from collections import defaultdict
 from sqlalchemy.orm.collections import InstrumentedList
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ T_GENERIC_CLASS = 'gen'  # NOT SUPPORTED
 T_FLOAT = 'float'
 T_INT = 'int'
 T_STR = 'str'
-# T_BYTES = 'bytes'
+T_BYTES = 'bytes'
 T_BOOL = 'bool'
 T_DATETIME = 'datetime'
 T_DICT = 'dict'
@@ -59,7 +60,7 @@ ISO8601_NOTZ = '%Y-%m-%d %H:%M:%S.%f'
 TYPE_MAP_PY_TO_RAPUI = {decimal.Decimal: T_FLOAT,
                         float: T_FLOAT,
                         str: T_STR,
-                        # bytes: T_BYTES,
+                        bytes: T_BYTES,
                         int: T_INT,
                         bool: T_BOOL,
                         datetime: T_DATETIME,
@@ -99,7 +100,7 @@ def constructGeom(val):
 
 TYPE_MAP_RAPUI_TO_PY = {T_FLOAT: float,
                         T_STR: str,
-                        # T_BYTES: bytes,
+                        T_BYTES: bytes,
                         T_INT: int,
                         T_BOOL: bool,
                         T_DATETIME: datetime,
@@ -155,7 +156,7 @@ def decimalToStr(dec):
     return s
 
 
-def toStr(obj):
+def toStr(obj) -> str:
     if isinstance(obj, decimal.Decimal):
         return decimalToStr(obj)
 
@@ -164,6 +165,9 @@ def toStr(obj):
 
     if isinstance(obj, bool):
         return V_TRUE if obj else V_FALSE
+
+    if isinstance(obj, bytes):
+        return b64encode(obj).decode() # to make it a str
 
     if isinstance(obj, str):
         return obj
@@ -184,6 +188,9 @@ def fromStr(val: str, typeName: str):
 
     if typeName == T_BOOL:
         return val == V_TRUE
+
+    if typeName == T_BYTES:
+        return b64decode(val)
 
     if typeName in (T_STR):
         return val

@@ -17,6 +17,7 @@ from twisted.internet import task
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.protocol import Protocol, connectionDone, Factory
 
+from vortex.DeferUtil import vortexLogFailure
 from vortex.VortexServerConnection import VortexServerConnection
 from .Payload import Payload
 from .VortexConnectionABC import VortexConnectionABC
@@ -62,6 +63,10 @@ class VortexWebsocketServerProtocol(Protocol):
         self._remoteVortexName = None
         self._httpSession = None
 
+        # Most messages don't need a buffer, but websockets can split messages
+        # around the 128kb mark
+        self._receiveBuffer = b''
+
     def __initConnection(self):
         # self.transport.setBinaryMode(True)
 
@@ -92,12 +97,18 @@ class VortexWebsocketServerProtocol(Protocol):
         if self._vortex.isShutdown():
             return None
 
-        if data in ('.', b'.'):
+        if data == b'.':
             self._conn.beatReceived()
             return
 
-        d = self._processVortexMsg(data)
-        d.addErrback(lambda f: logger.exception(f.value))
+        self._receiveBuffer += data
+
+        if self._receiveBuffer.endswith(b'.'):
+            d = self._processVortexMsg(self._receiveBuffer)
+            d.addErrback(vortexLogFailure, logger, consumeError=True)
+            self._receiveBuffer = b''
+
+
 
     def connectionLost(self, reason=connectionDone):
         if self._conn:
