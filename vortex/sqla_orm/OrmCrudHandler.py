@@ -304,28 +304,30 @@ class OrmCrudHandler(object):
         self._ext.beforeUpdate(tuples, session, payloadFilt)
 
         # Add everything first.
-        for tuple_ in tuples:
-            if tuple == None:
-                continue
+        for tupleObj in tuples:
+            if tupleObj is None:
+                raise Exception("None/null was present in array of tuples")
 
             # Make sure it's not ''
-            if tuple_.id == '':
-                tuple_.id = None
+            if tupleObj.id == '':
+                tupleObj.id = None
 
-            if tuple_.id == None:
-                session.add(tuple_)
+            if tupleObj.id is None:
+                session.add(tupleObj)
 
         self._ext.middleUpdate(tuples, session, payloadFilt)
 
         # Now merge with the session
         returnTuples = []
-        for tuple_ in tuples:
-            if tuple == None:
-                returnTuples.append(None)
-                continue
+        for tupleObj in tuples:
+            if tupleObj.id is None:
+                # If this was a create, then we can just return this tuple
+                returnTuples.append(tupleObj)
 
-            # Merge into the session
-            returnTuples.append(session.merge(tuple_))
+            else:
+                # Otherwise use the merge method to perform the update magic.
+                # and add the resulting merged tuple to the return list
+                returnTuples.append(session.merge(tupleObj))
 
         self._ext.afterUpdate(returnTuples, session, payloadFilt)
 
