@@ -49,5 +49,5 @@ class TupleDataActionClient:
         payloadResponse = PayloadResponse(payload, destVortexName=self._destVortexName)
 
         # Convert the data to TupleAction
-        payloadResponse.addCallback(lambda payload: payload.tuples[0])
+        payloadResponse.addCallback(lambda payload: payload.tuples)
         return payloadResponse
