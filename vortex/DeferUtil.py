@@ -4,6 +4,7 @@ import twisted
 from twisted.internet.defer import maybeDeferred
 from twisted.internet.threads import deferToThread
 
+logger = logging.getLogger(__name__)
 
 def maybeDeferredWrap(funcToWrap):
     """ Maybe Deferred Wrap
@@ -18,17 +19,18 @@ def maybeDeferredWrap(funcToWrap):
     return func
 
 
-def vortexLogFailure(failure, logger, consumeError=False, successValue=True):
-    if not hasattr(failure, '_vortexLogged'):
-        if failure.getTraceback():
-            logger.error(failure.getTraceback())
-        failure._vortexFailureLogged = True
-    return successValue if consumeError else failure
+def vortexLogFailure(failure, loggerArg, consumeError=False, successValue=True):
+    try:
+        if not hasattr(failure, '_vortexLogged'):
+            if failure.getTraceback():
+                loggerArg.error(failure.getTraceback())
+            failure._vortexFailureLogged = True
+        return successValue if consumeError else failure
+    except Exception as e:
+        logger.exception(e)
 
+printFailure = vortexLogFailure
 
-def printFailure(failure, logger):
-    logger.error(failure)
-    return failure
 
 
 def deferToThreadWrapWithLogger(logger):
