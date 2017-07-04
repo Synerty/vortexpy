@@ -1,6 +1,7 @@
 import logging
 import sys
 
+from copy import copy
 from twisted.internet.defer import succeed, fail, Deferred, TimeoutError, inlineCallbacks
 from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure
@@ -198,7 +199,7 @@ class _VortexRPC:
 
         logger.debug("Calling RPC for %s", self.__funcName)
 
-        payload = Payload(filt=self._filt,
+        payload = Payload(filt=copy(self._filt),
                           tuples=[_VortexRPCArgTuple(args=args, kwargs=kwargs)])
 
         pr = PayloadResponse(payload,
