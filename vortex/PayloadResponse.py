@@ -1,10 +1,10 @@
 import logging
 import sys
-from copy import copy
 from datetime import datetime
 from typing import Optional
-from uuid import uuid1, uuid4
+from uuid import uuid4
 
+from copy import copy
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
@@ -47,6 +47,8 @@ class PayloadResponse(Deferred):
     SUCCESS = "Success"
     TIMED_OUT = "Timed Out"
 
+    __SEQ = 1
+
     def __init__(self, payload: Payload,
                  destVortexName: Optional[str] = None,
                  destVortexUuid: Optional[str] = None,
@@ -70,13 +72,19 @@ class PayloadResponse(Deferred):
         self._resultCheck = resultCheck
         self._logTimeoutError = logTimeoutError
 
-        self._messageId = str(uuid4())
+        # uuid4 can have collisions
+        self._messageId = str(uuid4()) + str(PayloadResponse.__SEQ)
+        PayloadResponse.__SEQ += 1
+        print(self._messageId)
+
         payload.filt[self.__messageIdKey] = self._messageId
+        self._filt = copy(payload.filt)
+        self._destVortexName = destVortexName
 
         self._status = self.PROCESSING
         self._date = datetime.utcnow()
 
-        self._endpoint = PayloadEndpoint(payload.filt, self._process)
+        self._endpoint = PayloadEndpoint(self._filt, self._process)
 
         # noinspection PyTypeChecker
         self.addTimeout(timeout, reactor)
@@ -87,8 +95,6 @@ class PayloadResponse(Deferred):
                                         destVortexName=destVortexName,
                                         destVortexUuid=destVortexUuid)
 
-        self._filt = payload.filt
-        self._destVortexName = destVortexName
         try:
             raise Exception()
         except:
@@ -125,7 +131,7 @@ class PayloadResponse(Deferred):
 
         if self._destVortexName and vortexName != self._destVortexName:
             logger.debug("Received response from a vortex other than the dest vortex, "
-                   "Expected %s, Received %s", self._destVortexName, vortexName)
+                         "Expected %s, Received %s", self._destVortexName, vortexName)
             return
 
         if self.called:
