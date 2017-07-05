@@ -220,7 +220,7 @@ class Tuple(Jsonable):
 
         # It's faster to add these at the end, rather than have logic to add one or
         # the other
-        for key, val in list(kwargs.items()):
+        for key, val in kwargs.items():
             if not hasattr(self, key):
                 raise KeyError("kwarg %s was pased, but tuple %s has no such TupleField"
                                % (key, self.__tupleType__))
