@@ -3,6 +3,7 @@ from abc import abstractmethod, ABCMeta
 from collections import defaultdict
 from typing import Union
 
+from twisted.internet import reactor
 from twisted.internet.defer import fail, Deferred, succeed, inlineCallbacks
 from twisted.python import failure
 from vortex.DeferUtil import vortexLogFailure
@@ -94,8 +95,11 @@ class TupleDataObservableHandler:
         d = sendResponse(vortexMsg)
         d.addErrback(lambda f: logger.exception(f.getStackTrace()))
 
-    @inlineCallbacks
     def notifyOfTupleUpdate(self, tupleSelector: TupleSelector):
+        reactor.callLater(0, self._notifyOfTupleUpdateInMain, tupleSelector)
+
+    @inlineCallbacks
+    def _notifyOfTupleUpdateInMain(self, tupleSelector: TupleSelector):
         tsStr = tupleSelector.toJsonStr()
 
         # Get / update the list of observing UUIDs
