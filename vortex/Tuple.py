@@ -7,10 +7,10 @@
  * Support : support@synerty.com
 """
 import inspect
-from copy import deepcopy
 from datetime import datetime
 from typing import List
 
+from copy import deepcopy
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.properties import RelationshipProperty
 
@@ -107,16 +107,29 @@ def addTupleType(cls):
 
             shortFieldNames.add(shortName)
 
-    if getattr(cls, "__fieldNames__"):
+    hasSlots = hasattr(cls, "__slots__")
+    hasFieldNames = cls.__fieldNames__ is not None
+
+    if hasSlots and hasFieldNames:
+        raise Exception("Only one of __slots__ or __fieldNames__ can be defined"
+                        " but not both")
+
+    # If field names already exist, then work off these
+    if hasFieldNames:
         fields = list(set(fields + cls.__fieldNames__))
 
+        # Just check that the field names are defined.
+        for fieldName in fields:
+            if not hasattr(cls, fieldName):
+                raise Exception("Tuple %s doesn't have field %s" % (tupleType, fieldName))
+
+    # If field names already exist, then work off these
+    if hasSlots:
+        fields = list(set(fields + cls.__slots__))
+
+    # Sort and set the field names
     fields.sort()
     cls.__fieldNames__ = fields
-
-    # Just check that the field names are defined.
-    for fieldName in fields:
-        if not hasattr(cls, fieldName):
-            raise Exception("Tuple %s doesn't have field %s" % (tupleType, fieldName))
 
     return cls
 
@@ -157,9 +170,10 @@ class TupleField(object):
     class _Map():
         pass
 
-    def __init__(self, defaultValue=None, typingType=None, comment="", shortName=None, jsonExclude=False):
+    def __init__(self, defaultValue=None, typingType=None, comment="", shortName=None,
+                 jsonExclude=False):
         self.name = None
-        self.shortName = None
+        self.shortName = shortName
         self.defaultValue = defaultValue
         self.typingType = typingType
         self.comment = comment
@@ -176,6 +190,19 @@ class Tuple(Jsonable):
     def __init__(self, **kwargs):
         Jsonable.__init__(self)
 
+        if hasattr(self.__class__, "__slots__"):
+            raise Exception(
+                """__slots__ are defined on this tuple (%s), 
+                The standard Tuple constructor is slow, you must implement 
+                your own __ini__ method. Ensure it works with no argments, 
+                EG:
+                
+                    def __init__(self, i=None, l=None):
+                        self.i, self.l = i, l
+                        
+                """
+                % self.__tupleType__)
+
         # Reset all the tuples.
         # We never want TupleField in an instance
         for name in self.__fieldNames__:
@@ -191,6 +218,8 @@ class Tuple(Jsonable):
                 if default != None and getattr(self, name) == None:
                     setattr(self, name, deepcopy(default.arg))
 
+        # It's faster to add these at the end, rather than have logic to add one or
+        # the other
         for key, val in list(kwargs.items()):
             if not hasattr(self, key):
                 raise KeyError("kwarg %s was pased, but tuple %s has no such TupleField"
