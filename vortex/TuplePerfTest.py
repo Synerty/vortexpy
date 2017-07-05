@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import gc
 import os
 import psutil
 
@@ -21,11 +22,16 @@ def makeL(i):
 def timeit(method):
     def timed(*args, **kw):
         global RESULT
+        RESULT = None
+        gc.collect()
+
         s = datetime.now()
+        startMem = process.memory_info().rss
         RESULT = method(*args, **kw)
         e = datetime.now()
+        endMem = process.memory_info().rss
 
-        sizeMb = process.memory_info().rss / 1024 / 1024
+        sizeMb = (endMem - startMem) / 1024 / 1024
         sizeMbStr = "{0:,}".format(round(sizeMb, 2))
 
         print('Time Taken = %s, \t%s, \tSize = %s' % (e - s, method.__name__, sizeMbStr))
@@ -42,7 +48,8 @@ class X(Tuple):
     __tupleType__ = "X"
     __slots__ = ["i", "l"]
 
-
+    def __init__(self, i=None, l=None):
+        self.i, self.l = i, l
 
 @timeit
 def provile_dict_of_nt():
