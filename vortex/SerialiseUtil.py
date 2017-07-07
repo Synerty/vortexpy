@@ -47,7 +47,7 @@ T_BOOL = 'bool'
 T_DATETIME = 'datetime'
 T_DICT = 'dict'
 T_LIST = 'list'
-T_GEOM = 'geom'
+T_WKB = 'wkb' # Well Known Binary, a part of the GEO library
 
 V_NULL = 'null'
 V_TRUE = '1'
@@ -70,7 +70,7 @@ TYPE_MAP_PY_TO_RAPUI = {decimal.Decimal: T_FLOAT,
                         list: T_LIST,
                         set: T_LIST,
                         tuple: T_LIST,
-                        WKBElement: T_GEOM,
+                        WKBElement: T_WKB,
                         InstrumentedList: T_LIST
                         }
 
@@ -94,8 +94,15 @@ def convertFromWkbElement(value):
     return convertFromShape(to_shape(value))
 
 
-def constructGeom(val):
-    raise NotImplementedError("Receiving WKBElements is not implemented")
+def serialiseWkb(wkb:WKBElement) -> str:
+    from geoalchemy2.shape import to_shape
+    import shapely
+    return b64encode(shapely.wkb.dumps(to_shape(wkb))).decode()
+
+def deserialiseWkb(wkbB64Data:str) -> WKBElement:
+    from geoalchemy2.shape import from_shape
+    import shapely
+    return from_shape(shapely.wkb.loads(b64decode(wkbB64Data)))
 
 
 TYPE_MAP_RAPUI_TO_PY = {T_FLOAT: float,
@@ -106,7 +113,7 @@ TYPE_MAP_RAPUI_TO_PY = {T_FLOAT: float,
                         T_DATETIME: datetime,
                         T_DICT: dict,
                         T_LIST: list,
-                        T_GEOM: constructGeom
+                        T_WKB: deserialiseWkb
                         }
 
 
@@ -157,6 +164,10 @@ def decimalToStr(dec):
 
 
 def toStr(obj) -> str:
+    if isinstance(obj, WKBElement):
+        # noinspection PyTypeChecker
+        return serialiseWkb(obj)
+
     if isinstance(obj, decimal.Decimal):
         return decimalToStr(obj)
 

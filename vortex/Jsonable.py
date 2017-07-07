@@ -45,11 +45,6 @@ class Jsonable(object):
         if isinstance(value, TupleField):
             value = None if value.defaultValue == None else copy(value.defaultValue)
 
-        # Convert WKBElement to points
-        if isinstance(value, WKBElement):
-            value = convertFromWkbElement(value)
-
-        convertedValue = None
         try:
             valueType = V_NULL if value is None else toRapuiType(value)
         except KeyError as e:
