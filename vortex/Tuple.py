@@ -7,12 +7,14 @@
  * Support : support@synerty.com
 """
 import inspect
+import json
 from datetime import datetime
 from typing import List
 
 from copy import deepcopy
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.properties import RelationshipProperty
+from sqlalchemy.sql.schema import Sequence
 
 from .Jsonable import Jsonable
 from .SerialiseUtil import T_RAPUI_TUPLE
@@ -125,7 +127,7 @@ def addTupleType(cls):
 
     # If field names already exist, then work off these
     if hasSlots:
-        fields = list(set(fields + cls.__slots__))
+        fields = list(set(fields + list(cls.__slots__)))
 
     # Sort and set the field names
     fields.sort()
@@ -190,18 +192,20 @@ class Tuple(Jsonable):
     def __init__(self, **kwargs):
         Jsonable.__init__(self)
 
+        # If we're using slots, then don't use tuple fields (there arn't any anyway)
         if hasattr(self.__class__, "__slots__"):
-            raise Exception(
-                """__slots__ are defined on this tuple (%s), 
-                The standard Tuple constructor is slow, you must implement 
-                your own __ini__ method. Ensure it works with no argments, 
-                EG:
-                
-                    def __init__(self, i=None, l=None):
-                        self.i, self.l = i, l
-                        
-                """
-                % self.__tupleType__)
+            # noinspection PyTypeChecker
+            for key in self.__class__.__slots__:
+                if key in kwargs:
+                    setattr(self, key, kwargs.pop(key))
+                else:
+                    setattr(self, key, None)
+
+            if kwargs:
+                raise KeyError("kwargs %s were passed, but tuple %s has no such fields"
+                               % (', '.join(kwargs), self.__tupleType__))
+
+            return
 
         # Reset all the tuples.
         # We never want TupleField in an instance
@@ -215,14 +219,18 @@ class Tuple(Jsonable):
                 default = (self.__table__.c[name].default
                            if name in self.__table__.c else
                            None)
-                if default != None and getattr(self, name) == None:
+
+                assign = (default is not None
+                          and getattr(self, name) is None
+                          and not isinstance(default, Sequence))
+                if assign:
                     setattr(self, name, deepcopy(default.arg))
 
         # It's faster to add these at the end, rather than have logic to add one or
         # the other
         for key, val in kwargs.items():
             if not hasattr(self, key):
-                raise KeyError("kwarg %s was pased, but tuple %s has no such TupleField"
+                raise KeyError("kwarg %s was passed, but tuple %s has no such TupleField"
                                % (key, self.__tupleType__))
             setattr(self, key, val)
 
@@ -319,6 +327,15 @@ class Tuple(Jsonable):
             insertDict[field.name] = convert(getattr(self, field.name))
 
         return insertDict
+
+    def _fromJson(self, jsonStr: str):
+        jsonDict = json.loads(jsonStr)
+
+        assert (jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__)
+        return self.fromJsonDict(jsonDict)
+
+    def _toJson(self) -> str:
+        return json.dumps(self.toJsonDict())
 
     def __eq__(self, other):
         return id(self) == id(other)
