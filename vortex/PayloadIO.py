@@ -8,12 +8,13 @@
 """
 import logging
 from datetime import datetime
-from typing import Callable, Union
 
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
+from twisted.python.failure import Failure
 
-from vortex.Payload import Payload, VortexMsgList
+from vortex.DeferUtil import vortexLogFailure
+from vortex.Payload import Payload
 from vortex.VortexABC import SendVortexMsgResponseCallable
 
 logger = logging.getLogger(name="PayloadIO")
@@ -66,19 +67,21 @@ class PayloadIO(object):
                       sendResponse: SendVortexMsgResponseCallable):
         startDate = datetime.utcnow()
 
-        def respondToException(exception):
+        def respondToException(failure):
             """ Respond To Exception
             Putting the exception into a failure messes with the stack, hence the
             common function
             """
-            sendResponse(Payload(filt=payload.filt,
-                                 result=str(exception)).toVortexMsg())
+            try:
+                sendResponse(
+                    Payload(filt=payload.filt, result=str(failure.getTraceback()))
+                        .toVortexMsg()
+                )
+            except Exception as e:
+                logger.exception(e)
 
-            logger.exception(exception)
+            vortexLogFailure(failure, logger)
             logger.error(payload.filt)
-
-        def errback(failure):
-            respondToException(failure.value)
 
         def callback(value):
             secondsTaken = (datetime.utcnow() - startDate).total_seconds()
@@ -94,9 +97,9 @@ class PayloadIO(object):
                                  vortexUuid, vortexName, httpSession, sendResponse)
             if isinstance(d, Deferred):
                 d.addCallback(callback)
-                d.addErrback(errback)
+                d.addErrback(respondToException)
             else:
                 callback(True)
 
         except Exception as e:
-            respondToException(e)
+            respondToException(Failure(e))
