@@ -1,7 +1,8 @@
 import logging
+
 from collections import defaultdict
 from copy import copy
-
+from twisted.internet.defer import TimeoutError
 from twisted.python.failure import Failure
 
 from vortex.DeferUtil import deferToThreadWrapWithLogger, vortexLogFailure
@@ -10,23 +11,26 @@ from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadResponse import PayloadResponse
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
-from twisted.internet.defer import TimeoutError
 
 logger = logging.getLogger(__name__)
 
 
 class TupleDataObservableProxyHandler:
     def __init__(self, observableName, proxyToVortexName: str,
-                 additionalFilt=None, subscriptionsEnabled=True):
+                 additionalFilt=None, subscriptionsEnabled=True,
+                 observerName="default"):
         """ Constructor
 
         :param observableName: The name of this and the other observable
         :param proxyToVortexName: The vortex dest name to proxy requests to
         :param additionalFilt: Any additional filter keys that are required
         :param subscriptionsEnabled: Should subscriptions be enabled (default)
+        :param observerName: We can clash with other observers, so where there are
+        multiple observers on the one vortex, they should use different names.
         """
         self._proxyToVortexName = proxyToVortexName
         self._subscriptionsEnabled = subscriptionsEnabled
+        self._observerName = observerName
         self._filt = dict(name=observableName,
                           key="tupleDataObservable")
         if additionalFilt:
@@ -79,6 +83,8 @@ class TupleDataObservableProxyHandler:
 
         pr.addErrback(vortexLogFailure, logger, consumeError=True)
 
+        payload.filt["observerName"] = self._observerName
+
         d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
                                         destVortexName=self._proxyToVortexName)
         d.addErrback(vortexLogFailure, logger, consumeError=True)
@@ -103,5 +109,5 @@ class TupleDataObservableProxyHandler:
         # Send the vortex messages
         for vortexUuid in observingUuids:
             d = VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
-                                        destVortexUuid=vortexUuid)
+                                            destVortexUuid=vortexUuid)
             d.addErrback(vortexLogFailure, logger, consumeError=True)

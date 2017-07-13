@@ -1,7 +1,7 @@
 import logging
-from copy import copy
 from typing import List
 
+from copy import copy
 from rx.subjects import Subject
 from twisted.internet.defer import Deferred
 
@@ -15,7 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 class TupleDataObserverClient:
-    def __init__(self, destVortexName, observableName, additionalFilt=None):
+    def __init__(self, destVortexName,
+                 observableName,
+                 additionalFilt=None,
+                 observerName="default"):
         """ Constructor
 
         :param observableName: The name of this observable
@@ -25,7 +28,9 @@ class TupleDataObserverClient:
         """
         self._destVortexName = destVortexName
         self._observableName = observableName
-        self._filt = dict(name=observableName, key="tupleDataObservable")
+        self._filt = dict(name=observableName,
+                          observerName=observerName,
+                          key="tupleDataObservable")
 
         if additionalFilt:
             self._filt.update(additionalFilt)
@@ -43,6 +48,12 @@ class TupleDataObserverClient:
 
     def shutdown(self):
         self._endpoint.shutdown()
+
+        for subject in self._subjectsByTupleSelector.values():
+            subject.dispose()
+
+        self._subjectsByTupleSelector = {}
+
 
     def pollForTuples(self, tupleSelector: TupleSelector) -> Deferred:
 
@@ -79,6 +90,11 @@ class TupleDataObserverClient:
         self._tellServerWeWantData(tupleSelectors)
 
     def _receivePayload(self, payload, **kwargs) -> None:
+        if payload.result not in (None, True):
+            logger.error("Vortex responded with error : %s" % payload.result)
+            logger.error(payload.filt)
+            return
+
         tupleSelector = payload.filt["tupleSelector"]
         tsStr = tupleSelector.toJsonStr()
 
@@ -94,9 +110,7 @@ class TupleDataObserverClient:
 
         for tupleSelector in tupleSelectors:
             filt = copy(startFilt)
-            filt.update({
-                "tupleSelector": tupleSelector
-            })
+            filt.update({"tupleSelector": tupleSelector})
 
             VortexFactory.sendVortexMsg(vortexMsgs=Payload(filt).toVortexMsg(),
                                         destVortexName=self._destVortexName)

@@ -1,11 +1,12 @@
 import logging
-from abc import abstractmethod, ABCMeta
-from collections import defaultdict
 from typing import Union
 
+from abc import abstractmethod, ABCMeta
+from collections import defaultdict, namedtuple
 from twisted.internet import reactor
 from twisted.internet.defer import fail, Deferred, succeed, inlineCallbacks
 from twisted.python import failure
+
 from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
@@ -30,6 +31,9 @@ class TuplesProviderABC(metaclass=ABCMeta):
         """
 
 
+_ObserverDetails = namedtuple("_ObserverDetails", ["vortexUuid", "observerName"])
+
+
 class TupleDataObservableHandler:
     def __init__(self, observableName, additionalFilt=None, subscriptionsEnabled=True):
         """ Constructor
@@ -49,7 +53,7 @@ class TupleDataObservableHandler:
 
         self._endpoint = PayloadEndpoint(self._filt, self._process)
 
-        self._vortexUuidsByTupleSelectors = defaultdict(list)
+        self._observerDetailsByTupleSelector = defaultdict(set)
 
         self._tupleProvidersByTupleName = {}
 
@@ -86,28 +90,44 @@ class TupleDataObservableHandler:
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
         tupleSelector = payload.filt["tupleSelector"]
 
+        observerDetails = _ObserverDetails(vortexUuid, payload.filt.get("observerName"))
+
         # Add support for just getting data, no subscription.
         if payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
-            self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(
-                vortexUuid)
+            self._observerDetailsByTupleSelector[tupleSelector.toJsonStr()].add(
+                observerDetails)
 
         vortexMsg = yield self._createVortexMsg(payload.filt, tupleSelector)
         d = sendResponse(vortexMsg)
         d.addErrback(lambda f: logger.exception(f.getStackTrace()))
 
-    def notifyOfTupleUpdate(self, tupleSelector: TupleSelector):
+    def notifyOfTupleUpdate(self, tupleSelector: TupleSelector) -> None:
+        """ Notify Of Tuple Update
+
+        This method tells the observable that an update has occurred and that it should
+        send new data to it's observers.
+
+        Tuple selectors should be identical to the data being observed.
+
+        :param tupleSelector: A tuple selector that describes the scope of the update.
+        :returns: None
+
+        """
         reactor.callLater(0, self._notifyOfTupleUpdateInMain, tupleSelector)
 
     @inlineCallbacks
     def _notifyOfTupleUpdateInMain(self, tupleSelector: TupleSelector):
         tsStr = tupleSelector.toJsonStr()
 
-        # Get / update the list of observing UUIDs
-        observingUuids = self._vortexUuidsByTupleSelectors[tsStr]
-        observingUuids = set(observingUuids) & set(VortexFactory.getRemoteVortexUuids())
-        self._vortexUuidsByTupleSelectors[tsStr] = list(observingUuids)
+        # Filter out the offline observables
+        onlineUuids = set(VortexFactory.getRemoteVortexUuids())
+        observerDetails = self._observerDetailsByTupleSelector[tsStr]
+        for od in list(observerDetails):
+            if od.vortexUuid not in onlineUuids:
+                observerDetails.remove(od)
 
-        if not observingUuids:
+        # Get / update the list of observing UUIDs
+        if not observerDetails:
             return
 
         # Create the vortexMsg
@@ -116,9 +136,9 @@ class TupleDataObservableHandler:
         vortexMsg = yield self._createVortexMsg(filt, tupleSelector)
 
         # Send the vortex messages
-        for vortexUuid in observingUuids:
+        for od in observerDetails:
             d = VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
-                                        destVortexUuid=vortexUuid)
+                                            destVortexUuid=od.vortexUuid)
             d.addErrback(vortexLogFailure, logger)
 
     def _customMaybeDeferred(self, f, *args, **kw):
