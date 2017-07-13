@@ -1,10 +1,11 @@
 import logging
 
 import twisted
-from twisted.internet.defer import maybeDeferred
+from twisted.internet.defer import maybeDeferred, Deferred, inlineCallbacks
 from twisted.internet.threads import deferToThread
 
 logger = logging.getLogger(__name__)
+
 
 def maybeDeferredWrap(funcToWrap):
     """ Maybe Deferred Wrap
@@ -29,11 +30,36 @@ def vortexLogFailure(failure, loggerArg, consumeError=False, successValue=True):
     except Exception as e:
         logger.exception(e)
 
+
+def vortexLogAndConsumeFailure(failure, loggerArg, successValue=True):
+    return vortexLogFailure(failure, loggerArg,
+                            consumeError=True, successValue=successValue)
+
+
 printFailure = vortexLogFailure
 
 
+def vortexInlineCallbacksLogAndConsumeFailure(loggerArg):
+    """ Vortex InlineCallbacks Log and Consume Failure
 
-def deferToThreadWrapWithLogger(logger):
+    This is exactly the same as @inlineCallbacks decorator, except it will log
+    and consume any deferred failures that are thrown.
+    """
+
+    def wrapper(funcToWrap):
+        funcIcb = inlineCallbacks(funcToWrap)
+
+        def called(*args, **kwargs):
+            d = funcIcb(*args, **kwargs)
+            d.addErrback(vortexLogAndConsumeFailure, loggerArg)
+            return d
+
+        return called
+
+    return wrapper
+
+
+def deferToThreadWrapWithLogger(logger, consumeError=False):
     assert isinstance(logger, logging.Logger), """Usage:
     import logging
     logger = logging.getLogger(__name__)
@@ -42,14 +68,14 @@ def deferToThreadWrapWithLogger(logger):
         pass
     """
 
-    def wrapper(funcToWrap):
+    def wrapper(funcToWrap) -> Deferred:
         def func(*args, **kwargs):
             if not twisted.python.threadable.isInIOThread():
                 raise Exception(
                     "Deferring to a thread can only be done from the main thread")
 
             d = deferToThread(funcToWrap, *args, **kwargs)
-            d.addErrback(vortexLogFailure, logger)
+            d.addErrback(vortexLogFailure, logger, consumeError=consumeError)
             return d
 
         return func
@@ -60,3 +86,8 @@ def deferToThreadWrapWithLogger(logger):
 def noMainThread():
     if twisted.python.threadable.isInIOThread():
         raise Exception("Blocking operations shouldn't occur in the reactors thread.")
+
+
+def yesMainThread():
+    if not twisted.python.threadable.isInIOThread():
+        raise Exception("Async operations must occur in the reactors main thread.")

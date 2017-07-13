@@ -1,11 +1,12 @@
 import logging
 import sys
+from typing import Optional
 
 from copy import copy
-from twisted.internet.defer import succeed, fail, Deferred, TimeoutError, inlineCallbacks
+from twisted.internet.defer import succeed, fail, Deferred, TimeoutError, inlineCallbacks, \
+    returnValue
 from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure
-from typing import Optional
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
@@ -105,7 +106,8 @@ class _VortexRPC:
         self.__funcName += "." + func.__qualname__
 
         if self.__funcName in self.__registeredFuncNames:
-            raise Exception("RPC function name %s is already registered" % self.__funcName)
+            raise Exception(
+                "RPC function name %s is already registered" % self.__funcName)
         self.__registeredFuncNames.add(self.__funcName)
 
         # Define the FILT
@@ -187,6 +189,7 @@ class _VortexRPC:
 
         sendResponseCallable(payload.toVortexMsg())
 
+    @inlineCallbacks
     def __call__(self, *args, **kwargs):
         """ Call 
         
@@ -203,15 +206,20 @@ class _VortexRPC:
                           tuples=[_VortexRPCArgTuple(args=args, kwargs=kwargs)])
 
         pr = PayloadResponse(payload,
-                             destVortexName=self.__listeningVortexName,
                              timeout=self.__timeoutSeconds,
                              resultCheck=False,
-                             logTimeoutError=False)
+                             logTimeoutError=False,
+                                          destVortexName=self.__listeningVortexName)
+
+        # Delete the payload, we don't need to keep it in memory while we
+        # get the result.
+        del payload
 
         pr.addCallback(self._processResponseCallback, stack)
         pr.addErrback(self._processResponseErrback, stack)
 
-        return pr
+        val = yield pr
+        return val
 
     def _processResponseCallback(self, payload, stack):
         """ Process Response Callback
@@ -273,6 +281,7 @@ class _VortexRPC:
                 result = self.__func(*args, **kwargs)
 
         except Exception as e:
+            logger.exception(e)
             return fail(Failure(e))
 
         if isinstance(result, Deferred):

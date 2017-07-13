@@ -85,19 +85,21 @@ class PayloadResponse(Deferred):
 
         self._endpoint = PayloadEndpoint(self._filt, self._process)
 
-        # noinspection PyTypeChecker
-        self.addTimeout(timeout, reactor)
-        self.addErrback(self._timedOut, payload)
-
         if destVortexName or destVortexUuid:
-            VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
-                                        destVortexName=destVortexName,
-                                        destVortexUuid=destVortexUuid)
+            d: Deferred = payload.toVortexMsgDefer()
+            d.addCallback(VortexFactory.sendVortexMsg,
+                          destVortexName=destVortexName,
+                          destVortexUuid=destVortexUuid)
+            d.addErrback(self.errback)
 
         try:
             raise Exception()
         except:
             self._stack = sys.exc_info()[2]
+
+        # noinspection PyTypeChecker
+        self.addTimeout(timeout, reactor)
+        self.addErrback(self._timedOut)
 
     @classmethod
     def isResponsePayload(cls, payload):
@@ -113,13 +115,13 @@ class PayloadResponse(Deferred):
     def status(self):
         return self._status
 
-    def _timedOut(self, failure: Failure, payload: Payload):
+    def _timedOut(self, failure: Failure):
         if self._endpoint:
             self._endpoint.shutdown()
             self._endpoint = None
 
         if self._logTimeoutError:
-            logger.error("Timed out for payload %s", payload.filt)
+            logger.error("Timed out for payload %s", self._filt)
         self._status = self.TIMED_OUT
         return failure
 
