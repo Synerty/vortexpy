@@ -18,7 +18,8 @@ requirements = [
     # txWS requires these, if we try to offline install the packages, txWS setup_requires
     # causes issues
     "vcversioner",
-    "six"
+    "six",
+    "ujson"
 ]
 
 setup(

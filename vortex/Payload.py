@@ -16,6 +16,7 @@ from typing import List
 from vortex.DeferUtil import deferToThreadWrapWithLogger
 from .Jsonable import Jsonable
 from .SerialiseUtil import T_RAPUI_PAYLOAD
+import ujson
 
 logger = logging.getLogger(__name__)
 
@@ -62,13 +63,13 @@ class Payload(Jsonable):
     # -------------------------------------------
     # JSON Related methods
     def _fromJson(self, jsonStr):
-        jsonDict = json.loads(jsonStr)
+        jsonDict = ujson.loads(jsonStr)
 
         assert (jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__)
         return self.fromJsonDict(jsonDict)
 
     def _toJson(self) -> str:
-        return json.dumps(self.toJsonDict())
+        return ujson.dumps(self.toJsonDict())
 
     # -------------------------------------------
     # VortexServer Message Methods
