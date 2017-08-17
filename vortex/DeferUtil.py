@@ -59,7 +59,29 @@ def vortexInlineCallbacksLogAndConsumeFailure(loggerArg):
     return wrapper
 
 
-def deferToThreadWrapWithLogger(logger, consumeError=False):
+def deferToThreadWrapWithLogger(logger, consumeError=False, checkMainThread=True):
+    """ Defer To Thread Wrap With Logger
+
+    This method is a decorator used to send blocking methods to threads easily.
+
+    :param logger: An instance from logging.getLogger(..)
+    :param consumeError: Should errors occuring in the thread be consumed or errback'd
+    :param checkMainThread: Don't use this parameter, it's only needed during reactor
+                startup when the reactors thread isn't properly set and the check
+                fails.
+
+    :return: A deferred.
+
+    Usage: ::
+
+            import logging
+            logger = logging.getLogger(__name__)
+            @deferToThreadWrapWithLogger(logger)
+            def myFunction(arg1, kw=True):
+                pass
+
+
+    """
     assert isinstance(logger, logging.Logger), """Usage:
     import logging
     logger = logging.getLogger(__name__)
@@ -70,7 +92,7 @@ def deferToThreadWrapWithLogger(logger, consumeError=False):
 
     def wrapper(funcToWrap) -> Deferred:
         def func(*args, **kwargs):
-            if not twisted.python.threadable.isInIOThread():
+            if not twisted.python.threadable.isInIOThread() and checkMainThread:
                 raise Exception(
                     "Deferring to a thread can only be done from the main thread")
 
