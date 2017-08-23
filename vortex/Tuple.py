@@ -118,7 +118,7 @@ def addTupleType(cls):
 
     # If field names already exist, then work off these
     if hasFieldNames:
-        fields = list(set(fields + cls.__fieldNames__))
+        fields = list(set(fields + list(cls.__fieldNames__)))
 
         # Just check that the field names are defined.
         for fieldName in fields:
