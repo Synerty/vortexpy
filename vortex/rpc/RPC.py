@@ -295,7 +295,7 @@ class _VortexRPC:
 
 
 def vortexRPC(listeningVortexName: str,
-              timeoutSeconds: float = 10.0,
+              timeoutSeconds: float = 30.0,
               acceptOnlyFromVortex: Optional[str] = None,
               additionalFilt: Optional[dict] = None,
               deferToThread: bool = False,
