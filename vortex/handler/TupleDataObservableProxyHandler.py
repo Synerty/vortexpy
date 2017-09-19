@@ -9,8 +9,11 @@ from vortex.DeferUtil import deferToThreadWrapWithLogger, vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadResponse import PayloadResponse
+from vortex.TupleSelector import TupleSelector
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
+from vortex.handler.TupleDataObservableHandler import TupleDataObservableHandler, \
+    TuplesProviderABC
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +39,50 @@ class TupleDataObservableProxyHandler:
         if additionalFilt:
             self._filt.update(additionalFilt)
 
-        self._endpoint = PayloadEndpoint(self._filt, self._process)
-
         self._vortexUuidsByTupleSelectors = defaultdict(list)
+
+        # Create the local observable, this allows local tuple providers
+        # The rest are proxied on to the backend
+        self._localObservableHandler = TupleDataObservableHandler(
+            observableName,
+            additionalFilt=additionalFilt,
+            subscriptionsEnabled=subscriptionsEnabled)
+        # Shutdown the local observables endpoint, we don't want it listening it's self
+        self._localObservableHandler.shutdown()
+
+        # Finally, Setup our endpoint
+        self._endpoint = PayloadEndpoint(self._filt, self._process)
 
     def shutdown(self):
         self._endpoint.shutdown()
+
+    ## ----- Implement local observable
+
+    def addTupleProvider(self, tupleName, provider: TuplesProviderABC):
+        """ Add Tuple Provider
+
+        Adds a tuple provider to the local observable.
+
+        All other requests are proxied on
+
+        """
+        self._localObservableHandler.addTupleProvider(tupleName, provider=provider)
+
+    def notifyOfTupleUpdate(self, tupleSelector: TupleSelector) -> None:
+        """ Notify of Tuple Update
+
+        Notifies the local observable that tuples have been updated
+
+        """
+        if not self._localObservableHandler.hasTupleProvider(tupleSelector.tupleType()):
+            raise Exception("Local observable doesn't have tuple provider for %s"
+                            " registered, Proxy is : %s" % (
+                                tupleSelector.tupleType(), self._filt
+                            ))
+
+        self._localObservableHandler.notifyOfTupleUpdate(tupleSelector)
+
+    ## ----- Implement proxy from here on in
 
     def _process(self, payload: Payload, vortexUuid: str, vortexName: str,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
@@ -52,7 +93,13 @@ class TupleDataObservableProxyHandler:
 
     def _processSubscribeFromFrontend(self, payload: Payload, vortexUuid: str,
                                       sendResponse: SendVortexMsgResponseCallable):
-        tupleSelector = payload.filt["tupleSelector"]
+        tupleSelector: TupleSelector = payload.filt["tupleSelector"]
+
+        # If the local observable provides this tuple, then use that instead
+        if self._localObservableHandler.hasTupleProvider(tupleSelector.name):
+            return self._localObservableHandler._process(payload=payload,
+                                                         vortexUuid=vortexUuid,
+                                                         sendResponse=sendResponse)
 
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
         responseFilt = copy(payload.filt)

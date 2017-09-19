@@ -71,6 +71,9 @@ class TupleDataObservableHandler:
 
         self._tupleProvidersByTupleName[tupleName] = provider
 
+    def hasTupleProvider(self, tupleName:str):
+        return tupleName in self._tupleProvidersByTupleName
+
     def shutdown(self):
         self._endpoint.shutdown()
 
