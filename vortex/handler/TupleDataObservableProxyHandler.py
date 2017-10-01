@@ -74,10 +74,10 @@ class TupleDataObservableProxyHandler:
         Notifies the local observable that tuples have been updated
 
         """
-        if not self._localObservableHandler.hasTupleProvider(tupleSelector.tupleType()):
+        if not self._localObservableHandler.hasTupleProvider(tupleSelector.name):
             raise Exception("Local observable doesn't have tuple provider for %s"
                             " registered, Proxy is : %s" % (
-                                tupleSelector.tupleType(), self._filt
+                                tupleSelector.name, self._filt
                             ))
 
         self._localObservableHandler.notifyOfTupleUpdate(tupleSelector)
