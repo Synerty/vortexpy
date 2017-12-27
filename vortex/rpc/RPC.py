@@ -7,6 +7,7 @@ from twisted.internet.defer import succeed, fail, Deferred, TimeoutError, inline
     returnValue
 from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure
+from vortex.DeferUtil import yesMainThread
 
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
@@ -194,6 +195,8 @@ class _VortexRPC:
         """ Call 
         
         """
+        yesMainThread()
+
         try:
             # FAKE Exception so we can raise a better stack trace later
             raise Exception()
