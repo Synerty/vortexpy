@@ -9,6 +9,8 @@
 import json
 import logging
 import zlib
+
+import pytz
 from base64 import b64encode, b64decode
 from datetime import datetime
 from typing import List
@@ -43,7 +45,7 @@ class Payload(Jsonable):
         self.replyFilt = {} if replyFilt is None else replyFilt
         self.tuples = [] if tuples is None else tuples
         self.result = result
-        self.date = datetime.utcnow()
+        self.date = datetime.now(pytz.utc)
 
         if isinstance(filt, str):
             self.filt = {self.filt: None}

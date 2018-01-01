@@ -8,6 +8,8 @@
 """
 import logging
 from datetime import datetime
+
+import pytz
 from struct import pack
 from urllib.parse import urlparse, parse_qs
 
@@ -37,7 +39,7 @@ class VortexServerConnection(VortexConnectionABC):
                                      remoteVortexName=remoteVortexName,
                                      httpSessionUuid=httpSession)
 
-        self._lastHeartBeatTime = datetime.utcnow()
+        self._lastHeartBeatTime = datetime.now(pytz.utc)
 
         self._transport = transport
         self._addr = addr
@@ -48,7 +50,7 @@ class VortexServerConnection(VortexConnectionABC):
         d.addErrback(lambda f: logger.exception(f.value))
 
     def beatReceived(self):
-        self._lastHeartBeatTime = datetime.utcnow()
+        self._lastHeartBeatTime = datetime.now(pytz.utc)
 
     def _beat(self):
         # If we're closed, do nothing
@@ -57,7 +59,7 @@ class VortexServerConnection(VortexConnectionABC):
             return
 
         # If we havn't heard from the client, then close the connection
-        if (datetime.utcnow() - self._lastHeartBeatTime).seconds > HEART_BEAT_TIMEOUT:
+        if (datetime.now(pytz.utc) - self._lastHeartBeatTime).seconds > HEART_BEAT_TIMEOUT:
             self._beatLoopingCall.stop()
             self.close()
             return

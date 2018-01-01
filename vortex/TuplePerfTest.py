@@ -3,6 +3,7 @@ from datetime import datetime
 import gc
 import os
 import psutil
+import pytz
 
 process = psutil.Process(os.getpid())
 
@@ -25,10 +26,10 @@ def timeit(method):
         RESULT = None
         gc.collect()
 
-        s = datetime.now()
+        s = datetime.now(pytz.utc)
         startMem = process.memory_info().rss
         RESULT = method(*args, **kw)
-        e = datetime.now()
+        e = datetime.now(pytz.utc)
         endMem = process.memory_info().rss
 
         sizeMb = (endMem - startMem) / 1024 / 1024

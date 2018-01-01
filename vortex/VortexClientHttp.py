@@ -13,6 +13,7 @@ from http.cookiejar import CookieJar
 from typing import Union, Optional
 from urllib.parse import urlencode
 
+import pytz
 from twisted.internet import reactor, task
 from twisted.internet.defer import succeed, Deferred
 from twisted.python.failure import Failure
@@ -221,7 +222,7 @@ class VortexClientHttp(VortexABC):
 
     def _beat(self):
         """ Beat, Called by protocol """
-        self._beatTime = datetime.utcnow()
+        self._beatTime = datetime.now(pytz.utc)
 
     def _setNameAndUuid(self, name, uuid):
         """ Set Name And Uuid, Called by protocol """
@@ -229,7 +230,7 @@ class VortexClientHttp(VortexABC):
         self._serverVortexUuid = uuid
 
     def _checkBeat(self):
-        if not (datetime.utcnow() - self._beatTime).seconds > self._beatTimeout:
+        if not (datetime.now(pytz.utc) - self._beatTime).seconds > self._beatTimeout:
             return
 
         if self._retrying:

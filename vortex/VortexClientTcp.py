@@ -10,6 +10,7 @@ import logging
 import uuid
 from datetime import datetime
 
+import pytz
 import twisted
 from twisted.internet import reactor
 from twisted.internet import task, defer
@@ -254,7 +255,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
 
     def _beat(self):
         """ Beat, Called by protocol """
-        self._lastBeatReceiveTime = datetime.utcnow()
+        self._lastBeatReceiveTime = datetime.now(pytz.utc)
 
     def _setNameAndUuid(self, name, uuid):
         """ Set Name And Uuid, Called by protocol """
@@ -262,7 +263,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         self._serverVortexUuid = uuid
 
     def _checkBeat(self):
-        deltaSeconds = (datetime.utcnow() - self._lastBeatReceiveTime).seconds
+        deltaSeconds = (datetime.now(pytz.utc) - self._lastBeatReceiveTime).seconds
         if not deltaSeconds > self.HEART_BEAT_TIMEOUT:
             return
 

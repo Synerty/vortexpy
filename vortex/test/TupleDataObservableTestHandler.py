@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+import pytz
 from twisted.internet import task
 
 from vortex.Payload import Payload
@@ -24,7 +25,7 @@ class TestTupleProvider(TuplesProviderABC):
         tuples = makeTestTupleData(count)
 
         for t in tuples:
-            t.aDate = datetime.utcnow()
+            t.aDate = datetime.now(pytz.utc)
             t.aDict = tupleSelector.selector
             t.aString = tupleSelector.name
 

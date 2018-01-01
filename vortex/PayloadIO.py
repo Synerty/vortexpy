@@ -9,6 +9,7 @@
 import logging
 from datetime import datetime
 
+import pytz
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
@@ -65,7 +66,7 @@ class PayloadIO(object):
     def _processLater(self, endpoint,
                       payload, vortexUuid: str, vortexName: str, httpSession,
                       sendResponse: SendVortexMsgResponseCallable):
-        startDate = datetime.utcnow()
+        startDate = datetime.now(pytz.utc)
 
         def respondToException(failure):
             """ Respond To Exception
@@ -84,7 +85,7 @@ class PayloadIO(object):
             logger.error(payload.filt)
 
         def callback(value):
-            secondsTaken = (datetime.utcnow() - startDate).total_seconds()
+            secondsTaken = (datetime.now(pytz.utc) - startDate).total_seconds()
             if secondsTaken > 0.3:
                 func = logger.warning if secondsTaken < 0.8 else logger.critical
                 func("Payload endpoint for took %s\npayload.filt=%s\n%s" % (

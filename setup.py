@@ -19,7 +19,8 @@ requirements = [
     # causes issues
     "vcversioner",
     "six",
-    "ujson"
+    "ujson",
+    "pytz"
 ]
 
 setup(

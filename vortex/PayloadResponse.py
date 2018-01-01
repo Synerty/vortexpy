@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
+import pytz
 from copy import copy
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
@@ -81,7 +82,7 @@ class PayloadResponse(Deferred):
         self._destVortexName = destVortexName
 
         self._status = self.PROCESSING
-        self._date = datetime.utcnow()
+        self._date = datetime.now(pytz.utc)
 
         self._endpoint = PayloadEndpoint(self._filt, self._process)
 

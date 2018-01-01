@@ -7,6 +7,8 @@
  * Support : support@synerty.com
 """
 import uuid
+
+import pytz
 from abc import ABCMeta
 from datetime import datetime, timezone
 from typing import Dict, List
@@ -33,7 +35,7 @@ class TupleActionABC(Tuple):
             self.uuid = str(uuid.uuid1())  # Based on the host, and the time
 
         if not "dateTime" in kwargs:
-            self.dateTime = datetime.utcnow()
+            self.dateTime = datetime.now(pytz.utc)
 
 
 @addTupleType
