@@ -55,7 +55,7 @@ class PayloadResponse(Deferred):
     def __init__(self, payload: Payload,
                  destVortexName: Optional[str] = None,
                  destVortexUuid: Optional[str] = None,
-                 timeout: float = TIMEOUT,
+                 timeout: Optional[float] = None,
                  resultCheck=True,
                  logTimeoutError=True):
         """ Constructor
@@ -72,6 +72,10 @@ class PayloadResponse(Deferred):
                     it errback will be called.
         """
         Deferred.__init__(self)
+
+        if not timeout:
+            timeout = self.TIMEOUT
+
         self._resultCheck = resultCheck
         self._logTimeoutError = logTimeoutError
 
