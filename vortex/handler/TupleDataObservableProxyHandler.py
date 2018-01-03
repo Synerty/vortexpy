@@ -106,7 +106,11 @@ class TupleDataObservableProxyHandler:
 
         # Track the response, log an error if it fails
         # 5 Seconds is long enough
-        pr = PayloadResponse(payload, timeout=5, logTimeoutError=False)
+        pr = PayloadResponse(
+            payload,
+            timeout=PayloadResponse.TIMEOUT - 5,  # 5 seconds less
+            logTimeoutError=False
+        )
 
         # Add support for just getting data, no subscription.
         if payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
