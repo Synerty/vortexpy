@@ -48,12 +48,14 @@ class PayloadResponse(Deferred):
     SUCCESS = "Success"
     TIMED_OUT = "Timed Out"
 
+    TIMEOUT: float = 30.00
+
     __SEQ = 1
 
     def __init__(self, payload: Payload,
                  destVortexName: Optional[str] = None,
                  destVortexUuid: Optional[str] = None,
-                 timeout: float = 30.0,
+                 timeout: float = TIMEOUT,
                  resultCheck=True,
                  logTimeoutError=True):
         """ Constructor

@@ -57,7 +57,7 @@ class TupleActionProcessorProxy:
         # VortexJS defaults to 10s, so we have some room for round trip time.
         pr = PayloadResponse(
             payload,
-            timeout=PayloadResponse.TIMED_OUT - 5,  # 5 seconds less
+            timeout=PayloadResponse.TIMEOUT - 5,  # 5 seconds less
             resultCheck=False,
             logTimeoutError=False
         )
