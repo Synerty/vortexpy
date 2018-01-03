@@ -55,7 +55,12 @@ class TupleActionProcessorProxy:
         # Track the response, log an error if it fails
         # 5 Seconds is long enouge.
         # VortexJS defaults to 10s, so we have some room for round trip time.
-        pr = PayloadResponse(payload, timeout=5, resultCheck=False, logTimeoutError=False)
+        pr = PayloadResponse(
+            payload,
+            timeout=PayloadResponse.TIMED_OUT - 5,  # 5 seconds less
+            resultCheck=False,
+            logTimeoutError=False
+        )
 
         # This is not a lambda, so that it can have a breakpoint
         def reply(payload):
