@@ -128,11 +128,22 @@ class TupleDataObservableProxyHandler:
 
         def handlePrFailure(f: Failure):
             if f.check(TimeoutError):
-                logger.error("Received no response from observable %s", tupleSelector)
+                logger.error(
+                    "Received no response from\nobservable %s\ntuple selector %s",
+                    self._filt,
+                    tupleSelector.toVortexMsg()
+                )
             else:
-                logger.error("Unexpected error, %s\n%s", f, tupleSelector)
+                logger.error(
+                    "Unexpected error, %s\nobservable %s\ntuple selector %s",
+                    f,
+                    self._filt,
+                    tupleSelector.toVortexMsg()
+                )
 
-        pr.addErrback(vortexLogFailure, logger, consumeError=True)
+            vortexLogFailure(f, logger)
+
+        pr.addErrback(handlePrFailure)
 
         payload.filt["observerName"] = self._observerName
 

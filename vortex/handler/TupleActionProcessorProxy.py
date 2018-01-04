@@ -51,6 +51,7 @@ class TupleActionProcessorProxy:
 
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
         responseFilt = copy(payload.filt)
+        action = payload.tuples[0]
 
         # Track the response, log an error if it fails
         # 5 Seconds is long enouge.
@@ -69,9 +70,20 @@ class TupleActionProcessorProxy:
 
         def handlePrFailure(f: Failure):
             if f.check(TimeoutError):
-                logger.error("Received no response for %s", payload.filt['tupleSelector'])
+                logger.error(
+                    "Received no response from\nprocessor %s\naction %s",
+                    self._filt,
+                    action
+                )
             else:
-                logger.error("Processing exception, %s\n%s", f, payload.tuples)
+                logger.error(
+                    "Unexpected error, %s\nprocessor %s\naction %s",
+                    f,
+                    self._filt,
+                    action
+                )
+
+            vortexLogFailure(f, logger)
 
         pr.addCallback(reply)
 
