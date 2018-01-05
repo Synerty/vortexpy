@@ -84,14 +84,17 @@ class PayloadIO(object):
             vortexLogFailure(failure, logger)
             logger.error(payload.filt)
 
-        def callback(value):
+        def callback(value, blocking=False):
+            # A blocking call taking more than 100ms is BAD
+            # Otherwise a call taking more than a 1s is just poor performance.
             secondsTaken = (datetime.now(pytz.utc) - startDate).total_seconds()
-            if secondsTaken > 0.3:
-                func = logger.warning if secondsTaken < 0.8 else logger.critical
-                func("Payload endpoint for took %s\npayload.filt=%s\n%s" % (
-                    secondsTaken,
-                    payload.filt,
-                    endpoint))
+            if secondsTaken > 0.1 and blocking or secondsTaken > 2.0:
+                func = logger.critical if blocking else logger.debug
+                func("%s Payload endpoint took %s\npayload.filt=%s\n%s",
+                     'BLOCKING ' if blocking else '',
+                     secondsTaken,
+                     payload.filt,
+                     endpoint)
 
         try:
             d = endpoint.process(payload,
@@ -100,7 +103,7 @@ class PayloadIO(object):
                 d.addCallback(callback)
                 d.addErrback(respondToException)
             else:
-                callback(True)
+                callback(True, blocking=True)
 
         except Exception as e:
             respondToException(Failure(e))
