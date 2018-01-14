@@ -112,6 +112,24 @@ class TupleDataObservableProxyHandler:
             logTimeoutError=False
         )
 
+        def handlePrFailure(f: Failure):
+            if f.check(TimeoutError):
+                logger.error(
+                    "Received no response from\nobservable %s\ntuple selector %s",
+                    self._filt,
+                    tupleSelector.toJsonStr()
+                )
+            else:
+                logger.error(
+                    "Unexpected error, %s\nobservable %s\ntuple selector %s",
+                    f,
+                    self._filt,
+                    tupleSelector.toJsonStr()
+                )
+
+        pr.addErrback(handlePrFailure)
+        pr.addErrback(vortexLogFailure, logger, consumeError=True)
+
         # Add support for just getting data, no subscription.
         if payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
             self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(
@@ -125,25 +143,6 @@ class TupleDataObservableProxyHandler:
                 # logger.debug("Received response from observable")
 
             pr.addCallback(reply)
-
-        def handlePrFailure(f: Failure):
-            if f.check(TimeoutError):
-                logger.error(
-                    "Received no response from\nobservable %s\ntuple selector %s",
-                    self._filt,
-                    tupleSelector.toVortexMsg()
-                )
-            else:
-                logger.error(
-                    "Unexpected error, %s\nobservable %s\ntuple selector %s",
-                    f,
-                    self._filt,
-                    tupleSelector.toVortexMsg()
-                )
-
-            vortexLogFailure(f, logger)
-
-        pr.addErrback(handlePrFailure)
 
         payload.filt["observerName"] = self._observerName
 
