@@ -25,14 +25,15 @@ class TuplesProviderForDB(TuplesProviderABC):
 
         """
 
-        TupleClass = tupleForTupleName(tupleSelector.name)
 
         ormSession = self._ormSessionCreatorFunc()
-        qry = ormSession.query(TupleClass)
-        for key, value in tupleSelector.selector.items():
-            qry = qry.filter(getattr(TupleClass, key)==value)
+        try:
+            TupleClass = tupleForTupleName(tupleSelector.name)
+            qry = ormSession.query(TupleClass)
+            for key, value in tupleSelector.selector.items():
+                qry = qry.filter(getattr(TupleClass, key)==value)
 
-        vortexMsg = Payload(filt=filt, tuples=qry.all()).toVortexMsg()
-        ormSession.close()
-        return vortexMsg
+            return Payload(filt=filt, tuples=qry.all()).toVortexMsg()
+        finally:
+            ormSession.close()
 
