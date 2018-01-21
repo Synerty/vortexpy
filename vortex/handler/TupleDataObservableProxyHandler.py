@@ -1,7 +1,11 @@
 import logging
+from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Set
 
+import pytz
 from collections import defaultdict
 from copy import copy
+from twisted.internet import task
 from twisted.internet.defer import TimeoutError
 from twisted.python.failure import Failure
 
@@ -18,7 +22,38 @@ from vortex.handler.TupleDataObservableHandler import TupleDataObservableHandler
 logger = logging.getLogger(__name__)
 
 
+class _CachedSubscribedData:
+    """ Cached Subscribed Data
+
+    The client will now cache
+    """
+    TEARDOWN_WAIT = 120  # 2 minutes in seconds
+
+    def __init__(self, tupleSelector: TupleSelector):
+        self.tupleSelector: TupleSelector = tupleSelector
+        self.vortexUuids: Set[str] = set()
+        self.tearDownDate: Optional[datetime] = None
+        self.tuples = []
+        self.serverResponded = False
+
+    def markForTearDown(self) -> None:
+        if self.tearDownDate is not None:
+            return
+        self.tearDownDate = datetime.now(pytz.utc) + timedelta(seconds=self.TEARDOWN_WAIT)
+
+    def resetTearDown(self) -> None:
+        self.tearDownDate = None
+
+    def isReadyForTearDown(self) -> bool:
+        return (
+                self.tearDownDate is not None
+                and self.tearDownDate <= datetime.now(pytz.utc)
+        )
+
+
 class TupleDataObservableProxyHandler:
+    _CHECK_PERIOD = 30  # seconds
+
     def __init__(self, observableName, proxyToVortexName: str,
                  additionalFilt=None, subscriptionsEnabled=True,
                  observerName="default"):
@@ -39,7 +74,7 @@ class TupleDataObservableProxyHandler:
         if additionalFilt:
             self._filt.update(additionalFilt)
 
-        self._vortexUuidsByTupleSelectors = defaultdict(list)
+        self._cache: Dict[str, _CachedSubscribedData] = {}
 
         # Create the local observable, this allows local tuple providers
         # The rest are proxied on to the backend
@@ -53,10 +88,29 @@ class TupleDataObservableProxyHandler:
         # Finally, Setup our endpoint
         self._endpoint = PayloadEndpoint(self._filt, self._process)
 
+        self._pollLoopingCall = task.LoopingCall(self._cacheCheck)
+
+        d = self._pollLoopingCall.start(self._CHECK_PERIOD, now=False)
+        d.addCallback(vortexLogFailure, logger, consumeError=True)
+
     def shutdown(self):
         self._endpoint.shutdown()
+        self._pollLoopingCall.stop()
 
     ## ----- Implement local observable
+
+    def _cacheCheck(self):
+        for ts, cache in list(self._cache.items()):
+            cache.vortexUuids = (
+                    cache.vortexUuids & set(VortexFactory.getRemoteVortexUuids())
+            )
+            if cache.vortexUuids:
+                cache.resetTearDown()
+            elif cache.isReadyForTearDown():
+                self._sendUnsubscribeToServer(cache.tupleSelector)
+                del self._cache[ts]
+            else:
+                cache.markForTearDown()
 
     def addTupleProvider(self, tupleName, provider: TuplesProviderABC):
         """ Add Tuple Provider
@@ -101,8 +155,69 @@ class TupleDataObservableProxyHandler:
                                                          vortexUuid=vortexUuid,
                                                          sendResponse=sendResponse)
 
+        # Add support for just getting data, no subscription.
+        if payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
+            return self._handleSubscribe(payload, tupleSelector, sendResponse, vortexUuid)
+
+        else:
+            return self._handlePoll(payload, tupleSelector, sendResponse)
+
+    def _handleSubscribe(self, payload: Payload,
+                         tupleSelector: TupleSelector,
+                         sendResponse: SendVortexMsgResponseCallable,
+                         vortexUuid: str):
+        tsStr = tupleSelector.toJsonStr()
+
+        # Add support for just getting data, no subscription.
+        cache = self._cache.get(tsStr)
+        if cache:
+            if cache.serverResponded:
+                payload.tuples = cache.tuples
+                d = payload.toVortexMsgDefer()
+                d.addCallback(sendResponse)
+                d.addErrback(vortexLogFailure, logger, consumeError=True)
+                return
+        else:
+            cache = _CachedSubscribedData(tupleSelector)
+            self._cache[tsStr] = cache
+
+        cache.vortexUuids.add(vortexUuid)
+
+        self._sendRequestToServer(payload)
+
+    def _sendRequestToServer(self, payload):
+        payload.filt["observerName"] = self._observerName
+        d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
+                                        destVortexName=self._proxyToVortexName)
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
+
+    def _sendUnsubscribeToServer(self, tupleSelector:TupleSelector):
+        payload = Payload()
+        payload.filt["tupleSelector"] = tupleSelector.toJsonStr()
+        payload.filt["unsubscribe"] = True
+        self._sendRequestToServer(payload)
+
+    def _handlePoll(self, payload: Payload,
+                    tupleSelector: TupleSelector,
+                    sendResponse: SendVortexMsgResponseCallable):
+        tsStr = tupleSelector.toJsonStr()
+
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
         responseFilt = copy(payload.filt)
+
+        # Restore the original payload filt (PayloadResponse) and send it back
+        def reply(payload):
+            payload.filt = responseFilt
+            d = payload.toVortexMsgDefer()
+            d.addCallback(sendResponse)
+            d.addErrback(vortexLogFailure, logger, consumeError=True)
+            # logger.debug("Received response from observable")
+
+        cache = self._cache.get(tsStr)
+        if cache and cache.serverResponded:
+            payload.tuples = cache.tuples
+            reply(payload)
+            return
 
         # Track the response, log an error if it fails
         # 5 Seconds is long enough
@@ -112,54 +227,41 @@ class TupleDataObservableProxyHandler:
             logTimeoutError=False
         )
 
-        def handlePrFailure(f: Failure):
-            if f.check(TimeoutError):
-                logger.error(
-                    "Received no response from\nobservable %s\ntuple selector %s",
-                    self._filt,
-                    tupleSelector.toJsonStr()
-                )
-            else:
-                logger.error(
-                    "Unexpected error, %s\nobservable %s\ntuple selector %s",
-                    f,
-                    self._filt,
-                    tupleSelector.toJsonStr()
-                )
-
-        pr.addErrback(handlePrFailure)
+        pr.addErrback(self._handlePrFailure, tupleSelector)
         pr.addErrback(vortexLogFailure, logger, consumeError=True)
+        pr.addCallback(reply)
 
-        # Add support for just getting data, no subscription.
-        if payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
-            self._vortexUuidsByTupleSelectors[tupleSelector.toJsonStr()].append(
-                vortexUuid)
+        self._sendRequestToServer(payload)
+
+    def _handlePrFailure(self, f: Failure, tupleSelector):
+        if f.check(TimeoutError):
+            logger.error(
+                "Received no response from\nobservable %s\ntuple selector %s",
+                self._filt,
+                tupleSelector.toJsonStr()
+            )
         else:
-            # Restore the original payload filt (PayloadResponse) and send it back
-            def reply(payload):
-                payload.filt = responseFilt
-                d = sendResponse(payload.toVortexMsg())
-                d.addErrback(vortexLogFailure, logger, consumeError=True)
-                # logger.debug("Received response from observable")
-
-            pr.addCallback(reply)
-
-        payload.filt["observerName"] = self._observerName
-
-        d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
-                                        destVortexName=self._proxyToVortexName)
-        d.addErrback(vortexLogFailure, logger, consumeError=True)
+            logger.error(
+                "Unexpected error, %s\nobservable %s\ntuple selector %s",
+                f,
+                self._filt,
+                tupleSelector.toJsonStr()
+            )
 
     @deferToThreadWrapWithLogger(logger)
     def _processUpdateFromBackend(self, payload: Payload):
         tupleSelector = payload.filt["tupleSelector"]
-
         tsStr = tupleSelector.toJsonStr()
 
+        cache = self._cache.get(tsStr)
+        if not cache:
+            return
+
+        cache.serverResponded = True
+        cache.tuples = payload.tuples
+
         # Get / update the list of observing UUIDs
-        observingUuids = self._vortexUuidsByTupleSelectors[tsStr]
-        observingUuids = set(observingUuids) & set(VortexFactory.getRemoteVortexUuids())
-        self._vortexUuidsByTupleSelectors[tsStr] = list(observingUuids)
+        observingUuids = cache.vortexUuids & set(VortexFactory.getRemoteVortexUuids())
 
         if not observingUuids:
             return

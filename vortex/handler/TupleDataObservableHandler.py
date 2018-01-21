@@ -62,16 +62,16 @@ class TupleDataObservableHandler:
 
         """
         assert not tupleName in self._tupleProvidersByTupleName, (
-            "Observable:%s, Tuple name %s is already registered" %
-            (self._observableName, tupleName))
+                "Observable:%s, Tuple name %s is already registered" %
+                (self._observableName, tupleName))
 
         assert isinstance(provider, TuplesProviderABC), (
-            "Observable:%s, provider must be an instance of TuplesProviderABC"
-            % self._observableName)
+                "Observable:%s, provider must be an instance of TuplesProviderABC"
+                % self._observableName)
 
         self._tupleProvidersByTupleName[tupleName] = provider
 
-    def hasTupleProvider(self, tupleName:str):
+    def hasTupleProvider(self, tupleName: str):
         return tupleName in self._tupleProvidersByTupleName
 
     def shutdown(self):
@@ -80,8 +80,8 @@ class TupleDataObservableHandler:
     def _createVortexMsg(self, filt, tupleSelector: TupleSelector) -> Deferred:
         tupleProvider = self._tupleProvidersByTupleName.get(tupleSelector.name)
         assert tupleProvider, (
-            "Observable:%s, No providers registered for tupleName %s"
-            % (self._observableName, tupleSelector.name))
+                "Observable:%s, No providers registered for tupleName %s"
+                % (self._observableName, tupleSelector.name))
 
         vortexMsgDefer = self._customMaybeDeferred(
             tupleProvider.makeVortexMsg, filt, tupleSelector)
@@ -92,13 +92,25 @@ class TupleDataObservableHandler:
     def _process(self, payload: Payload, vortexUuid: str,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
         tupleSelector = payload.filt["tupleSelector"]
+        tsStr = tupleSelector.toJsonStr()
 
         observerDetails = _ObserverDetails(vortexUuid, payload.filt.get("observerName"))
 
+        # Handle unsubscribe
+        if payload.filt.get("unsubscribe"):
+            try:
+                self._observerDetailsByTupleSelector[tsStr].remove(observerDetails)
+            except KeyError:
+                pass
+
+            if not self._observerDetailsByTupleSelector[tsStr]:
+                del self._observerDetailsByTupleSelector[tupleSelector.toJsonStr()]
+
+            return
+
         # Add support for just getting data, no subscription.
-        if payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
-            self._observerDetailsByTupleSelector[tupleSelector.toJsonStr()].add(
-                observerDetails)
+        if self._subscriptionsEnabled and payload.filt.get("subscribe", True):
+            self._observerDetailsByTupleSelector[tsStr].add(observerDetails)
 
         vortexMsg = yield self._createVortexMsg(payload.filt, tupleSelector)
         d = sendResponse(vortexMsg)
