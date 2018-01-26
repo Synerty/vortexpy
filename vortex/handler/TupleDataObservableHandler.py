@@ -143,6 +143,7 @@ class TupleDataObservableHandler:
 
         # Get / update the list of observing UUIDs
         if not observerDetails:
+            del self._observerDetailsByTupleSelector[tsStr]
             return
 
         # Create the vortexMsg
