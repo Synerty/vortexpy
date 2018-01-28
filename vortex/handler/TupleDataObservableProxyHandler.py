@@ -29,12 +29,13 @@ class _CachedSubscribedData:
     """
     TEARDOWN_WAIT = 120  # 2 minutes in seconds
 
-    def __init__(self, tupleSelector: TupleSelector):
+    def __init__(self, tupleSelector: TupleSelector, cacheEnabled: bool = True):
         self.tupleSelector: TupleSelector = tupleSelector
         self.vortexUuids: Set[str] = set()
         self.tearDownDate: Optional[datetime] = None
         self.tuples = []
         self.serverResponded = False
+        self.cacheEnabled = True
 
     def markForTearDown(self) -> None:
         if self.tearDownDate is not None:
@@ -171,7 +172,7 @@ class TupleDataObservableProxyHandler:
         # Add support for just getting data, no subscription.
         cache = self._cache.get(tsStr)
         if cache:
-            if cache.serverResponded:
+            if cache.serverResponded and cache.cacheEnabled:
                 payload.tuples = cache.tuples
                 d = payload.toVortexMsgDefer()
                 d.addCallback(sendResponse)
@@ -182,6 +183,8 @@ class TupleDataObservableProxyHandler:
             self._cache[tsStr] = cache
 
         cache.vortexUuids.add(vortexUuid)
+        # Allow the cache to be disabled
+        cache.cacheEnabled = cache.cacheEnabled and payload.filt.get("cacheEnabled", True)
 
         self._sendRequestToServer(payload)
 
@@ -191,7 +194,7 @@ class TupleDataObservableProxyHandler:
                                         destVortexName=self._proxyToVortexName)
         d.addErrback(vortexLogFailure, logger, consumeError=True)
 
-    def _sendUnsubscribeToServer(self, tupleSelector:TupleSelector):
+    def _sendUnsubscribeToServer(self, tupleSelector: TupleSelector):
         payload = Payload()
         payload.filt["tupleSelector"] = tupleSelector.toJsonStr()
         payload.filt["unsubscribe"] = True
@@ -214,7 +217,7 @@ class TupleDataObservableProxyHandler:
             # logger.debug("Received response from observable")
 
         cache = self._cache.get(tsStr)
-        if cache and cache.serverResponded:
+        if cache and cache.serverResponded and cache.cacheEnabled:
             payload.tuples = cache.tuples
             reply(payload)
             return
