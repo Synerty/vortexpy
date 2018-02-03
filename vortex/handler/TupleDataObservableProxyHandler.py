@@ -157,11 +157,26 @@ class TupleDataObservableProxyHandler:
                                                          sendResponse=sendResponse)
 
         # Add support for just getting data, no subscription.
-        if payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
+        if payload.filt.get("unsubscribe", True):
+            return self._handleUnsubscribe(tupleSelector, vortexUuid)
+
+        elif payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
             return self._handleSubscribe(payload, tupleSelector, sendResponse, vortexUuid)
 
         else:
             return self._handlePoll(payload, tupleSelector, sendResponse)
+
+    def _handleUnsubscribe(self, tupleSelector: TupleSelector, vortexUuid: str):
+        tsStr = tupleSelector.toJsonStr()
+
+        if not tsStr in self._cache:
+            return
+
+        cache = self._cache[tsStr]
+        try:
+            cache.vortexUuids.remove(vortexUuid)
+        except KeyError:
+            pass
 
     def _handleSubscribe(self, payload: Payload,
                          tupleSelector: TupleSelector,
