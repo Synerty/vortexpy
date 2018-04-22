@@ -2,14 +2,13 @@ import logging
 
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
-from txhttputil.util.LoggingUtil import setupLogging
 
 from vortex.DeferUtil import vortexLogFailure
 from vortex.VortexFactory import VortexFactory
 from vortex.rpc.run_server_test import myRemoteAddMethod
 
 logger = logging.getLogger(__name__)
-setupLogging()
+logging.basicConfig()
 
 @inlineCallbacks
 def connect():

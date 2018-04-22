@@ -1,14 +1,13 @@
 import logging
 
 from twisted.internet import reactor
-from txhttputil.util.LoggingUtil import setupLogging
 
 from vortex.VortexFactory import VortexFactory
 from vortex.rpc.RPC import vortexRPC
 from vortex.rpc.RPCTest import myRemoteAddMethod
 
 logger = logging.getLogger(__name__)
-setupLogging()
+logging.basicConfig()
 
 
 
