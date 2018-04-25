@@ -1,10 +1,9 @@
 import logging
+from copy import copy
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Set
+from typing import Optional, Dict, Set
 
 import pytz
-from collections import defaultdict
-from copy import copy
 from twisted.internet import task
 from twisted.internet.defer import TimeoutError
 from twisted.python.failure import Failure
@@ -34,8 +33,12 @@ class _CachedSubscribedData:
         self.vortexUuids: Set[str] = set()
         self.tearDownDate: Optional[datetime] = None
         self.tuples = []
-        self.serverResponded = False
         self.cacheEnabled = True
+
+        #: Last Server Payload Date
+        # If the server has responded with a payload, this is the date in the payload
+        # @type {Date | null}
+        self.lastServerPayloadDate: Optional[datetime] = None;
 
     def markForTearDown(self) -> None:
         if self.tearDownDate is not None:
@@ -187,7 +190,7 @@ class TupleDataObservableProxyHandler:
         # Add support for just getting data, no subscription.
         cache = self._cache.get(tsStr)
         if cache:
-            if cache.serverResponded and cache.cacheEnabled:
+            if cache.lastServerPayloadDate is not None and cache.cacheEnabled:
                 payload.tuples = cache.tuples
                 d = payload.toVortexMsgDefer()
                 d.addCallback(sendResponse)
@@ -232,7 +235,7 @@ class TupleDataObservableProxyHandler:
             # logger.debug("Received response from observable")
 
         cache = self._cache.get(tsStr)
-        if cache and cache.serverResponded and cache.cacheEnabled:
+        if cache and cache.lastServerPayloadDate is not None and cache.cacheEnabled:
             payload.tuples = cache.tuples
             reply(payload)
             return
@@ -275,7 +278,12 @@ class TupleDataObservableProxyHandler:
         if not cache:
             return
 
-        cache.serverResponded = True
+        if cache.lastServerPayloadDate is not None:
+            # If this is an old payload, then disregard it.
+            if payload.date < cache.lastServerPayloadDate:
+                return
+
+        cache.lastServerPayloadDate = payload.date
         cache.tuples = payload.tuples
 
         # Get / update the list of observing UUIDs
