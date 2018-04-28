@@ -1,20 +1,22 @@
 import logging
+from copy import copy
 from typing import List
 
-from copy import copy
 from rx.subjects import Subject
 from twisted.internet.defer import Deferred
 
+from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadResponse import PayloadResponse
 from vortex.TupleSelector import TupleSelector
 from vortex.VortexFactory import VortexFactory
+from vortex.handler.TupleDataObservableCache import TupleDataObservableCache
 
 logger = logging.getLogger(__name__)
 
 
-class TupleDataObserverClient:
+class TupleDataObserverClient(TupleDataObservableCache):
     def __init__(self, destVortexName,
                  observableName,
                  additionalFilt=None,
@@ -26,6 +28,8 @@ class TupleDataObserverClient:
         :param destVortexName: The dest vortex name to send the payloads to
 
         """
+        TupleDataObservableCache.__init__(self)
+
         self._destVortexName = destVortexName
         self._observableName = observableName
         self._filt = dict(name=observableName,
@@ -37,8 +41,6 @@ class TupleDataObserverClient:
 
         self._endpoint = PayloadEndpoint(self._filt, self._receivePayload)
 
-        self._subjectsByTupleSelector = {}
-
         # There are no online checks for the vortex
         # isOnlineSub = statusService.isOnline
         # .filter(online= > online == = true)
@@ -46,71 +48,67 @@ class TupleDataObserverClient:
         # 
         # self.onDestroyEvent.subscribe(() = > isOnlineSub.unsubscribe())
 
+        TupleDataObservableCache.start(self)
+
     def shutdown(self):
         self._endpoint.shutdown()
-
-        for subject in self._subjectsByTupleSelector.values():
-            subject.dispose()
-
-        self._subjectsByTupleSelector = {}
-
+        TupleDataObservableCache.shutdown(self)
 
     def pollForTuples(self, tupleSelector: TupleSelector) -> Deferred:
-
         startFilt = copy(self._filt)
-
         startFilt.update({"subscribe": False,
-                          "tupleSelector": tupleSelector
-                          })
+                          "tupleSelector": tupleSelector})
+
+        def cb(payload: Payload) -> List:
+            cache, _ = self._updateCache(payload)
+            return cache.tuples
 
         pr = PayloadResponse(payload=Payload(startFilt),
                              destVortexName=self._destVortexName)
-        pr.addCallback(lambda payload: payload.tuples)
+        pr.addCallback(cb)
         return pr
 
     def subscribeToTupleSelector(self, tupleSelector: TupleSelector) -> Subject:
-
-        tsStr = tupleSelector.toJsonStr()
-        if tsStr in self._subjectsByTupleSelector:
-            return self._subjectsByTupleSelector[tsStr]
-
-        newSubject = Subject()
-        self._subjectsByTupleSelector[tsStr] = newSubject
+        cache = self._makeCache(tupleSelector)
         self._tellServerWeWantData([tupleSelector])
-
-        return newSubject
+        return cache.subject
 
     # TODO Call this when the other end comes back online
     # IDEA, A subscriber on VortexFactory would be great
     def _vortexOnlineChanged(self) -> None:
-        tupleSelectors = []
-        for key in self._subjectsByTupleSelector:
-            tupleSelectors.append(TupleSelector.fromJsonStr(key))
+        self._tellServerWeWantData(self._tupleSelectors())
 
-        self._tellServerWeWantData(tupleSelectors)
-
-    def _receivePayload(self, payload, **kwargs) -> None:
+    def _receivePayload(self, payload: Payload, **kwargs) -> None:
         if payload.result not in (None, True):
             logger.error("Vortex responded with error : %s" % payload.result)
             logger.error(payload.filt)
             return
 
         tupleSelector = payload.filt["tupleSelector"]
-        tsStr = tupleSelector.toJsonStr()
 
-        if tsStr not in self._subjectsByTupleSelector:
+        if not self._hasTupleSelector(tupleSelector):
             return
 
-        subject = self._subjectsByTupleSelector[tsStr]
-        subject.on_next(payload.tuples)
+        cache, requiredUpdate = self._updateCache(payload)
+        if not requiredUpdate:
+            return
+
+        cache.subject.on_next(cache.tuples)
 
     def _tellServerWeWantData(self, tupleSelectors: List[TupleSelector]):
-        startFilt = {"subscribe": True}
-        startFilt.update(self._filt)
-
         for tupleSelector in tupleSelectors:
-            filt = copy(startFilt)
-            filt.update({"tupleSelector": tupleSelector})
+            self._sendRequestToServer(
+                Payload({"subscribe": True, "tupleSelector": tupleSelector})
+            )
 
-            VortexFactory.sendVortexMsg(vortexMsgs=Payload(filt).toVortexMsg(),
+    def _sendRequestToServer(self, payload):
+        payload.filt.update(self._filt)
+        d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
                                         destVortexName=self._destVortexName)
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
+
+    def _sendUnsubscribeToServer(self, tupleSelector: TupleSelector):
+        payload = Payload()
+        payload.filt["tupleSelector"] = tupleSelector.toJsonStr()
+        payload.filt["unsubscribe"] = True
+        self._sendRequestToServer(payload)
