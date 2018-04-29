@@ -10,7 +10,7 @@ import logging
 import uuid
 from datetime import datetime
 from http.cookiejar import CookieJar
-from typing import Union, Optional
+from typing import Union, Optional, List
 from urllib.parse import urlencode
 
 import pytz
@@ -22,7 +22,7 @@ from twisted.web.http_headers import Headers
 from twisted.web.iweb import IBodyProducer
 from zope.interface.declarations import implementer
 
-from vortex.Payload import Payload, VortexMsgList
+from vortex.PayloadEnvelope import PayloadEnvelope, VortexMsgList
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 
@@ -31,7 +31,7 @@ logger = logging.getLogger(name=__name__)
 
 @implementer(IBodyProducer)
 class _VortexClientPayloadProducer(object):
-    def __init__(self, vortexMsgs):
+    def __init__(self, vortexMsgs) -> None:
         self.vortexMsgs = b''
 
         for vortexMsg in vortexMsgs:
@@ -74,7 +74,7 @@ class VortexClientHttp(VortexABC):
     # The time it takes after recieving a response from the server to receive the
     INFO_PAYLOAD_TIMEOUT = 5  # Seconds
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self._vortexName = name
         self._vortexUuid = str(uuid.uuid1())
 
@@ -94,7 +94,7 @@ class VortexClientHttp(VortexABC):
         # Start our heart beat checker
         self._beatLoopingCall = task.LoopingCall(self._checkBeat)
 
-        self._reconnectVortexMsgs = [Payload().toVortexMsg()]
+        self._reconnectVortexMsgs = [PayloadEnvelope().toVortexMsg()]
 
         self.__protocol = None
 
@@ -104,7 +104,7 @@ class VortexClientHttp(VortexABC):
                           uuid=self._vortexUuid)
 
     @property
-    def remoteVortexInfo(self) -> [VortexInfo]:
+    def remoteVortexInfo(self) -> List[VortexInfo]:
         if not self.__protocol:
             return []
 
@@ -141,16 +141,15 @@ class VortexClientHttp(VortexABC):
 
         return deferred
 
-
     def disconnect(self):
         self.__protocol.transport.loseConnection()
 
-    def addReconnectPayload(self, payload):
+    def addReconnectVortexMsg(self, vortexMsg: bytes):
         """ Add Reconnect Payload
-        :param payload: Payload to send when the connection reconnects
+        :param vortexMsg: An encoded PayloadEnvelope to send when the connection reconnects
         :return:
         """
-        self._reconnectVortexMsgs.append(payload.toVortexMsg())
+        self._reconnectVortexMsgs.append(vortexMsg)
 
     def sendVortexMsg(self,
                       vortexMsgs: Union[VortexMsgList, bytes, None] = None,
@@ -235,7 +234,7 @@ class VortexClientHttp(VortexABC):
 
         if self._retrying:
             return
-        
+
         self._retrying = True
 
         logger.info("VortexServer client dead, reconnecting %s:%s"

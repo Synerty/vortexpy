@@ -2,13 +2,14 @@ import logging
 from abc import abstractmethod, ABCMeta
 from typing import Dict, Optional
 
-from twisted.internet.defer import Deferred, DeferredList, fail, succeed
+from twisted.internet.defer import Deferred, fail, succeed, inlineCallbacks
 from twisted.python import failure
 from twisted.python.failure import Failure
 
 from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.TupleAction import TupleActionABC
 from vortex.VortexABC import SendVortexMsgResponseCallable
 
@@ -30,7 +31,8 @@ class TupleActionProcessorDelegateABC(metaclass=ABCMeta):
 class TupleActionProcessor:
     def __init__(self, tupleActionProcessorName: str,
                  additionalFilt: Optional[Dict] = None,
-                 defaultDelegate: Optional[TupleActionProcessorDelegateABC] = None):
+                 defaultDelegate: Optional[
+                     TupleActionProcessorDelegateABC] = None) -> None:
         """ Constructor
 
         :param tupleActionProcessorName: The name of this observable
@@ -51,7 +53,7 @@ class TupleActionProcessor:
 
         self._endpoint = PayloadEndpoint(self._filt, self._process)
 
-        self._tupleProcessorsByTupleName = {}
+        self._tupleProcessorsByTupleName: Dict[str, TupleActionProcessorDelegateABC] = {}
 
     def setDelegate(self, tupleName: str, processor: TupleActionProcessorDelegateABC):
         """ Add Tuple Action Processor Delegate
@@ -61,33 +63,36 @@ class TupleActionProcessor:
 
         """
         assert not tupleName in self._tupleProcessorsByTupleName, (
-            "TupleActionProcessor:%s, Tuple name %s is already registered" %
-            (self._tupleActionProcessorName, tupleName))
+                "TupleActionProcessor:%s, Tuple name %s is already registered" %
+                (self._tupleActionProcessorName, tupleName))
 
         assert isinstance(processor, TupleActionProcessorDelegateABC), (
-            "TupleActionProcessor:%s, provider must be an"
-            " instance of TupleActionProcessorDelegateABC"
-            % self._tupleActionProcessorName)
+                "TupleActionProcessor:%s, provider must be an"
+                " instance of TupleActionProcessorDelegateABC"
+                % self._tupleActionProcessorName)
 
         self._tupleProcessorsByTupleName[tupleName] = processor
 
     def shutdown(self):
         self._endpoint.shutdown()
 
-    def _process(self, payload: Payload,
+    @inlineCallbacks
+    def _process(self, payloadEnvelope: PayloadEnvelope,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
         """ Process the Payload / Tuple Action
         """
 
+        payload = yield payloadEnvelope.decodePayloadDefer()
+
         assert len(payload.tuples) == 1, (
-            "TupleActionProcessor:%s Expected 1 tuples, received %s" % (
-                self._tupleActionProcessorName, len(payload.tuples)))
+                "TupleActionProcessor:%s Expected 1 tuples, received %s" % (
+            self._tupleActionProcessorName, len(payload.tuples)))
 
         tupleAction = payload.tuples[0]
 
         assert isinstance(tupleAction, TupleActionABC), (
-            "TupleActionProcessor:%s Expected TupleAction, received %s" % (
-                self._tupleActionProcessorName, tupleAction.__class__))
+                "TupleActionProcessor:%s Expected TupleAction, received %s" % (
+            self._tupleActionProcessorName, tupleAction.__class__))
 
         tupleName = tupleAction.tupleName()
 
@@ -96,7 +101,7 @@ class TupleActionProcessor:
             delegate = processor.processTupleAction
 
         elif self._defaultDelegate:
-            delegate =self._defaultDelegate.processTupleAction
+            delegate = self._defaultDelegate.processTupleAction
 
         else:
             raise Exception("No delegate registered for %s" % tupleName)
@@ -105,20 +110,22 @@ class TupleActionProcessor:
         d.addCallback(self._callback, payload.filt, tupleName, sendResponse)
         d.addErrback(self._errback, payload.filt, tupleName, sendResponse)
 
-
-    def _callback(self, result, replyFilt: dict, tupleName:str,
-                       sendResponse: SendVortexMsgResponseCallable):
+    @inlineCallbacks
+    def _callback(self, result, replyFilt: dict, tupleName: str,
+                  sendResponse: SendVortexMsgResponseCallable):
 
         if not isinstance(result, list):
             result = [result]
         payload = Payload(filt=replyFilt, tuples=result)
 
-        d = sendResponse(payload.toVortexMsg())
+        payloadEnvelope = yield payload.makePayloadEnvelopeDefer()
+        vortexMsg = yield payloadEnvelope.toVortexMsgDefer()
+        d = sendResponse(vortexMsg)
         d.addErrback(lambda f: logger.error("Failed to send TupleAction response for %s",
                                             tupleName))
 
-    def _errback(self, result: Failure, replyFilt: dict,tupleName:str,
-                       sendResponse: SendVortexMsgResponseCallable):
+    def _errback(self, result: Failure, replyFilt: dict, tupleName: str,
+                 sendResponse: SendVortexMsgResponseCallable):
 
         logger.error("TupleActionProcessor:%s Failed to process TupleActon",
                      self._tupleActionProcessorName)
@@ -126,12 +133,13 @@ class TupleActionProcessor:
         vortexLogFailure(result, logger)
         failureMessage = result.getErrorMessage()
 
-        payload = Payload(filt=replyFilt, result=failureMessage)
+        payloadEnvelope = PayloadEnvelope(filt=replyFilt, result=failureMessage)
 
-        d = sendResponse(payload.toVortexMsg())
-        d.addErrback(lambda f: logger.error("Failed to send TupleAction response for %s\n%s",
-                                            tupleName,
-                                            failureMessage))
+        d = sendResponse(payloadEnvelope.toVortexMsg())
+        d.addErrback(
+            lambda f: logger.error("Failed to send TupleAction response for %s\n%s",
+                                   tupleName,
+                                   failureMessage))
 
     def _customMaybeDeferred(self, f, *args, **kw):
         try:

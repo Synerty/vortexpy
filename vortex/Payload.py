@@ -6,45 +6,38 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
-import json
 import logging
+import ujson
 import zlib
-
-import pytz
 from base64 import b64encode, b64decode
 from datetime import datetime
-from typing import List
+from typing import List, Optional, Dict
 
-from vortex.DeferUtil import deferToThreadWrapWithLogger
+import pytz
+
+from vortex.DeferUtil import deferToThreadWrapWithLogger, noMainThread
 from .Jsonable import Jsonable
 from .SerialiseUtil import T_RAPUI_PAYLOAD
-import ujson
 
 logger = logging.getLogger(__name__)
 
 PayloadList = List['Payload']
-VortexMsgList = List[bytes]
+EncodedPayloadList = List[bytes]
 
 
 class Payload(Jsonable):
     ''' Payload
     This object represents a hierarchy of data transferred between client and server
     '''
-    __fieldNames__ = ['filt', 'replyFilt', 'tuples', 'result', 'date']
+    __fieldNames__ = ['filt', 'tuples', 'date']
     __rapuiSerialiseType__ = T_RAPUI_PAYLOAD
 
-    vortexUuidKey = '__vortexUuid__'
-    vortexNameKey = '__vortexName__'
+    def __init__(self, filt: Optional[Dict] = None, tuples=None) -> None:
+        """ Constructor
 
-    def __init__(self, filt=None, replyFilt=None, tuples=None, result=None):
-        '''
-        Constructor
-        '''
-        self.to = None
+        """
         self.filt = {} if filt is None else filt
-        self.replyFilt = {} if replyFilt is None else replyFilt
         self.tuples = [] if tuples is None else tuples
-        self.result = result
         self.date = datetime.now(pytz.utc)
 
         if isinstance(filt, str):
@@ -53,14 +46,24 @@ class Payload(Jsonable):
         if not isinstance(self.tuples, list):
             self.tuples = [self.tuples]
 
-    def isEmpty(self):
-        return ((not self.filt
-                 or (self.vortexNameKey in self.filt
-                     and self.vortexUuidKey in self.filt
-                     and len(self.filt) == 2))
-                and not self.replyFilt
-                and not self.tuples
-                and not self.result)
+    def makePayloadEnvelope(self, result=None):
+        from .PayloadEnvelope import PayloadEnvelope
+        noMainThread()
+        encodedSelf = self.toEncodedPayload()
+        return PayloadEnvelope(self.filt,
+                               encodedPayload=encodedSelf,
+                               date=self.date,
+                               result=result)
+
+    @deferToThreadWrapWithLogger(logger)
+    def makePayloadEnvelopeDefer(self, result=None):
+        from .PayloadEnvelope import PayloadEnvelope
+        noMainThread()
+        encodedSelf = self.toEncodedPayload()
+        return PayloadEnvelope(self.filt,
+                               encodedPayload=encodedSelf,
+                               date=self.date,
+                               result=result)
 
     # -------------------------------------------
     # JSON Related methods
@@ -75,18 +78,18 @@ class Payload(Jsonable):
 
     # -------------------------------------------
     # VortexServer Message Methods
-    def toVortexMsg(self, compressionLevel: int = 9) -> bytes:
+    def toEncodedPayload(self, compressionLevel: int = 9) -> bytes:
         jsonStr = self._toJson()
         return b64encode(zlib.compress(jsonStr.encode("UTF-8"), compressionLevel))
 
     @deferToThreadWrapWithLogger(logger)
-    def toVortexMsgDefer(self, compressionLevel: int = 9) -> bytes:
-        return self.toVortexMsg(compressionLevel=compressionLevel)
+    def toEncodedPayloadDefer(self, compressionLevel: int = 9) -> bytes:
+        return self.toEncodedPayload(compressionLevel=compressionLevel)
 
-    def fromVortexMsg(self, vortexMsg: bytes):
-        jsonStr = zlib.decompress(b64decode(vortexMsg)).decode()
+    def fromEncodedPayload(self, encodedPayload: bytes):
+        jsonStr = zlib.decompress(b64decode(encodedPayload)).decode()
         return self._fromJson(jsonStr)
 
     @deferToThreadWrapWithLogger(logger)
-    def fromVortexMsgDefer(self, vortexMsg: bytes):
-        return self.fromVortexMsg(vortexMsg)
+    def fromEncodedPayloadDefer(self, encodedPayload: bytes):
+        return self.fromEncodedPayload(encodedPayload)

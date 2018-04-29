@@ -1,12 +1,12 @@
 import logging
 from copy import copy
 
-from twisted.internet.defer import TimeoutError
+from twisted.internet.defer import TimeoutError, inlineCallbacks
 from twisted.python.failure import Failure
-from vortex.DeferUtil import vortexLogFailure
 
-from vortex.Payload import Payload
+from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
@@ -23,7 +23,8 @@ class TupleActionProcessorProxy:
     """
 
     def __init__(self, tupleActionProcessorName,
-                 proxyToVortexName: str, additionalFilt=None):
+                 proxyToVortexName: str,
+                 additionalFilt=None) -> None:
         """ Constructor
 
         :param tupleActionProcessorName: The name of this and the other action handler
@@ -42,7 +43,7 @@ class TupleActionProcessorProxy:
     def shutdown(self):
         self._endpoint.shutdown()
 
-    def _process(self, payload: Payload, vortexName: str,
+    def _process(self, payloadEnvelope: PayloadEnvelope, vortexName: str,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
 
         # Ignore responses from the backend, these are handled by PayloadResponse
@@ -50,46 +51,48 @@ class TupleActionProcessorProxy:
             return
 
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
-        responseFilt = copy(payload.filt)
-        action = payload.tuples[0]
+        responseFilt = copy(payloadEnvelope.filt)
 
         # Track the response, log an error if it fails
-        # 5 Seconds is long enouge.
+        # 5 Seconds is long enough.
         # VortexJS defaults to 10s, so we have some room for round trip time.
         pr = PayloadResponse(
-            payload,
+            payloadEnvelope,
             timeout=PayloadResponse.TIMEOUT - 5,  # 5 seconds less
             resultCheck=False,
             logTimeoutError=False
         )
 
         # This is not a lambda, so that it can have a breakpoint
-        def reply(payload):
-            payload.filt = responseFilt
-            sendResponse(payload.toVortexMsg())
-
-        def handlePrFailure(f: Failure):
-            if f.check(TimeoutError):
-                logger.error(
-                    "Received no response from\nprocessor %s\naction %s",
-                    self._filt,
-                    action
-                )
-            else:
-                logger.error(
-                    "Unexpected error, %s\nprocessor %s\naction %s",
-                    f,
-                    self._filt,
-                    action
-                )
-
-            vortexLogFailure(f, logger)
+        def reply(payloadEnvelope:PayloadEnvelope):
+            payloadEnvelope.filt = responseFilt
+            sendResponse(payloadEnvelope.toVortexMsg())
 
         pr.addCallback(reply)
 
         pr.addCallback(lambda _: logger.debug("Received action response from server"))
-        pr.addErrback(handlePrFailure)
+        pr.addErrback(self.__handlePrFailure)
 
-        d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
+        d = VortexFactory.sendVortexMsg(vortexMsgs=payloadEnvelope.toVortexMsg(),
                                         destVortexName=self._proxyToVortexName)
         d.addErrback(vortexLogFailure, logger, consumeError=True)
+
+    @inlineCallbacks
+    def __handlePrFailure(self, f: Failure, payloadEnvelope: PayloadEnvelope):
+        payload = yield payloadEnvelope.decodePayloadDefer()
+        action = payload.tuples[0]
+        if f.check(TimeoutError):
+            logger.error(
+                "Received no response from\nprocessor %s\naction %s",
+                self._filt,
+                action
+            )
+        else:
+            logger.error(
+                "Unexpected error, %s\nprocessor %s\naction %s",
+                f,
+                self._filt,
+                action
+            )
+
+        vortexLogFailure(f, logger)

@@ -6,7 +6,7 @@ from twisted.internet.endpoints import TCP4ServerEndpoint
 from twisted.internet.protocol import Factory, Protocol, connectionDone
 
 from vortex.Payload import Payload
-from vortex.VortexClient import VortexClient
+from vortex.VortexClientHttp import VortexClientHttp
 
 class DummyListenerProtocol(Protocol):
 
@@ -35,7 +35,7 @@ class VortexClientTest(unittest.TestCase):
         def listenSuccess(listeningPort):
             self.listeningPort = listeningPort
 
-            self.vortexClient = VortexClient()
+            self.vortexClient = VortexClientHttp()
             return self.vortexClient.connect(host, port)
 
         endpoint = TCP4ServerEndpoint(reactor, port)

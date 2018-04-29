@@ -10,7 +10,7 @@
 from twisted.trial import unittest
 
 from run_test_vortex_server import setupVortexServer
-from vortex.VortexClient import VortexClient
+from vortex.VortexClientHttp import VortexClientHttp
 
 
 class VortexTest(unittest.TestCase):
@@ -18,5 +18,5 @@ class VortexTest(unittest.TestCase):
         self.port = setupVortexServer()
 
     def testVortexConnect(self):
-        client = VortexClient("unittest")
+        client = VortexClientHttp("unittest")
         return client.connect("127.0.0.1", self.port)

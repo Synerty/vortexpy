@@ -1,9 +1,9 @@
 from abc import ABCMeta, abstractproperty, abstractmethod
-from typing import Optional, Union, Callable
+from typing import Optional, Union, Callable, List
 
 from twisted.internet.defer import Deferred
 
-from vortex.Payload import VortexMsgList
+from vortex.PayloadEnvelope import VortexMsgList
 
 SendVortexMsgResponseCallable = Callable[[Union[VortexMsgList, bytes]], Deferred]
 
@@ -27,16 +27,18 @@ class VortexABC(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def remoteVortexInfo(self) -> [VortexInfo]:
+    def remoteVortexInfo(self) -> List[VortexInfo]:
         pass
 
     @abstractmethod
-    def sendVortexMsg(self, vortexMsg: bytes, vortexUuid: Optional[str] = None):
+    def sendVortexMsg(self,
+                      vortexMsgs: Union[VortexMsgList, bytes],
+                      vortexUuid: Optional[str] = None):
         """ Send Vortex Msg
 
         Sends the vortex message to any conencted clients with vortexUuid.
         Or broadcast it to all connected vortex clients if it's None
 
-        :param vortexMsg: The vortex message to send
+        :param vortexMsgs: The vortex message(s) to send
         :param vortexUuid: The vortexUuid of the client to send to.
         """

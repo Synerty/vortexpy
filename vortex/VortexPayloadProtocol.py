@@ -8,15 +8,12 @@
 """
 import logging
 from abc import ABCMeta, abstractmethod
-from typing import Union
 
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.error import ConnectionDone, ConnectionLost
 from twisted.internet.protocol import Protocol, connectionDone
-from twisted.web._newclient import ResponseDone, ResponseNeverReceived, ResponseFailed
-from twisted.web.http import _DataLoss
 
-from vortex.Payload import Payload, VortexMsgList
+from vortex.Payload import Payload
 from vortex.PayloadIO import PayloadIO
 
 logger = logging.getLogger(name=__name__)
@@ -65,7 +62,7 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
     def connectionLost(self, reason=connectionDone):
         reasonFailure = reason
         self._processData()
-        if (reasonFailure.check(ConnectionDone)):
+        if reasonFailure.check(ConnectionDone):
             self._logger.info("Connection closed by other end (it may be shutting down)")
 
         elif isinstance(reasonFailure.value, ConnectionLost):
@@ -137,8 +134,6 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
 
         self._nameAndUuidReceived(name=self._serverVortexName,
                                   uuid=self._serverVortexUuid)
-
-
 
     def _deliverPayload(self, payload):
 

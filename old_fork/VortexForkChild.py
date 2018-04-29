@@ -14,9 +14,8 @@ from twisted.internet import task
 from twisted.internet.protocol import connectionDone
 from twisted.internet.stdio import StandardIO
 
-from VortexPayloadClientProtocol import VortexPayloadClientProtocol
-from Vortex import Vortex
-from VortexForkParent import VORTEX_PARENT_IN_FD
+from vortex.VortexForkParent import VORTEX_PARENT_IN_FD
+from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 
 logger = logging.getLogger(name=__name__)
 
@@ -25,7 +24,7 @@ class ModData:
     standardIo = None
     killCheckLoopingCall = None
 
-class ForkChildVortexClientProtocol(VortexPayloadClientProtocol):
+class ForkChildVortexClientProtocol(VortexPayloadProtocol):
 
     def connectionLost(self, reason=connectionDone):
         exit(0)
@@ -36,7 +35,7 @@ class ForkChildVortex(object):
     '''
 
     def __init__(self, vortexClientProtocol):
-        assert isinstance(vortexClientProtocol, VortexPayloadClientProtocol)
+        assert isinstance(vortexClientProtocol, VortexPayloadProtocol)
         self._vortexClientProtocol = vortexClientProtocol
 
     def uuid(self):
@@ -93,7 +92,8 @@ def rapuiSetupForkChildVortexClient(logger):
 
     protocol = ForkChildVortexClientProtocol(logger=logger)
     ModData.standardIo = StandardIO(protocol, stdout=VORTEX_PARENT_IN_FD)
-    Vortex._instance = ForkChildVortex(protocol)
+
+    # Vortex._instance = ForkChildVortex(protocol)
 
     ModData.killCheckLoopingCall = task.LoopingCall(_parentPidCheck)
     ModData.killCheckLoopingCall.start(0.2)

@@ -3,11 +3,12 @@ from copy import copy
 from typing import List
 
 from rx.subjects import Subject
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks
 
 from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse
 from vortex.TupleSelector import TupleSelector
 from vortex.VortexFactory import VortexFactory
@@ -59,13 +60,15 @@ class TupleDataObserverClient(TupleDataObservableCache):
         startFilt.update({"subscribe": False,
                           "tupleSelector": tupleSelector})
 
-        def cb(payload: Payload) -> List:
-            cache, _ = self._updateCache(payload)
-            return cache.tuples
+        def updateCacheCallback(payloadEnvelope: PayloadEnvelope) -> PayloadEnvelope:
+            cache, _ = self._updateCache(payloadEnvelope)
+            return payloadEnvelope
 
-        pr = PayloadResponse(payload=Payload(startFilt),
+        pr = PayloadResponse(payloadEnvelope=PayloadEnvelope(startFilt),
                              destVortexName=self._destVortexName)
-        pr.addCallback(cb)
+        pr.addCallback(updateCacheCallback)
+        pr.addCallback(lambda payloadEnvelope: payloadEnvelope.decodePayloadDefer())
+        pr.addCallback(lambda payload: payload.tuples)
         return pr
 
     def subscribeToTupleSelector(self, tupleSelector: TupleSelector) -> Subject:
@@ -78,27 +81,30 @@ class TupleDataObserverClient(TupleDataObservableCache):
     def _vortexOnlineChanged(self) -> None:
         self._tellServerWeWantData(self._tupleSelectors())
 
-    def _receivePayload(self, payload: Payload, **kwargs) -> None:
-        if payload.result not in (None, True):
-            logger.error("Vortex responded with error : %s" % payload.result)
-            logger.error(payload.filt)
+    @inlineCallbacks
+    def _receivePayload(self, payloadEnvelope: PayloadEnvelope, **kwargs):
+        if payloadEnvelope.result not in (None, True):
+            logger.error("Vortex responded with error : %s" % payloadEnvelope.result)
+            logger.error(str(payloadEnvelope.filt))
             return
 
-        tupleSelector = payload.filt["tupleSelector"]
+        tupleSelector = payloadEnvelope.filt["tupleSelector"]
 
         if not self._hasTupleSelector(tupleSelector):
             return
 
-        cache, requiredUpdate = self._updateCache(payload)
+        cache, requiredUpdate = self._updateCache(payloadEnvelope)
         if not requiredUpdate:
             return
 
-        cache.subject.on_next(cache.tuples)
+        payload = yield Payload().fromEncodedPayloadDefer(cache.encodedPayload)\
+
+        cache.subject.on_next(payload.tuples)
 
     def _tellServerWeWantData(self, tupleSelectors: List[TupleSelector]):
         for tupleSelector in tupleSelectors:
             self._sendRequestToServer(
-                Payload({"subscribe": True, "tupleSelector": tupleSelector})
+                PayloadEnvelope({"subscribe": True, "tupleSelector": tupleSelector})
             )
 
     def _sendRequestToServer(self, payload):
@@ -108,7 +114,7 @@ class TupleDataObserverClient(TupleDataObservableCache):
         d.addErrback(vortexLogFailure, logger, consumeError=True)
 
     def _sendUnsubscribeToServer(self, tupleSelector: TupleSelector):
-        payload = Payload()
+        payload = PayloadEnvelope()
         payload.filt["tupleSelector"] = tupleSelector.toJsonStr()
         payload.filt["unsubscribe"] = True
         self._sendRequestToServer(payload)

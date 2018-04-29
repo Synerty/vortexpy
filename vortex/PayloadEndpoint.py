@@ -11,13 +11,28 @@ import logging
 import types
 import weakref
 from copy import copy
-from typing import Callable, Union
+from typing import Callable, Optional, Dict, Any
 
-from vortex.Payload import Payload, VortexMsgList
+from twisted.internet.defer import Deferred
+
+from vortex.Payload import Payload
 from vortex.PayloadIO import PayloadIO
 from vortex.VortexABC import SendVortexMsgResponseCallable
 
 logger = logging.getLogger(__name__)
+
+# TODO: typings needs to support keyword args before tbis will work.
+# PayloadEndpointProcessCallable = Callable[
+#     [
+#         ...
+#         # PayloadEnvelope,  # payloadEnvelope
+#         # str,  # vortexUuid
+#         # str,  # vortexName
+#         # Any,  # httpSession
+#         # SendVortexMsgResponseCallable  # sendResponse
+#     ],
+#     Optional[Deferred]  # Return
+# ]
 
 
 class PayloadEndpoint(object):
@@ -27,7 +42,7 @@ class PayloadEndpoint(object):
     payload filter then the payload will be passed to the supplied callable.
     """
 
-    def __init__(self, filt, callable_):
+    def __init__(self, filt: Dict, callable_) -> None:
         """
         @param filt: The filter to match against payloads
         @param callable_: This will be called and passed the payload if it matches
@@ -35,10 +50,10 @@ class PayloadEndpoint(object):
         if not "key" in filt:
             e = Exception("There is no 'key' in the payload filt"
                           ", There must be one for routing")
-            logger.exception(e)
+            logger.exception(str(e))
             raise e
 
-        self._wref = None
+        self._wref :Callable[[], Optional[Callable]]= None
         if isinstance(callable_, types.FunctionType):
             w = None
             if hasattr(callable_, '_endpointWeakClass'):
@@ -90,7 +105,7 @@ class PayloadEndpoint(object):
                     continue
 
                 if (inspect.isclass(value)
-                    and (issubclass(value, dict) or issubclass(value, list))):
+                        and (issubclass(value, dict) or issubclass(value, list))):
                     raise Exception("Class type passed instead of an instance"
                                     " key:%s, value:%s" % (key, value))
 

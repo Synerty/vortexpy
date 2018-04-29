@@ -8,7 +8,7 @@
 """
 import logging
 import uuid
-from typing import Optional, Union
+from typing import Optional, Union, Dict, List
 from weakref import WeakValueDictionary
 
 from twisted.internet import task, reactor
@@ -18,10 +18,12 @@ from twisted.web.server import Session
 from zope.interface import Interface, Attribute
 from zope.interface.declarations import implementer
 
-from vortex.Payload import Payload, VortexMsgList
+from vortex.DeferUtil import vortexLogFailure
+from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
 from vortex.PayloadFilterKeys import rapuiServerEcho
 from vortex.PayloadIO import PayloadIO
 from vortex.VortexABC import VortexABC, VortexInfo
+from vortex.VortexServerConnection import VortexServerConnection
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +34,21 @@ VortexServer
 HEART_BEAT_PERIOD = 5.0
 HEART_BEAT_TIMEOUT = 35.0
 
+
 class VortexServer(VortexABC):
     ''' VortexServer
     The static instance of the controller
     '''
-    def __init__(self, name: str):
+
+    def __init__(self, name: str) -> None:
         # Simple initialisations up the top
         self._name = name
         self._uuid = str(uuid.uuid1())
         self._shutdown = False
 
         # Store all our sessions
-        self._httpSessionsBySessionUuid = WeakValueDictionary()
-        self._connectionByVortexUuid = {}
+        self._httpSessionsBySessionUuid: WeakValueDictionary = WeakValueDictionary()
+        self._connectionByVortexUuid: Dict[str, VortexServerConnection] = {}
 
     def name(self):
         return self._name
@@ -58,11 +62,12 @@ class VortexServer(VortexABC):
                           uuid=self._uuid)
 
     @property
-    def remoteVortexInfo(self) -> [VortexInfo]:
+    def remoteVortexInfo(self) -> List[VortexInfo]:
         vortexInfos = []
 
         for conn in self._connectionByVortexUuid.values():
-            vortexInfos.append(VortexInfo(name=conn.remoteVortexName, uuid=conn.remoteVortexUuid))
+            vortexInfos.append(
+                VortexInfo(name=conn.remoteVortexName, uuid=conn.remoteVortexUuid))
 
         return vortexInfos
 
@@ -179,15 +184,14 @@ class VortexServer(VortexABC):
         :param vortexUuid: The vortexUuid of the client to send to.
         """
         if vortexMsgs is None:
-            vortexMsgs = [Payload().toVortexMsg()]
-
-        if not isinstance(vortexMsgs, list):
-            vortexMsgs = [vortexMsgs]
+            vortexMsgs = [PayloadEnvelope().toVortexMsg()]
 
         return task.deferLater(reactor, 0, self._sendVortexMsgLater, vortexMsgs,
-                                  vortexUuid=vortexUuid)
+                               vortexUuid=vortexUuid)
 
-    def _sendVortexMsgLater(self, vortexMsgs: VortexMsgList, vortexUuid: Optional[str]):
+    def _sendVortexMsgLater(self,
+                            vortexMsgs: Union[VortexMsgList, bytes],
+                            vortexUuid: Optional[str]):
         """ Send the message.
 
         Send it later,
@@ -195,18 +199,27 @@ class VortexServer(VortexABC):
 
         """
 
+        if not isinstance(vortexMsgs, list):
+            vortexMsgs = [vortexMsgs]
+
+        # Deliver locally
         if vortexUuid == self._uuid:
             for vortexMsg in vortexMsgs:
-                PayloadIO().process(
-                    Payload().fromVortexMsg(vortexMsg),
-                    vortexUuid=self._uuid,
-                    vortexName=self._name,
-                    httpSession=None,
-                    sendResponse=lambda _: self._sendVortexMsgLater(_, self._uuid))
+                def cb(payloadEnvelope: PayloadEnvelope) -> None:
+                    PayloadIO().process(
+                        payloadEnvelope,
+                        vortexUuid=self._uuid,
+                        vortexName=self._name,
+                        httpSession=None,
+                        sendResponse=lambda _: self._sendVortexMsgLater(_, self._uuid))
+
+                d = PayloadEnvelope.fromVortexMsgDefer(vortexMsg)
+                d.addCallback(cb)
+                d.addErrback(vortexLogFailure, logger, consumeError=True)
 
             return
 
-        conns = []
+        conns: List[VortexServerConnection] = []
         if vortexUuid == None:
             conns = list(self._connectionByVortexUuid.values())
         elif vortexUuid in self._connectionByVortexUuid:

@@ -1,6 +1,6 @@
 import logging
-
 from copy import copy
+
 from twisted.internet.defer import Deferred
 
 from vortex.Payload import Payload
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class TupleDataActionClient:
     def __init__(self, destVortexName: str,
-                 tupleActionProcessorName: str, additionalFilt: dict = None):
+                 tupleActionProcessorName: str, additionalFilt: dict = None) -> None:
         """ Constructor
 
         :param destVortexName: The name of the destination vortex to send to.
@@ -45,9 +45,12 @@ class TupleDataActionClient:
         if additionalFilt:
             filt.update(additionalFilt)
 
-        payload = Payload(filt=filt, tuples=[tupleAction])
-        payloadResponse = PayloadResponse(payload, destVortexName=self._destVortexName)
+        d =  Payload(filt=filt, tuples=[tupleAction]).makePayloadEnvelopeDefer()
+        d.addCallback(
+            lambda payloadEnvelope:
+            PayloadResponse(payloadEnvelope, destVortexName=self._destVortexName)
+        )
 
         # Convert the data to TupleAction
-        payloadResponse.addCallback(lambda payload: payload.tuples)
-        return payloadResponse
+        d.addCallback(lambda payload: payload.tuples)
+        return d

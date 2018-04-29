@@ -10,6 +10,7 @@ import logging
 import traceback
 from copy import copy, deepcopy
 from json import JSONEncoder
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +29,10 @@ class Jsonable(object):
     ''' Xmlable
     Inherit from this class if you want to serialise to XML.
     '''
-    __fieldNames__ = None
+    __fieldNames__: List[str] = None
     __rapuiSerialiseType__ = T_GENERIC_CLASS
 
-    __rawJonableFields__ = None
+    __rawJonableFields__: List[str] = None
 
     JSON_CLASS_TYPE = '_ct'
     JSON_CLASS = '_c'
@@ -39,7 +40,7 @@ class Jsonable(object):
     JSON_FIELD_TYPE = "_ft"
     JSON_FIELD_DATA = "_fd"
 
-    def __isRawJsonableField(self, name:str)-> bool:
+    def __isRawJsonableField(self, name: str) -> bool:
         if not (name and self.__rawJonableFields__):
             return False
         return name in self.__rawJonableFields__
@@ -62,7 +63,7 @@ class Jsonable(object):
         if self.__isRawJsonableField(name):
             # This sho
             convertedValue = deepcopy(value)
-            
+
         elif isinstance(value, Jsonable):
             convertedValue = value.toJsonDict()
 
@@ -92,7 +93,7 @@ class Jsonable(object):
         # Non standard values need a dict to store their value type attributes
         # Create a sub dict that contains the value and type
         if (valueType not in (T_FLOAT, T_STR, V_NULL, T_BOOL, T_LIST, T_DICT)
-            and not isinstance(value, Jsonable)):
+                and not isinstance(value, Jsonable)):
             convertedValue = {
                 Jsonable.JSON_FIELD_TYPE: valueType,
                 Jsonable.JSON_FIELD_DATA: convertedValue
@@ -129,7 +130,8 @@ class Jsonable(object):
 
         # Non standard values need a dict to store their value type attributes, decode these
         if isinstance(value, dict) and Jsonable.JSON_FIELD_TYPE in value:
-            return self.fromJsonField(value[Jsonable.JSON_FIELD_DATA], value[Jsonable.JSON_FIELD_TYPE])
+            return self.fromJsonField(value[Jsonable.JSON_FIELD_DATA],
+                                      value[Jsonable.JSON_FIELD_TYPE])
 
         # Tuple
         if valueType == T_RAPUI_TUPLE:
@@ -148,10 +150,14 @@ class Jsonable(object):
                 logger.critical(traceback.format_exc())
                 raise Exception("%s for tuple type %s" % (str(e), tupleType))
 
-        # Payload
+        # Handle the case of payloads within payloads
         if valueType == T_RAPUI_PAYLOAD:
             from .Payload import Payload
             return Payload().fromJsonDict(value)
+
+        if valueType == T_RAPUI_PAYLOAD_ENVELOPE:
+            from .PayloadEnvelope import PayloadEnvelope
+            return PayloadEnvelope().fromJsonDict(value)
 
         if valueType == T_GENERIC_CLASS:
             # OTHER JSONABLES GO HERE, INSPECT THE tuple_TYPE

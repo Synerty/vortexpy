@@ -18,6 +18,7 @@ from twisted.internet.defer import inlineCallbacks
 from twisted.internet.protocol import Protocol, connectionDone, Factory
 
 from vortex.DeferUtil import vortexLogFailure
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.VortexServerConnection import VortexServerConnection
 from .Payload import Payload
 from .VortexConnectionABC import VortexConnectionABC
@@ -53,7 +54,7 @@ txws.make_hybi07_frame = make_hybi07_frame
 
 
 class VortexWebsocketServerProtocol(Protocol):
-    def __init__(self, vortex: VortexServer, addr):
+    def __init__(self, vortex: VortexServer, addr) -> None:
         self._vortex = vortex
         self._addr = addr
 
@@ -83,9 +84,9 @@ class VortexWebsocketServerProtocol(Protocol):
 
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {}
-        connectPayloadFilt[Payload.vortexUuidKey] = self._vortex.uuid()
-        connectPayloadFilt[Payload.vortexNameKey] = self._vortex.name()
-        self._conn.write(Payload(filt=connectPayloadFilt).toVortexMsg())
+        connectPayloadFilt[PayloadEnvelope.vortexUuidKey] = self._vortex.uuid()
+        connectPayloadFilt[PayloadEnvelope.vortexNameKey] = self._vortex.name()
+        self._conn.write(PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg())
 
         self._vortex.connectionOpened(self._httpSession, self._conn)
 
@@ -116,19 +117,19 @@ class VortexWebsocketServerProtocol(Protocol):
 
     @inlineCallbacks
     def _processVortexMsg(self, vortexMsg: bytes):
-        payload = yield Payload().fromVortexMsgDefer(vortexMsg)
+        payloadEnvelope = yield PayloadEnvelope().fromVortexMsgDefer(vortexMsg)
         self._vortex.payloadReveived(
             httpSession=self._httpSession,
             vortexUuid=self._remoteVortexUuid,
             vortexName=self._remoteVortexName,
-            payload=payload)
+            payload=payloadEnvelope)
 
 
 
 class VortexWebsocketServerFactory(Factory):
     protocol = None
 
-    def __init__(self, vortexServer: VortexServer):
+    def __init__(self, vortexServer: VortexServer) -> None:
         self._vortexServer = vortexServer
 
     def buildProtocol(self, addr):

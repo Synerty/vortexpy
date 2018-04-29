@@ -1,14 +1,15 @@
 import logging
+import typing
 from collections import defaultdict
+from typing import Union, List, Optional, Dict
 
 from rx.subjects import Subject
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList, succeed
+from twisted.internet.defer import Deferred, DeferredList, succeed, inlineCallbacks
 from twisted.python.failure import Failure
 from txws import WebSocketFactory
-from typing import Union, List, Optional
 
-from vortex.Payload import VortexMsgList, Payload
+from vortex.PayloadEnvelope import VortexMsgList, Payload, PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
 from vortex.VortexABC import VortexABC
 from vortex.VortexClientHttp import VortexClientHttp
@@ -35,11 +36,10 @@ VortexUuidList = List[str]
 
 
 class VortexFactory:
-    __vortexServersByName = defaultdict(list)
-    __vortexClientsByName = defaultdict(list)
-    __remoteVortexexByLocalVortex = {}
+    __vortexServersByName: Dict[str, List[VortexABC]] = defaultdict(list)
+    __vortexClientsByName: Dict[str, List[VortexABC]] = defaultdict(list)
 
-    __vortexStatusChangeSubjectsByName = {}
+    __vortexStatusChangeSubjectsByName: Dict[str, Subject] = {}
 
     __isShutdown = False
 
@@ -51,19 +51,20 @@ class VortexFactory:
         cls.__isShutdown = True
 
     @classmethod
-    def _getVortexSendRefs(cls, name=None, uuid=None) -> (VortexABC, [str]):
+    def _getVortexSendRefs(cls, name=None, uuid=None
+                           ) -> List[typing.Tuple[VortexABC, List[str]]]:
         assert name or uuid
 
         results = []
 
         # logger.debug("-" * 80)
         for vortex in cls._allVortexes():
-            uuids = []
+            uuids: List[str] = []
             # logger.debug("FROM : %s", vortex.localVortexInfo)
             for remoteVortexInfo in vortex.remoteVortexInfo:
                 # logger.debug("        REMOTE : %s", remoteVortexInfo)
                 if ((name is None or remoteVortexInfo.name == name)
-                    and (uuid is None or remoteVortexInfo.uuid == uuid)):
+                        and (uuid is None or remoteVortexInfo.uuid == uuid)):
                     uuids.append(remoteVortexInfo.uuid)
 
             if uuids:
@@ -194,8 +195,14 @@ class VortexFactory:
 
     @classmethod
     def getLocalVortexClients(cls, localVortexName: str) -> List[VortexABC]:
-        return list(filter(lambda x: x.name == localVortexName,
-                           cls.__vortexClientsByName.values()))
+        vortexes: List[VortexABC] = []
+
+        for items in cls.__vortexClientsByName.values():
+            vortexes.extend(
+                filter(lambda x: x.localVortexInfo.name == localVortexName, items)
+            )
+
+        return vortexes
 
     @classmethod
     def getRemoteVortexUuids(cls) -> List[str]:
@@ -261,10 +268,10 @@ class VortexFactory:
 
         vortexMsgs = [vortexMsgs] if isinstance(vortexMsgs, bytes) else vortexMsgs
 
-        def send(payload):
+        def send(payloadEnvelope:PayloadEnvelope):
             try:
                 PayloadIO().process(
-                    payload=payload,
+                    payloadEnvelope=payloadEnvelope,
                     vortexUuid=vortexUuid,
                     vortexName=vortexName,
                     httpSession=httpSession,
@@ -277,12 +284,14 @@ class VortexFactory:
 
         deferreds = []
         for vortexMsg in vortexMsgs:
-            deferreds.append(send(Payload().fromVortexMsg(vortexMsg)))
+            d = PayloadEnvelope().fromVortexMsgDefer(vortexMsg)
+            d.addCallback(send)
+            deferreds.append(d)
 
         return DeferredList(deferreds)
 
     @classmethod
-    def subscribeToVortexStatusChange(cls, vortexName:str) -> Subject:
+    def subscribeToVortexStatusChange(cls, vortexName: str) -> Subject:
         """ Subscribe to Vortex Status Change
         
         Subscribing to the returned observable/subject will provided updates of when the
@@ -299,7 +308,7 @@ class VortexFactory:
         return cls.__vortexStatusChangeSubjectsByName[vortexName]
 
     @classmethod
-    def _notifyOfVortexStatusChange(cls, vortexName:str, online:bool) -> None:
+    def _notifyOfVortexStatusChange(cls, vortexName: str, online: bool) -> None:
         if cls.__isShutdown:
             return
 

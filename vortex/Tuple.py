@@ -8,10 +8,10 @@
 """
 import inspect
 import json
-from datetime import datetime
-from typing import List
-
 from copy import deepcopy
+from datetime import datetime
+from typing import List, Dict, Set
+
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.properties import RelationshipProperty
 from sqlalchemy.sql.schema import Sequence
@@ -21,8 +21,8 @@ from .SerialiseUtil import T_RAPUI_TUPLE
 from .SerialiseUtil import convertFromWkbElement, ISO8601, WKBElement
 
 TUPLE_TYPES = []
-TUPLE_TYPES_BY_NAME = {}
-_TUPLE_SHORT_NAMES = set()
+TUPLE_TYPES_BY_NAME: Dict[str, object] = {}
+_TUPLE_SHORT_NAMES: Set[str] = set()
 
 JSON_EXCLUDE = "jsonExclude"
 
@@ -184,7 +184,7 @@ class TupleField(object):
 
 class Tuple(Jsonable):
     ''' Tuple Type, EG com.synerty.rapui.UnitTestTuple'''
-    __tupleType__ = None
+    __tupleType__ :str= None
     __tupleTypeShort__ = None
     __fieldNames__ = None
     __rapuiSerialiseType__ = T_RAPUI_TUPLE

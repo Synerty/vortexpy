@@ -38,6 +38,7 @@ except ImportError:
 
 T_RAPUI_TUPLE = 'rt'
 T_RAPUI_PAYLOAD = 'rp'
+T_RAPUI_PAYLOAD_ENVELOPE = 'rpe'
 T_GENERIC_CLASS = 'gen'  # NOT SUPPORTED
 T_FLOAT = 'float'
 T_INT = 'int'
@@ -229,6 +230,10 @@ def toRapuiType(value):
     from .Payload import Payload
     if isinstance(value, Payload):
         return T_RAPUI_PAYLOAD
+
+    from .PayloadEnvelope import PayloadEnvelope
+    if isinstance(value, PayloadEnvelope):
+        return T_RAPUI_PAYLOAD_ENVELOPE
 
     valueClass = value.__class__
 

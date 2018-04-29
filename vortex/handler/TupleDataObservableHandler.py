@@ -89,15 +89,15 @@ class TupleDataObservableHandler:
         return vortexMsgDefer
 
     @inlineCallbacks
-    def _process(self, payload: Payload, vortexUuid: str,
+    def _process(self, payloadEnvelope: PayloadEndpoint, vortexUuid: str,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
-        tupleSelector = payload.filt["tupleSelector"]
+        tupleSelector = payloadEnvelope.filt["tupleSelector"]
         tsStr = tupleSelector.toJsonStr()
 
-        observerDetails = _ObserverDetails(vortexUuid, payload.filt.get("observerName"))
+        observerDetails = _ObserverDetails(vortexUuid, payloadEnvelope.filt.get("observerName"))
 
         # Handle unsubscribe
-        if payload.filt.get("unsubscribe"):
+        if payloadEnvelope.filt.get("unsubscribe"):
             try:
                 self._observerDetailsByTupleSelector[tsStr].remove(observerDetails)
             except KeyError:
@@ -109,10 +109,10 @@ class TupleDataObservableHandler:
             return
 
         # Add support for just getting data, no subscription.
-        if self._subscriptionsEnabled and payload.filt.get("subscribe", True):
+        if self._subscriptionsEnabled and payloadEnvelope.filt.get("subscribe", True):
             self._observerDetailsByTupleSelector[tsStr].add(observerDetails)
 
-        vortexMsg = yield self._createVortexMsg(payload.filt, tupleSelector)
+        vortexMsg = yield self._createVortexMsg(payloadEnvelope.filt, tupleSelector)
         d = sendResponse(vortexMsg)
         d.addErrback(lambda f: logger.exception(f.getStackTrace()))
 

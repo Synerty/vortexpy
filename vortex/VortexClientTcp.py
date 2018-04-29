@@ -17,9 +17,9 @@ from twisted.internet import task, defer
 from twisted.internet.defer import Deferred
 from twisted.internet.error import ConnectionDone, ConnectionRefusedError
 from twisted.internet.protocol import connectionDone, ReconnectingClientFactory
-from typing import Union, Optional
+from typing import Union, Optional, List
 from vortex.DeferUtil import vortexLogFailure
-from vortex.Payload import Payload, VortexMsgList
+from vortex.PayloadEnvelope import PayloadEnvelope, VortexMsgList
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServer import HEART_BEAT_PERIOD
@@ -28,7 +28,7 @@ logger = logging.getLogger(name=__name__)
 
 
 class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
-    def __init__(self, vortexClient=None):
+    def __init__(self, vortexClient=None) -> None:
         VortexPayloadProtocol.__init__(self, logger)
         self._vortexClient = vortexClient
 
@@ -68,7 +68,7 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
     def write(self, payloadVortexStr: bytes):
         if not twisted.python.threadable.isInIOThread():
             e = Exception("Write called from NON main thread")
-            logger.exception(e)
+            logger.exception(str(e))
             raise e
 
         assert not self._closed
@@ -78,10 +78,10 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
     def connectionMade(self):
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {
-            Payload.vortexUuidKey: self._vortexClient.uuid,
-            Payload.vortexNameKey: self._vortexClient.name
+            PayloadEnvelope.vortexUuidKey: self._vortexClient.uuid,
+            PayloadEnvelope.vortexNameKey: self._vortexClient.name
         }
-        self.write(Payload(filt=connectPayloadFilt).toVortexMsg())
+        self.write(PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg())
 
     def connectionLost(self, reason=connectionDone):
         from vortex.VortexFactory import VortexFactory
@@ -111,7 +111,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
     # Set the ReconnectingClientFactory max delay
     maxDelay = 1
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self._vortexName = name
         self._vortexUuid = str(uuid.uuid1())
 
@@ -128,7 +128,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         # Start our heart beat checker
         self._beatTimeoutLoopingCall = task.LoopingCall(self._checkBeat)
 
-        self._reconnectVortexMsgs = [Payload().toVortexMsg()]
+        self._reconnectVortexMsgs = [PayloadEnvelope().toVortexMsg()]
 
         self.__protocol = None
 
@@ -172,7 +172,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
                           uuid=self._vortexUuid)
 
     @property
-    def remoteVortexInfo(self) -> [VortexInfo]:
+    def remoteVortexInfo(self) -> List[VortexInfo]:
         if not self.__protocol:
             return []
 
@@ -216,12 +216,12 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         self.stopTrying()
         self.__protocol.close()
 
-    def addReconnectPayload(self, payload):
+    def addReconnectVortexMsg(self, vortexMsg: bytes):
         """ Add Reconnect Payload
-        :param payload: Payload to send when the connection reconnects
+        :param vortexMsg: An encoded PayloadEnvelope to send when the connection reconnects
         :return:
         """
-        self._reconnectVortexMsgs.append(payload.toVortexMsg())
+        self._reconnectVortexMsgs.append(vortexMsg)
 
     def sendVortexMsg(self,
                       vortexMsgs: Union[VortexMsgList, bytes, None] = None,

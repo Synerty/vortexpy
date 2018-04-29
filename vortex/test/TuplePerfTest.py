@@ -61,7 +61,7 @@ if __name__ == "__main__":
     provile_dict_of_nt()
 
     tupleIn = X("val1", "val2")
-    vortexMsg = Payload(tuples=[tupleIn]).toVortexMsg()
-    payload = Payload().fromVortexMsg(vortexMsg)
+    encodedPayload = Payload(tuples=[tupleIn]).toEncodedPayload()
+    payload = Payload().fromEncodedPayload(encodedPayload)
 
     assert TupleHash(tupleIn) == TupleHash(payload.tuples[0])

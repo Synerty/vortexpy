@@ -33,7 +33,7 @@ class TuplesProviderForDB(TuplesProviderABC):
             for key, value in tupleSelector.selector.items():
                 qry = qry.filter(getattr(TupleClass, key)==value)
 
-            return Payload(filt=filt, tuples=qry.all()).toVortexMsg()
+            return Payload(filt=filt, tuples=qry.all()).makePayloadEnvelope().toVortexMsg()
         finally:
             ormSession.close()
 

@@ -10,16 +10,8 @@ import logging
 from datetime import datetime
 
 import pytz
-from struct import pack
-from urllib.parse import urlparse, parse_qs
-
-import six
-import txws
 from twisted.internet import task
-from twisted.internet.defer import inlineCallbacks
-from twisted.internet.protocol import Protocol, connectionDone, Factory
 
-from .Payload import Payload
 from .VortexConnectionABC import VortexConnectionABC
 from .VortexServer import VortexServer, HEART_BEAT_PERIOD, HEART_BEAT_TIMEOUT
 
@@ -31,7 +23,7 @@ class VortexServerConnection(VortexConnectionABC):
                  remoteVortexUuid: str,
                  remoteVortexName: str,
                  httpSession, transport,
-                 addr):
+                 addr) -> None:
         VortexConnectionABC.__init__(self,
                                      logger,
                                      vortexServer,

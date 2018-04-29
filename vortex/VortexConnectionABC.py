@@ -20,7 +20,7 @@ class VortexConnectionABC(metaclass=ABCMeta):
                  vortexServer: VortexServer,
                  remoteVortexUuid:str,
                  remoteVortexName:str,
-                 httpSessionUuid=None):
+                 httpSessionUuid=None) -> None:
         self._vortexServer = vortexServer
         self._logger = logger
         self._remoteVortexUuid = remoteVortexUuid

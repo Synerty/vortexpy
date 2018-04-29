@@ -57,13 +57,10 @@ def setupVortexServer(portNum=8345, wsPortNum=8344):
 
     port = reactor.listenTCP(portNum, site).port
 
-    import subprocess
-    ip = subprocess.getoutput("/sbin/ifconfig").split("\n")[1].split()[1][5:]
+    # ip = subprocess.getoutput("/sbin/ifconfig").split("\n")[1].split()[1][5:]
 
-    logger.info('VortexServer test is alive and listening on'
-                ' http://%s:%s/vortex', ip, port)
-    logger.info('VortexServerWebsocket test is alive and listening on port ws://%s:%s',
-                ip, wsPortNum)
+    logger.info('VortexServer test is alive and listening on port %s', port)
+    logger.info('VortexServerWebsocket test is alive and listening on port %s', wsPortNum)
     logger.debug("Logging debug messages enabled")
 
     NotifyTestTimer.startTupleUpdateNotifyer()

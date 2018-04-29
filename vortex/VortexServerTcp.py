@@ -8,23 +8,21 @@
 """
 import logging
 from typing import Union
-from urllib.parse import urlparse, parse_qs
 
-from twisted.internet.defer import inlineCallbacks, succeed
+from twisted.internet.defer import succeed
 from twisted.internet.protocol import connectionDone, Factory
 
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServerConnection import VortexServerConnection
-from .Payload import Payload, VortexMsgList
+from .Payload import Payload
+from .PayloadEnvelope import VortexMsgList
 from .VortexServer import VortexServer
 
 logger = logging.getLogger(name=__name__)
 
 
-
-
 class VortexTcpServerProtocol(VortexPayloadProtocol):
-    def __init__(self, vortex: VortexServer, addr):
+    def __init__(self, vortex: VortexServer, addr) -> None:
         VortexPayloadProtocol.__init__(self, logger)
         self._vortex = vortex
         self._addr = addr
@@ -44,11 +42,11 @@ class VortexTcpServerProtocol(VortexPayloadProtocol):
         self._remoteVortexUuid = uuid
         self._remoteVortexName = name
         self._conn = VortexServerConnection(self._vortex,
-                                               self._remoteVortexUuid,
-                                               self._remoteVortexName,
-                                               self._httpSession,
-                                               self.transport,
-                                               self._addr)
+                                            self._remoteVortexUuid,
+                                            self._remoteVortexName,
+                                            self._httpSession,
+                                            self.transport,
+                                            self._addr)
 
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {}
@@ -77,7 +75,6 @@ class VortexTcpServerProtocol(VortexPayloadProtocol):
 
         VortexPayloadProtocol.dataReceived(self, data)
 
-
     def connectionLost(self, reason=connectionDone):
         if self._conn:
             self._conn.transportClosed()
@@ -85,11 +82,10 @@ class VortexTcpServerProtocol(VortexPayloadProtocol):
         VortexPayloadProtocol.connectionLost(self, reason)
 
 
-
 class VortexTcpServerFactory(Factory):
     protocol = None
 
-    def __init__(self, vortexServer: VortexServer):
+    def __init__(self, vortexServer: VortexServer) -> None:
         self._vortexServer = vortexServer
 
     def buildProtocol(self, addr):

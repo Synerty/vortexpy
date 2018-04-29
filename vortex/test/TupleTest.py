@@ -10,14 +10,11 @@
 import datetime
 import json
 
-from lxml import etree
 from twisted.trial import unittest
 
-from FastXml import FastXml
-from Tuple import TUPLE_TYPES_BY_NAME, TupleHash
-from tuples_test.TestTuple import TestSubTuple, TestTuple
+from vortex.Tuple import TUPLE_TYPES_BY_NAME, TupleHash
+from vortex.test.TestTuple import TestSubTuple, TestTuple
 
-json.dump()
 
 def makeTupleA():
     tuple_ = TestTuple()
@@ -54,34 +51,6 @@ class TuplePyTest(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def testTupleToFromXml(self):
-        # Create document
-        xmlDoc = FastXml()
-        xmlParent = xmlDoc.createElement('test')
-        xmlDoc.appendChild(xmlParent)
-
-        # Create tuple
-        origTuple = makeTupleA()
-
-        # To XML
-        origTuple.toXml(xmlDoc, xmlParent)
-        xmlStr = xmlDoc.toPrettyXml()
-        # print xmlStr
-
-
-        doc = etree.fromstring(xmlStr)
-        xmlDoc = doc.getroottree().getroot()
-        xmlTuple = xmlDoc[0]
-
-        tupleType = xmlTuple.attrib.get('t')
-        Tuple_ = TUPLE_TYPES_BY_NAME[tupleType]
-        deserialisedTuple = Tuple_().fromXml(xmlTuple)
-
-        self.assertEqual(TupleHash(origTuple), TupleHash(origTuple))
-        self.assertEqual(TupleHash(deserialisedTuple), TupleHash(deserialisedTuple))
-
-        self.assertEqual(TupleHash(origTuple), TupleHash(deserialisedTuple),
-                         'Tuple serialise -> deserialise error')
 
     def testTupleToFromJson(self):
         # Create tuple
@@ -114,10 +83,7 @@ class TuplePyTest(unittest.TestCase):
         jsonDictStr = json.dumps(origTuple.toJsonDict())
         TestTuple().fromJsonDict(json.loads(jsonDictStr))
 
-    def testTupleToFromXmlPerformance(self):
-        for x in range(self.PERFORMANCE_ITERATIONS):
-            x = False and x
-            self.testTupleToFromXml()
+
 
     def testTupleHash(self):
         hashA1 = TupleHash(makeTupleA())

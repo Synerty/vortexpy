@@ -15,7 +15,7 @@ from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
 
 from vortex.DeferUtil import vortexLogFailure
-from vortex.Payload import Payload
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.VortexABC import SendVortexMsgResponseCallable
 
 logger = logging.getLogger(name="PayloadIO")
@@ -54,17 +54,18 @@ class PayloadIO(object):
         '''
         return list(self._endpoints)
 
-    def process(self, payload: Payload,
+    def process(self, payloadEnvelope: PayloadEnvelope,
                 vortexUuid: str, vortexName: str, httpSession,
                 sendResponse: SendVortexMsgResponseCallable):
 
         immutableEndpoints = list(self._endpoints)
         for endpoint in immutableEndpoints:
-            reactor.callLater(0, self._processLater, endpoint, payload,
+            reactor.callLater(0, self._processLater, endpoint, payloadEnvelope,
                               vortexUuid, vortexName, httpSession, sendResponse)
 
     def _processLater(self, endpoint,
-                      payload, vortexUuid: str, vortexName: str, httpSession,
+                      payloadEnvelope: PayloadEnvelope,
+                      vortexUuid: str, vortexName: str, httpSession,
                       sendResponse: SendVortexMsgResponseCallable):
         startDate = datetime.now(pytz.utc)
 
@@ -75,14 +76,14 @@ class PayloadIO(object):
             """
             try:
                 sendResponse(
-                    Payload(filt=payload.filt, result=str(failure.getTraceback()))
-                        .toVortexMsg()
+                    PayloadEnvelope(filt=payloadEnvelope.filt, result=str(failure.getTraceback()))
+                    .toVortexMsg()
                 )
             except Exception as e:
                 logger.exception(e)
 
             vortexLogFailure(failure, logger)
-            logger.error(payload.filt)
+            logger.error(payloadEnvelope.filt)
 
         def callback(value, blocking=False):
             # A blocking call taking more than 100ms is BAD
@@ -93,11 +94,11 @@ class PayloadIO(object):
                 func("%s Payload endpoint took %s\npayload.filt=%s\n%s",
                      'BLOCKING ' if blocking else '',
                      secondsTaken,
-                     payload.filt,
+                     payloadEnvelope.filt,
                      endpoint)
 
         try:
-            d = endpoint.process(payload,
+            d = endpoint.process(payloadEnvelope,
                                  vortexUuid, vortexName, httpSession, sendResponse)
             if isinstance(d, Deferred):
                 d.addCallback(callback)

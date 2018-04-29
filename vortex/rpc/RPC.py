@@ -1,16 +1,16 @@
 import logging
 import sys
-from typing import Optional
-
 from copy import copy
-from twisted.internet.defer import succeed, fail, Deferred, TimeoutError, inlineCallbacks, \
-    returnValue
+from typing import Optional, Set
+
+from twisted.internet.defer import succeed, fail, Deferred, TimeoutError, inlineCallbacks
 from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure
-from vortex.DeferUtil import yesMainThread
 
+from vortex.DeferUtil import yesMainThread
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse
 from vortex.Tuple import Tuple, addTupleType, TupleField
 from vortex.VortexFactory import VortexFactory
@@ -63,14 +63,14 @@ class _VortexRPC:
     
     """
 
-    __registeredFuncNames = set()
+    __registeredFuncNames: Set[str] = set()
 
     def __init__(self, func, listeningVortexName: str,
                  timeoutSeconds: float,
                  acceptOnlyFromVortex: Optional[str],
                  additionalFilt: dict,
                  deferToThread: bool,
-                 inlineCallbacks: bool):
+                 inlineCallbacks: bool) -> None:
         """
     
         :param listeningVortexName: If the local vortex name matches this name, then
@@ -151,7 +151,9 @@ class _VortexRPC:
         self.__func = None
         self.__funcSelf = None
 
-    def _processCall(self, payload, vortexName, sendResponse, *args, **kwargs):
+    @inlineCallbacks
+    def _processCall(self, payloadEnvelope: PayloadEnvelope, vortexName, sendResponse,
+                     *args, **kwargs):
         """ Process
         
         Process the incoming RPC call payloads.
@@ -170,15 +172,16 @@ class _VortexRPC:
             return
 
         # Get the args tuple
+        payload = yield payloadEnvelope.decodePayloadDefer()
         argsTuple = payload.tuples[0]
         assert isinstance(argsTuple, _VortexRPCArgTuple), (
-            "argsTuple is not an instance of %s" % _VortexRPCArgTuple)
+                "argsTuple is not an instance of %s" % _VortexRPCArgTuple)
 
         logger.debug("Received RPC call for %s", self.__funcName)
 
         # Call the method and setup the callbacks
         d = self.callLocally(argsTuple.args, argsTuple.kwargs)
-        d.addCallback(self._processCallCallback, sendResponse, payload.filt)
+        d.addCallback(self._processCallCallback, sendResponse, payloadEnvelope.filt)
 
         # Allow the normal PayloadIO/PayloadEndpoint handling of exceptions
         return d
@@ -212,7 +215,7 @@ class _VortexRPC:
                              timeout=self.__timeoutSeconds,
                              resultCheck=False,
                              logTimeoutError=False,
-                                          destVortexName=self.__listeningVortexName)
+                             destVortexName=self.__listeningVortexName)
 
         # Delete the payload, we don't need to keep it in memory while we
         # get the result.
@@ -239,7 +242,7 @@ class _VortexRPC:
         # Get the Result from the payload
         resultTuple = payload.tuples[0]
         assert isinstance(resultTuple, _VortexRPCResultTuple), (
-            "resultTuple is not an instance of %s" % _VortexRPCResultTuple)
+                "resultTuple is not an instance of %s" % _VortexRPCResultTuple)
 
         logger.debug("Received RPC result for %s", self.__funcName)
 

@@ -7,26 +7,26 @@
  * Support : support@synerty.com
 """
 
-from PayloadEndpoint import PayloadEndpoint
-from PayloadIO import PayloadIO
+from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import PayloadEnvelope
+from vortex.PayloadIO import PayloadIO
 from twisted.trial import unittest
 
-from Payload import Payload
-from Vortex import Vortex
+from vortex.Payload import Payload
+from vortex.VortexServerHttpResource import VortexServerHttpResource
 
 
 class PayloadEndpointPyTestAssignPayload():
     def __init__(self, unitTest):
         self._ut = unitTest
 
-    def process(self, payload, **kwargs):
-        self._ut.deliveredPayload = payload
+    def process(self, payloadEnvelope:PayloadEnvelope, **kwargs):
+        self._ut.deliveredPayload = payloadEnvelope
 
 
 class PayloadEndpointPyTest(unittest.TestCase):
     def setUp(self):
         PayloadIO._instance = None
-        Vortex._instance = None
 
         self.deliveredPayload = None
 
@@ -36,8 +36,8 @@ class PayloadEndpointPyTest(unittest.TestCase):
         for x in range(6):
             payload.filt['%s' % x] = x
 
-        def processPayload(payload, **kwargs):
-            self.deliveredPayload = payload
+        def processPayload(payloadEnvelope:PayloadEnvelope, **kwargs):
+            self.deliveredPayload = payloadEnvelope
 
         self._keepFuncInScope = processPayload
 
@@ -81,8 +81,8 @@ class PayloadEndpointPyTest(unittest.TestCase):
         payload.filt = filt
 
         def subScope():
-            def outOfScopeFunc(payload, **kwargs):
-                self.deliveredPayload = payload
+            def outOfScopeFunc(payloadEnvelope:PayloadEnvelope, **kwargs):
+                self.deliveredPayload = payloadEnvelope
 
             PayloadEndpoint(filt, outOfScopeFunc)
 

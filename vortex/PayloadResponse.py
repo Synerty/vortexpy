@@ -1,17 +1,17 @@
 import logging
 import sys
+from copy import copy
 from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
 import pytz
-from copy import copy
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.python.failure import Failure
 
-from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.VortexFactory import VortexFactory
 
 logger = logging.getLogger(__name__)
@@ -52,19 +52,19 @@ class PayloadResponse(Deferred):
 
     __SEQ = 1
 
-    def __init__(self, payload: Payload,
+    def __init__(self, payloadEnvelope: PayloadEnvelope,
                  destVortexName: Optional[str] = None,
                  destVortexUuid: Optional[str] = None,
                  timeout: Optional[float] = None,
                  resultCheck=True,
-                 logTimeoutError=True):
+                 logTimeoutError=True) -> None:
         """ Constructor
 
         Tag and optionally send a payload.
 
         The timeout starts as soon as the constructor is called.
 
-        :param payload The payload to send to the remote and, and wait for a response for
+        :param payloadEnvelope The payloadEnvelope to send to the remote and, and wait for a response for
         :param destVortexName The name of the vortex to send to.
         :param destVortexUuid The UUID of the vortex to send a payload to.
         :param timeout The timeout to wait for a response
@@ -83,8 +83,8 @@ class PayloadResponse(Deferred):
         self._messageId = str(uuid4()) + str(PayloadResponse.__SEQ)
         PayloadResponse.__SEQ += 1
 
-        payload.filt[self.__messageIdKey] = self._messageId
-        self._filt = copy(payload.filt)
+        payloadEnvelope.filt[self.__messageIdKey] = self._messageId
+        self._filt = copy(payloadEnvelope.filt)
         self._destVortexName = destVortexName
 
         self._status = self.PROCESSING
@@ -93,7 +93,7 @@ class PayloadResponse(Deferred):
         self._endpoint = PayloadEndpoint(self._filt, self._process)
 
         if destVortexName or destVortexUuid:
-            d: Deferred = payload.toVortexMsgDefer()
+            d: Deferred = payloadEnvelope.toVortexMsgDefer()
             d.addCallback(VortexFactory.sendVortexMsg,
                           destVortexName=destVortexName,
                           destVortexUuid=destVortexUuid)
@@ -109,14 +109,14 @@ class PayloadResponse(Deferred):
         self.addErrback(self._timedOut)
 
     @classmethod
-    def isResponsePayload(cls, payload):
-        """ Is Response Payload
+    def isResponsePayloadEnvelope(cls, payloadEnvelope: PayloadEnvelope):
+        """ Is Response Payload Envelope
 
         The PayloadResponse tags the payloads, so it expects a unique message back.
 
         :returns: True if this payload has been tagged by a PayloadResponse class
         """
-        return cls.__messageIdKey in payload.filt
+        return cls.__messageIdKey in payloadEnvelope.filt
 
     @property
     def status(self):
@@ -132,7 +132,7 @@ class PayloadResponse(Deferred):
         self._status = self.TIMED_OUT
         return failure
 
-    def _process(self, payload, vortexName, **kwargs):
+    def _process(self, payloadEnvelope:PayloadEnvelope, vortexName, **kwargs):
         if self._endpoint:
             self._endpoint.shutdown()
             self._endpoint = None
@@ -146,10 +146,11 @@ class PayloadResponse(Deferred):
             logger.error("Received response after timeout for %s" % self._filt)
             return
 
-        if self._resultCheck and not payload.result in (None, True):
+        if self._resultCheck and not payloadEnvelope.result in (None, True):
             self._status = self.FAILED
-            self.errback(Failure(Exception(payload.result).with_traceback(self._stack)))
+            self.errback(
+                Failure(Exception(payloadEnvelope.result).with_traceback(self._stack)))
 
         else:
             self._status = self.SUCCESS
-            self.callback(payload)
+            self.callback(payloadEnvelope)

@@ -7,6 +7,7 @@ from twisted.python.failure import Failure
 from vortex.DeferUtil import deferToThreadWrapWithLogger, vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse
 from vortex.TupleSelector import TupleSelector
 from vortex.VortexABC import SendVortexMsgResponseCallable
@@ -23,7 +24,7 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
     def __init__(self, observableName, proxyToVortexName: str,
                  additionalFilt=None, subscriptionsEnabled=True,
-                 observerName="default"):
+                 observerName="default") -> None:
         """ Constructor
 
         :param observableName: The name of this and the other observable
@@ -89,32 +90,32 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
     ## ----- Implement proxy from here on in
 
-    def _process(self, payload: Payload, vortexUuid: str, vortexName: str,
+    def _process(self, payloadEnvelope: PayloadEnvelope, vortexUuid: str, vortexName: str,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
         if vortexName == self._proxyToVortexName:
-            self._processUpdateFromBackend(payload)
+            self._processUpdateFromBackend(payloadEnvelope)
         else:
-            self._processSubscribeFromFrontend(payload, vortexUuid, sendResponse)
+            self._processSubscribeFromFrontend(payloadEnvelope, vortexUuid, sendResponse)
 
-    def _processSubscribeFromFrontend(self, payload: Payload, vortexUuid: str,
+    def _processSubscribeFromFrontend(self, payloadEnvelope: PayloadEnvelope, vortexUuid: str,
                                       sendResponse: SendVortexMsgResponseCallable):
-        tupleSelector: TupleSelector = payload.filt["tupleSelector"]
+        tupleSelector: TupleSelector = payloadEnvelope.filt["tupleSelector"]
 
         # If the local observable provides this tuple, then use that instead
         if self._localObservableHandler.hasTupleProvider(tupleSelector.name):
-            return self._localObservableHandler._process(payload=payload,
+            return self._localObservableHandler._process(payloadEnvelope=payloadEnvelope,
                                                          vortexUuid=vortexUuid,
                                                          sendResponse=sendResponse)
 
         # Add support for just getting data, no subscription.
-        if payload.filt.get("unsubscribe", True):
+        if payloadEnvelope.filt.get("unsubscribe", True):
             return self._handleUnsubscribe(tupleSelector, vortexUuid)
 
-        elif payload.filt.get("subscribe", True) and self._subscriptionsEnabled:
-            return self._handleSubscribe(payload, tupleSelector, sendResponse, vortexUuid)
+        elif payloadEnvelope.filt.get("subscribe", True) and self._subscriptionsEnabled:
+            return self._handleSubscribe(payloadEnvelope, tupleSelector, sendResponse, vortexUuid)
 
         else:
-            return self._handlePoll(payload, tupleSelector, sendResponse)
+            return self._handlePoll(payloadEnvelope, tupleSelector, sendResponse)
 
     def _handleUnsubscribe(self, tupleSelector: TupleSelector, vortexUuid: str):
         tsStr = tupleSelector.toJsonStr()
@@ -128,7 +129,7 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
         except KeyError:
             pass
 
-    def _handleSubscribe(self, payload: Payload,
+    def _handleSubscribe(self, payloadEnvelope: PayloadEnvelope,
                          tupleSelector: TupleSelector,
                          sendResponse: SendVortexMsgResponseCallable,
                          vortexUuid: str):
@@ -138,16 +139,11 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
         cache = self._getCache(tsStr)
         if cache:
             if cache.lastServerPayloadDate is not None and cache.cacheEnabled:
-                respPayload = Payload(filt=payload.filt, tuples=cache.tuples)
-                respPayload.date = cache.lastServerPayloadDate
+                respPayloadEnvelope = PayloadEnvelope(filt=payloadEnvelope.filt,
+                                              encodedPayload=cache.encodedPayload,
+                                              date = cache.lastServerPayloadDate)
 
-                if len(respPayload.tuples) == 1:
-                    job = respPayload.tuples[0]
-                    if job.tupleType() == 'peek_plugin_data_dms.PeekDmsJobTuple' and job.jobNumber == 'J-5352-D':
-                        logger.debug("CACHE 'J-5352-D' %s, %s, %s", job.fieldStatus.value, payload.date, respPayload.date)
-
-
-                d = respPayload.toVortexMsgDefer()
+                d = respPayloadEnvelope.toVortexMsgDefer()
                 d.addCallback(sendResponse)
                 d.addErrback(vortexLogFailure, logger, consumeError=True)
                 return
@@ -157,29 +153,30 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
         cache.vortexUuids.add(vortexUuid)
         # Allow the cache to be disabled
-        cache.cacheEnabled = cache.cacheEnabled and payload.filt.get("cacheEnabled", True)
+        cache.cacheEnabled = cache.cacheEnabled and payloadEnvelope.filt.get(
+            "cacheEnabled", True)
 
-        self._sendRequestToServer(payload)
+        self._sendRequestToServer(payloadEnvelope)
 
-    def _sendRequestToServer(self, payload):
-        payload.filt["observerName"] = self._observerName
-        d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
+    def _sendRequestToServer(self, payloadEnvelope: PayloadEnvelope):
+        payloadEnvelope.filt["observerName"] = self._observerName
+        d = VortexFactory.sendVortexMsg(vortexMsgs=payloadEnvelope.toVortexMsg(),
                                         destVortexName=self._proxyToVortexName)
         d.addErrback(vortexLogFailure, logger, consumeError=True)
 
     def _sendUnsubscribeToServer(self, tupleSelector: TupleSelector):
-        payload = Payload()
-        payload.filt["tupleSelector"] = tupleSelector.toJsonStr()
-        payload.filt["unsubscribe"] = True
-        self._sendRequestToServer(payload)
+        payloadEnvelope = PayloadEnvelope()
+        payloadEnvelope.filt["tupleSelector"] = tupleSelector.toJsonStr()
+        payloadEnvelope.filt["unsubscribe"] = True
+        self._sendRequestToServer(payloadEnvelope)
 
-    def _handlePoll(self, payload: Payload,
+    def _handlePoll(self, payloadEnvelope: PayloadEnvelope,
                     tupleSelector: TupleSelector,
                     sendResponse: SendVortexMsgResponseCallable):
         tsStr = tupleSelector.toJsonStr()
 
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
-        responseFilt = copy(payload.filt)
+        responseFilt = copy(payloadEnvelope.filt)
 
         # Restore the original payload filt (PayloadResponse) and send it back
         def reply(payload):
@@ -191,14 +188,15 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
         cache = self._getCache(tsStr)
         if cache and cache.lastServerPayloadDate is not None and cache.cacheEnabled:
-            payload.tuples = cache.tuples
-            reply(payload)
+            payloadEnvelope.encodedPayload = cache.encodedPayload
+            payloadEnvelope.date = cache.lastServerPayloadDate
+            reply(payloadEnvelope)
             return
 
         # Track the response, log an error if it fails
         # 5 Seconds is long enough
         pr = PayloadResponse(
-            payload,
+            payloadEnvelope,
             timeout=PayloadResponse.TIMEOUT - 5,  # 5 seconds less
             logTimeoutError=False
         )
@@ -207,7 +205,7 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
         pr.addErrback(vortexLogFailure, logger, consumeError=True)
         pr.addCallback(reply)
 
-        self._sendRequestToServer(payload)
+        self._sendRequestToServer(payloadEnvelope)
 
     def _handlePrFailure(self, f: Failure, tupleSelector):
         if f.check(TimeoutError):
@@ -225,21 +223,15 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
             )
 
     @deferToThreadWrapWithLogger(logger)
-    def _processUpdateFromBackend(self, payload: Payload):
+    def _processUpdateFromBackend(self, payloadEnvelope: PayloadEnvelope):
 
-        if len(payload.tuples) == 1:
-            job = payload.tuples[0]
-            if job.tupleType() == 'peek_plugin_data_dms.PeekDmsJobTuple' and job.jobNumber == 'J-5352-D':
-                logger.debug("QUERY 'J-5352-D' %s, %s", job.fieldStatus.value, payload.date)
-
-
-        tupleSelector = payload.filt["tupleSelector"]
+        tupleSelector = payloadEnvelope.filt["tupleSelector"]
         tsStr = tupleSelector.toJsonStr()
 
         if not self._hasTupleSelector(tsStr):
             return
 
-        cache, requiredUpdate = self._updateCache(payload)
+        cache, requiredUpdate = self._updateCache(payloadEnvelope)
         if not requiredUpdate:
             return
 
@@ -250,7 +242,7 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
             return
 
         # Create the vortexMsg
-        vortexMsg = payload.toVortexMsg()
+        vortexMsg = payloadEnvelope.toVortexMsg()
 
         # Send the vortex messages
         for vortexUuid in observingUuids:

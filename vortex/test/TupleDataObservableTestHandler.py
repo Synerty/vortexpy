@@ -29,7 +29,7 @@ class TestTupleProvider(TuplesProviderABC):
             t.aDict = tupleSelector.selector
             t.aString = tupleSelector.name
 
-        return Payload(filt=filt, tuples=tuples).toVortexMsg()
+        return Payload(filt=filt, tuples=tuples).makePayloadEnvelope().toVortexMsg()
 
 
 class NotifyTestTimer:

@@ -6,19 +6,24 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
-
+import logging
 from copy import copy
-from typing import Callable
+from typing import Callable, List
 from typing import Union
 
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.session import Session
 from twisted.internet.threads import deferToThread
 
-from vortex.Payload import Payload, VortexMsgList
+from vortex.DeferUtil import deferToThreadWrapWithLogger
+from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
 from vortex.PayloadFilterKeys import plIdKey, plDeleteKey
+from vortex.Tuple import Tuple
 from vortex.VortexFactory import VortexFactory
+
+logger = logging.getLogger(__name__)
 
 
 class OrmCrudHandlerExtension(object):
@@ -58,6 +63,7 @@ class _OrmCrudExtensionProcessor(object):
         def f(cls):
             self.extensions[Tuple.tupleType()] = cls()
             return cls
+
         return f
 
     def addExtensionObject(self, Tuple, ormCrudHandlerExtension):
@@ -186,32 +192,31 @@ class OrmCrudHandler(object):
             return
         return self._ext.addExtensionClassDecorator(Tuple)
 
-    def process(self, payload,
+    @deferToThreadWrapWithLogger(logger)
+    def process(self, payloadEnvelope: PayloadEnvelope,
                 vortexUuid: str,
                 sendResponse: Callable[[Union[VortexMsgList, bytes]], None],
-                              **kwargs):
+                **kwargs):
 
         # Execute preprocess functions
-        if self.preProcess(payload, vortexUuid, **kwargs) != None:
+        if self.preProcess(payloadEnvelope, vortexUuid, **kwargs) != None:
             return
 
         # Create reply payload replyFilt
 
-        replyFilt = None
-        if payload.replyFilt:
-            replyFilt = payload.replyFilt
-        else:
-            replyFilt = copy(self._payloadFilter)
-            if payload.filt:
-                replyFilt.update(payload.filt)
+        replyFilt = copy(self._payloadFilter)
+        if payloadEnvelope.filt:
+            replyFilt.update(payloadEnvelope.filt)
 
         # Get data from the payload
-        phId = payload.filt.get(plIdKey)
-        delete = payload.filt.get(plDeleteKey, False)
+        phId = payloadEnvelope.filt.get(plIdKey)
+        delete = payloadEnvelope.filt.get(plDeleteKey, False)
 
         # Setup variables to populate
-        replyPayload = None
+        replyPayloadEnvelope: PayloadEnvelope = None
         action = None
+
+        payload = payloadEnvelope.decodePayload()
 
         session = self._getSession()
 
@@ -219,27 +224,29 @@ class OrmCrudHandler(object):
         try:
             if delete == True:
                 action = self.DELETE
-                replyPayload = self._delete(session, payload.tuples, phId, payload.filt)
+                replyPayloadEnvelope = self._delete(session, payload.tuples, phId,
+                                                    payloadEnvelope.filt)
 
             elif len(payload.tuples):
                 action = self.UPDATE
-                replyPayload = self._update(session, payload.tuples, payload.filt)
+                replyPayloadEnvelope = self._update(session, payload.tuples,
+                                                    payloadEnvelope.filt)
 
             elif phId != None:
                 action = self.QUERY
-                replyPayload = self._retrieve(session, phId, payload.filt)
+                replyPayloadEnvelope = self._retrieve(session, phId, payloadEnvelope.filt)
 
             elif len(payload.tuples) == 0:
                 action = self.CREATE
-                replyPayload = self._create(session, payload.filt)
+                replyPayloadEnvelope = self._create(session, payloadEnvelope.filt)
 
             else:
                 session.close()
                 raise Exception("Invalid ORM CRUD parameter state")
 
         except Exception as e:
-            replyPayload = Payload(result=str(e), filt=replyFilt)
-            sendResponse(replyPayload.toVortexMsg())
+            replyPayloadEnvelope = PayloadEnvelope(result=str(e), filt=replyFilt)
+            sendResponse(replyPayloadEnvelope.toVortexMsg())
             try:
                 session.rollback()
             except:
@@ -250,14 +257,14 @@ class OrmCrudHandler(object):
         # Prefer reply filt, if not combine our accpt filt with the filt we were sent
 
         # Ensure any delegates are playing nice with the result
-        if action in (self.DELETE, self.UPDATE) and replyPayload.result == None:
-            replyPayload.result = True
+        if action in (self.DELETE, self.UPDATE) and replyPayloadEnvelope.result == None:
+            replyPayloadEnvelope.result = True
 
-        replyPayload.filt = replyFilt
-        sendResponse(replyPayload.toVortexMsg())
+        replyPayloadEnvelope.filt = replyFilt
+        sendResponse(replyPayloadEnvelope.toVortexMsg())
 
         # Execute the post process function
-        self.postProcess(action, payload.filt, vortexUuid)
+        self.postProcess(action, payloadEnvelope.filt, vortexUuid)
         session.commit()
         session.close()
 
@@ -287,20 +294,21 @@ class OrmCrudHandler(object):
         T = tuple_.__class__
         return session.query(T).filter(T.id == tuple_.id).one()
 
-    def _create(self, session, payloadFilt):
+    def _create(self, session, payloadFilt) -> PayloadEnvelope:
         tuples = self.createDeclarative(session, payloadFilt)
         payload = Payload(tuples=tuples)
         self._ext.afterCreate(payload.tuples, session, payloadFilt)
-        return payload
+        return payload.makePayloadEnvelope()
 
-    def _retrieve(self, session, filtId, payloadFilt, obj=None, **kwargs):
+    def _retrieve(self, session, filtId, payloadFilt, obj=None,
+                  **kwargs) -> PayloadEnvelope:
         ph = obj if obj else self._getDeclarativeById(session, filtId)
         payload = Payload()
         payload.tuples = [ph] if ph else []
         self._ext.afterRetrieve(payload.tuples, session, payloadFilt)
-        return payload
+        return payload.makePayloadEnvelope()
 
-    def _update(self, session, tuples, payloadFilt):
+    def _update(self, session, tuples, payloadFilt) -> PayloadEnvelope:
         self._ext.beforeUpdate(tuples, session, payloadFilt)
 
         # Add everything first.
@@ -335,9 +343,9 @@ class OrmCrudHandler(object):
 
         self._ext.afterUpdateCommit(returnTuples, session, payloadFilt)
 
-        return Payload(tuples=returnTuples, result=True)
+        return Payload(tuples=returnTuples).makePayloadEnvelope(result=True)
 
-    def _delete(self, session, tuples, filtId, payloadFilt):
+    def _delete(self, session, tuples, filtId, payloadFilt) -> PayloadEnvelope:
         self._ext.beforeDelete(tuples, session, payloadFilt)
 
         if len(tuples):
@@ -359,12 +367,12 @@ class OrmCrudHandler(object):
 
         session.commit()
 
-        returnTuples = []
+        returnTuples: List[Tuple] = []
         if self._retreiveAll:
             returnTuples = self.createDeclarative(session, payloadFilt)
 
         self._ext.afterDeleteCommit(returnTuples, session, payloadFilt)
-        return Payload(tuples=returnTuples, result=True)
+        return Payload(tuples=returnTuples).makePayloadEnvelope(result=True)
 
     def sendModelUpdate(self, objId,
                         vortexUuid=None,

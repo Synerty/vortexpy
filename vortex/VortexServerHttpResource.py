@@ -10,13 +10,14 @@
 import collections
 import logging
 from _pyio import BytesIO
+from typing import Deque
 
 from twisted.internet import task
 from twisted.internet.defer import inlineCallbacks
 from twisted.web.resource import Resource
 from twisted.web.server import NOT_DONE_YET
-from vortex.VortexServer import HEART_BEAT_PERIOD
 
+from vortex.VortexServer import HEART_BEAT_PERIOD
 from .Payload import Payload
 from .VortexConnectionABC import VortexConnectionABC
 from .VortexServer import VortexServer
@@ -30,7 +31,7 @@ class VortexServerHttpResource(Resource):
     """
     isLeaf = True
 
-    def __init__(self, vortex: VortexServer):
+    def __init__(self, vortex: VortexServer) -> None:
         Resource.__init__(self)
         self.__vortex = vortex
 
@@ -90,7 +91,7 @@ class VortexResourceConnection(VortexConnectionABC):
     def __init__(self, vortexServer: VortexServer,
                  remoteVortexUuid: str,
                  remoteVortexName: str,
-                 request):
+                 request) -> None:
         VortexConnectionABC.__init__(self,
                                      logger,
                                      vortexServer,
@@ -102,7 +103,7 @@ class VortexResourceConnection(VortexConnectionABC):
         self._request.responseHeaders.setRawHeaders(b'content-type'
                                                     , [b'text/text'])
 
-        self._buffer = collections.deque()
+        self._buffer: Deque[bytes] = collections.deque()
 
         self._requestReadyCheckTimer = task.LoopingCall(self._checkIfRequestIsReady)
         self._requestReadyCheckTimer.start(0.001)

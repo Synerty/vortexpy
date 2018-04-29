@@ -9,7 +9,7 @@ from rx.subjects import Subject
 from twisted.internet import task
 
 from vortex.DeferUtil import vortexLogFailure
-from vortex.Payload import Payload
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.TupleSelector import TupleSelector
 from vortex.VortexFactory import VortexFactory
 
@@ -23,11 +23,11 @@ class _CachedSubscribedData:
     """
     TEARDOWN_WAIT = 120  # 2 minutes in seconds
 
-    def __init__(self, tupleSelector: TupleSelector, cacheEnabled: bool = True):
+    def __init__(self, tupleSelector: TupleSelector, cacheEnabled: bool = True) -> None:
         self.tupleSelector: TupleSelector = tupleSelector
         self.vortexUuids: Set[str] = set()
         self.tearDownDate: Optional[datetime] = None
-        self.tuples = []
+        self.encodedPayload: bytes = None
         self.cacheEnabled = cacheEnabled
 
         #: Last Server Payload Date
@@ -55,7 +55,7 @@ class _CachedSubscribedData:
 class TupleDataObservableCache:
     __CHECK_PERIOD = 30  # seconds
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__cache: Dict[str, _CachedSubscribedData] = {}
 
     def shutdown(self):
@@ -74,11 +74,10 @@ class TupleDataObservableCache:
         d = self.__pollLoopingCall.start(self.__CHECK_PERIOD, now=False)
         d.addCallback(vortexLogFailure, logger, consumeError=True)
 
-
     def _tupleSelectors(self) -> typing.List[TupleSelector]:
         tupleSelectors = []
         for key in self.__cache:
-            tupleSelectors.append(TupleSelector.fromJsonStr(key))
+            tupleSelectors.append(TupleSelector()._fromJson(key))
         return tupleSelectors
 
     ## ----- Implement local observable
@@ -113,7 +112,8 @@ class TupleDataObservableCache:
         self.__cache[tsStr] = cache
         return cache
 
-    def _updateCache(self, payload:Payload) -> typing.Tuple[_CachedSubscribedData, bool]:
+    def _updateCache(self, payloadEnvelope: PayloadEnvelope) -> typing.Tuple[
+        _CachedSubscribedData, bool]:
         """ Update Cache
 
         Update the cache if it requires it
@@ -121,7 +121,7 @@ class TupleDataObservableCache:
         :returns a tuple of (cache, requiredUpdate)
 
         """
-        tupleSelector = payload.filt["tupleSelector"]
+        tupleSelector = payloadEnvelope.filt["tupleSelector"]
         tsStr = tupleSelector.toJsonStr()
 
         cache = self._getCache(tsStr)
@@ -129,11 +129,11 @@ class TupleDataObservableCache:
             cache = self._makeCache(tsStr)
 
         if cache.lastServerPayloadDate is not None:
-            if payload.date < cache.lastServerPayloadDate:
+            if payloadEnvelope.date < cache.lastServerPayloadDate:
                 return cache, False
 
-        cache.lastServerPayloadDate = payload.date
-        cache.tuples = payload.tuples
+        cache.lastServerPayloadDate = payloadEnvelope.date
+        cache.encodedPayload = payloadEnvelope.encodedPayload
 
         return cache, True
 
