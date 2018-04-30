@@ -88,7 +88,7 @@ class TupleDataObserverClient(TupleDataObservableCache):
             logger.error(str(payloadEnvelope.filt))
             return
 
-        tupleSelector = payloadEnvelope.filt["tupleSelector"]
+        tupleSelector: TupleSelector = payloadEnvelope.filt["tupleSelector"]
 
         if not self._hasTupleSelector(tupleSelector):
             return
@@ -97,8 +97,7 @@ class TupleDataObserverClient(TupleDataObservableCache):
         if not requiredUpdate:
             return
 
-        payload = yield Payload().fromEncodedPayloadDefer(cache.encodedPayload)\
-
+        payload = yield Payload().fromEncodedPayloadDefer(cache.encodedPayload)
         cache.subject.on_next(payload.tuples)
 
     def _tellServerWeWantData(self, tupleSelectors: List[TupleSelector]):
@@ -115,6 +114,6 @@ class TupleDataObserverClient(TupleDataObservableCache):
 
     def _sendUnsubscribeToServer(self, tupleSelector: TupleSelector):
         payload = PayloadEnvelope()
-        payload.filt["tupleSelector"] = tupleSelector.toJsonStr()
+        payload.filt["tupleSelector"] = tupleSelector
         payload.filt["unsubscribe"] = True
         self._sendRequestToServer(payload)

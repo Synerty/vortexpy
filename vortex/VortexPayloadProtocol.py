@@ -14,6 +14,7 @@ from twisted.internet.error import ConnectionDone, ConnectionLost
 from twisted.internet.protocol import Protocol, connectionDone
 
 from vortex.Payload import Payload
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
 
 logger = logging.getLogger(name=__name__)
@@ -105,12 +106,12 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
                 continue
 
             try:
-                payload = yield Payload().fromVortexMsgDefer(vortexMsg)
+                payloadEnvelope = yield PayloadEnvelope().fromVortexMsgDefer(vortexMsg)
 
-                if payload.isEmpty():
-                    self._processServerInfoPayload(payload)
+                if payloadEnvelope.isEmpty():
+                    self._processServerInfoPayload(payloadEnvelope)
                 else:
-                    self._deliverPayload(payload)
+                    self._deliverPayload(payloadEnvelope)
 
             except Exception as e:
                 print(vortexMsg)
@@ -126,11 +127,11 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
 
         """
 
-        if Payload.vortexUuidKey in payload.filt:
-            self._serverVortexUuid = payload.filt[Payload.vortexUuidKey]
+        if PayloadEnvelope.vortexUuidKey in payload.filt:
+            self._serverVortexUuid = payload.filt[PayloadEnvelope.vortexUuidKey]
 
-        if Payload.vortexNameKey in payload.filt:
-            self._serverVortexName = payload.filt[Payload.vortexNameKey]
+        if PayloadEnvelope.vortexNameKey in payload.filt:
+            self._serverVortexName = payload.filt[PayloadEnvelope.vortexNameKey]
 
         self._nameAndUuidReceived(name=self._serverVortexName,
                                   uuid=self._serverVortexUuid)

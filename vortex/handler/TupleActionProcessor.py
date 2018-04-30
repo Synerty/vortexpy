@@ -120,10 +120,14 @@ class TupleActionProcessor:
 
         payloadEnvelope = yield payload.makePayloadEnvelopeDefer()
         vortexMsg = yield payloadEnvelope.toVortexMsgDefer()
-        d = sendResponse(vortexMsg)
-        d.addErrback(lambda f: logger.error("Failed to send TupleAction response for %s",
-                                            tupleName))
+        try:
+            yield sendResponse(vortexMsg)
 
+        except Exception as e:
+            logger.error("Failed to send TupleAction response for %s", tupleName)
+            logger.exception(e)
+
+    @inlineCallbacks
     def _errback(self, result: Failure, replyFilt: dict, tupleName: str,
                  sendResponse: SendVortexMsgResponseCallable):
 
@@ -134,12 +138,15 @@ class TupleActionProcessor:
         failureMessage = result.getErrorMessage()
 
         payloadEnvelope = PayloadEnvelope(filt=replyFilt, result=failureMessage)
+        vortexMsg = yield payloadEnvelope.toVortexMsgDefer()
+        try:
+            yield sendResponse(vortexMsg)
 
-        d = sendResponse(payloadEnvelope.toVortexMsg())
-        d.addErrback(
-            lambda f: logger.error("Failed to send TupleAction response for %s\n%s",
-                                   tupleName,
-                                   failureMessage))
+        except Exception as e:
+            logger.error("Failed to send TupleAction response for %s\n%s",
+                         tupleName,
+                         failureMessage)
+            logger.exception(e)
 
     def _customMaybeDeferred(self, f, *args, **kw):
         try:

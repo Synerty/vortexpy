@@ -180,18 +180,20 @@ class _VortexRPC:
         logger.debug("Received RPC call for %s", self.__funcName)
 
         # Call the method and setup the callbacks
-        d = self.callLocally(argsTuple.args, argsTuple.kwargs)
-        d.addCallback(self._processCallCallback, sendResponse, payloadEnvelope.filt)
+        result = yield self.callLocally(argsTuple.args, argsTuple.kwargs)
+        yield self._processCallCallback(result, sendResponse, payloadEnvelope.filt)
 
-        # Allow the normal PayloadIO/PayloadEndpoint handling of exceptions
-        return d
-
+    @inlineCallbacks
     def _processCallCallback(self, result, sendResponseCallable, filt):
 
-        payload = Payload(filt=filt,
-                          tuples=[_VortexRPCResultTuple(result=result)])
+        payloadEnvelope = yield (
+            Payload(filt=filt, tuples=[_VortexRPCResultTuple(result=result)])
+                .makePayloadEnvelopeDefer()
+        )
 
-        sendResponseCallable(payload.toVortexMsg())
+        vortexMsg = yield payloadEnvelope.toVortexMsgDefer()
+
+        yield sendResponseCallable(vortexMsg)
 
     @inlineCallbacks
     def __call__(self, *args, **kwargs):
@@ -208,10 +210,13 @@ class _VortexRPC:
 
         logger.debug("Calling RPC for %s", self.__funcName)
 
-        payload = Payload(filt=copy(self._filt),
-                          tuples=[_VortexRPCArgTuple(args=args, kwargs=kwargs)])
+        payloadEnvelope = yield (
+            Payload(filt=copy(self._filt),
+                    tuples=[_VortexRPCArgTuple(args=args, kwargs=kwargs)])
+                .makePayloadEnvelopeDefer()
+        )
 
-        pr = PayloadResponse(payload,
+        pr = PayloadResponse(payloadEnvelope,
                              timeout=self.__timeoutSeconds,
                              resultCheck=False,
                              logTimeoutError=False,
@@ -219,7 +224,7 @@ class _VortexRPC:
 
         # Delete the payload, we don't need to keep it in memory while we
         # get the result.
-        del payload
+        del payloadEnvelope
 
         pr.addCallback(self._processResponseCallback, stack)
         pr.addErrback(self._processResponseErrback, stack)
@@ -227,7 +232,8 @@ class _VortexRPC:
         val = yield pr
         return val
 
-    def _processResponseCallback(self, payload, stack):
+    @inlineCallbacks
+    def _processResponseCallback(self, payloadEnvelope: PayloadEnvelope, stack):
         """ Process Response Callback
         
         Convert the PayloadResponse payload to the result from the remotely called
@@ -235,11 +241,12 @@ class _VortexRPC:
         
         """
 
-        if not payload.result in (None, True):
-            return Failure(Exception(payload.result).with_traceback(stack),
+        if not payloadEnvelope.result in (None, True):
+            return Failure(Exception(payloadEnvelope.result).with_traceback(stack),
                            exc_tb=stack)
 
         # Get the Result from the payload
+        payload = yield payloadEnvelope.decodePayloadDefer()
         resultTuple = payload.tuples[0]
         assert isinstance(resultTuple, _VortexRPCResultTuple), (
                 "resultTuple is not an instance of %s" % _VortexRPCResultTuple)

@@ -103,6 +103,8 @@ class PayloadIO(object):
             if isinstance(d, Deferred):
                 d.addCallback(callback)
                 d.addErrback(respondToException)
+            elif hasattr(d, 'addCallback'):
+                raise Exception("isinstance FAILED")
             else:
                 callback(True, blocking=True)
 

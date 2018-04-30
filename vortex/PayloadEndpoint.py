@@ -11,15 +11,14 @@ import logging
 import types
 import weakref
 from copy import copy
-from typing import Callable, Optional, Dict, Any
+from typing import Callable, Optional, Dict
 
-from twisted.internet.defer import Deferred
-
-from vortex.Payload import Payload
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
 from vortex.VortexABC import SendVortexMsgResponseCallable
 
 logger = logging.getLogger(__name__)
+
 
 # TODO: typings needs to support keyword args before tbis will work.
 # PayloadEndpointProcessCallable = Callable[
@@ -53,11 +52,11 @@ class PayloadEndpoint(object):
             logger.exception(str(e))
             raise e
 
-        self._wref :Callable[[], Optional[Callable]]= None
+        self._wref: Callable[[], Optional[Callable]] = None
         if isinstance(callable_, types.FunctionType):
             w = None
             if hasattr(callable_, '_endpointWeakClass'):
-                w = callable_._endpointWeakClass
+                w = getattr(callable_, '_endpointWeakClass')
 
             else:
                 class W():
@@ -117,14 +116,14 @@ class PayloadEndpoint(object):
 
         return set(ourFilt).issubset(theirFilt)
 
-    def process(self, payload: Payload,
+    def process(self, payloadEnvelope: PayloadEnvelope,
                 vortexUuid: str, vortexName: str, httpSession,
                 sendResponse: SendVortexMsgResponseCallable):
 
-        if self.check(payload):
+        if self.check(payloadEnvelope):
             callable_ = self._wref()
             if callable_:
-                return callable_(payload=payload,
+                return callable_(payloadEnvelope=payloadEnvelope,
                                  vortexUuid=vortexUuid,
                                  vortexName=vortexName,
                                  httpSession=httpSession,
@@ -140,14 +139,16 @@ class PayloadEndpoint(object):
         callable_ = self._wref()
         if callable_:
             try:
-                callbackStr = callable_.__self__.__class__.__name__ + callable_.y.__name__
+                callbackStr = "%s.%s" % (
+                    callable_.__self__.__class__.__name__, callable_.__name__
+                )
             except Exception as e:
                 callbackStr = str(e)
         else:
             callbackStr = "None"
 
         s = "Payload id=%s\nfilt=%s\ncallback=%s"
-        return s % (id(self), self._filt, callable_)
+        return s % (id(self), self._filt, callbackStr)
 
     def shutdown(self):
         PayloadIO().remove(self)

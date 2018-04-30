@@ -43,12 +43,15 @@ class TupleActionProcessorProxy:
     def shutdown(self):
         self._endpoint.shutdown()
 
+    @inlineCallbacks
     def _process(self, payloadEnvelope: PayloadEnvelope, vortexName: str,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
 
         # Ignore responses from the backend, these are handled by PayloadResponse
         if vortexName == self._proxyToVortexName:
             return
+
+        print(payloadEnvelope.filt)
 
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
         responseFilt = copy(payloadEnvelope.filt)
@@ -64,18 +67,25 @@ class TupleActionProcessorProxy:
         )
 
         # This is not a lambda, so that it can have a breakpoint
-        def reply(payloadEnvelope:PayloadEnvelope):
+        def reply(payloadEnvelope: PayloadEnvelope):
+            print("RESP")
+            print(payloadEnvelope.filt)
             payloadEnvelope.filt = responseFilt
-            sendResponse(payloadEnvelope.toVortexMsg())
+            d = payloadEnvelope.toVortexMsgDefer()
+            d.addCallback(sendResponse)
+            return d
 
         pr.addCallback(reply)
 
         pr.addCallback(lambda _: logger.debug("Received action response from server"))
-        pr.addErrback(self.__handlePrFailure)
+        pr.addErrback(self.__handlePrFailure, payloadEnvelope)
 
-        d = VortexFactory.sendVortexMsg(vortexMsgs=payloadEnvelope.toVortexMsg(),
-                                        destVortexName=self._proxyToVortexName)
-        d.addErrback(vortexLogFailure, logger, consumeError=True)
+        vortexMsg = yield payloadEnvelope.toVortexMsgDefer()
+        try:
+            yield VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
+                                              destVortexName=self._proxyToVortexName)
+        except Exception as e:
+            logger.exception(e)
 
     @inlineCallbacks
     def __handlePrFailure(self, f: Failure, payloadEnvelope: PayloadEnvelope):

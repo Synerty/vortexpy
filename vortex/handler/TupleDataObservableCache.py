@@ -61,6 +61,7 @@ class TupleDataObservableCache:
     def shutdown(self):
         self.__cache = {}
         self.__pollLoopingCall.stop()
+        self.__pollLoopingCall = None
 
         for cache in self.__cache.values():
             cache.subject.dispose()
@@ -72,7 +73,7 @@ class TupleDataObservableCache:
         self.__pollLoopingCall = task.LoopingCall(self.__cacheCheck)
 
         d = self.__pollLoopingCall.start(self.__CHECK_PERIOD, now=False)
-        d.addCallback(vortexLogFailure, logger, consumeError=True)
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
 
     def _tupleSelectors(self) -> typing.List[TupleSelector]:
         tupleSelectors = []
@@ -97,11 +98,11 @@ class TupleDataObservableCache:
             else:
                 cache.markForTearDown()
 
-    def _getCache(self, tupleSelectorStr: str) -> Optional[_CachedSubscribedData]:
-        return self.__cache.get(tupleSelectorStr)
+    def _getCache(self, tupleSelector: TupleSelector) -> Optional[_CachedSubscribedData]:
+        return self.__cache.get(tupleSelector.toJsonStr())
 
-    def _hasTupleSelector(self, tupleSelectorStr: str) -> bool:
-        return tupleSelectorStr in self.__cache
+    def _hasTupleSelector(self, tupleSelectorAny: TupleSelector) -> bool:
+        return tupleSelectorAny.toJsonStr() in self.__cache
 
     def _makeCache(self, tupleSelector: TupleSelector) -> _CachedSubscribedData:
         tsStr = tupleSelector.toJsonStr()
@@ -122,11 +123,10 @@ class TupleDataObservableCache:
 
         """
         tupleSelector = payloadEnvelope.filt["tupleSelector"]
-        tsStr = tupleSelector.toJsonStr()
 
-        cache = self._getCache(tsStr)
+        cache = self._getCache(tupleSelector)
         if not cache:
-            cache = self._makeCache(tsStr)
+            cache = self._makeCache(tupleSelector)
 
         if cache.lastServerPayloadDate is not None:
             if payloadEnvelope.date < cache.lastServerPayloadDate:

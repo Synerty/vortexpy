@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 PayloadEnvelopeList = List['PayloadEnvelope']
 VortexMsgList = List[bytes]
 
+class NoPayloadException(Exception):
+    pass
 
 class PayloadEnvelope(Jsonable):
     ''' Payload
@@ -63,6 +65,9 @@ class PayloadEnvelope(Jsonable):
                 and not self.result)
 
     def decodePayload(self) -> Payload:
+        if not self.encodedPayload:
+            raise NoPayloadException()
+
         noMainThread()
         return Payload().fromEncodedPayload(self.encodedPayload)
 

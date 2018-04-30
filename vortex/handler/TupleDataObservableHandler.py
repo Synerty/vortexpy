@@ -10,6 +10,7 @@ from twisted.python import failure
 from vortex.DeferUtil import vortexLogFailure
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.TupleSelector import TupleSelector
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
@@ -89,7 +90,7 @@ class TupleDataObservableHandler:
         return vortexMsgDefer
 
     @inlineCallbacks
-    def _process(self, payloadEnvelope: PayloadEndpoint, vortexUuid: str,
+    def _process(self, payloadEnvelope: PayloadEnvelope, vortexUuid: str,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
         tupleSelector = payloadEnvelope.filt["tupleSelector"]
         tsStr = tupleSelector.toJsonStr()
@@ -104,7 +105,7 @@ class TupleDataObservableHandler:
                 pass
 
             if not self._observerDetailsByTupleSelector[tsStr]:
-                del self._observerDetailsByTupleSelector[tupleSelector.toJsonStr()]
+                del self._observerDetailsByTupleSelector[tsStr]
 
             return
 
@@ -113,8 +114,10 @@ class TupleDataObservableHandler:
             self._observerDetailsByTupleSelector[tsStr].add(observerDetails)
 
         vortexMsg = yield self._createVortexMsg(payloadEnvelope.filt, tupleSelector)
-        d = sendResponse(vortexMsg)
-        d.addErrback(lambda f: logger.exception(f.getStackTrace()))
+        try:
+            yield sendResponse(vortexMsg)
+        except Exception as e:
+            logger.exception(e)
 
     def notifyOfTupleUpdate(self, tupleSelector: TupleSelector) -> None:
         """ Notify Of Tuple Update

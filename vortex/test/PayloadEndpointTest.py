@@ -28,7 +28,7 @@ class PayloadEndpointPyTest(unittest.TestCase):
     def setUp(self):
         PayloadIO._instance = None
 
-        self.deliveredPayload = None
+        self.deliveredPayloadEnvelope = None
 
     def _testBuild(self, plFilt, epFilt):
         payload = Payload()
@@ -37,13 +37,13 @@ class PayloadEndpointPyTest(unittest.TestCase):
             payload.filt['%s' % x] = x
 
         def processPayload(payloadEnvelope:PayloadEnvelope, **kwargs):
-            self.deliveredPayload = payloadEnvelope
+            self.deliveredPayloadEnvelope = payloadEnvelope
 
         self._keepFuncInScope = processPayload
 
         PayloadEndpoint(epFilt, processPayload)
 
-        PayloadIO().process(payload)
+        PayloadIO().process(payload.makePayloadEnvelope())
 
         return payload
 
@@ -53,7 +53,7 @@ class PayloadEndpointPyTest(unittest.TestCase):
 
         payload = self._testBuild(plFilt, epFilt)
 
-        self.assertEqual(payload, self.deliveredPayload,
+        self.assertEqual(payload, self.deliveredPayloadEnvelope,
                          'PayloadIO/PayloadEndpoint delivery error')
 
     def testFiltValueUnmatched(self):
@@ -62,7 +62,7 @@ class PayloadEndpointPyTest(unittest.TestCase):
 
         self._testBuild(plFilt, epFilt)
 
-        self.assertEqual(self.deliveredPayload, None,
+        self.assertEqual(self.deliveredPayloadEnvelope, None,
                          'PayloadIO/PayloadEndpoint unmatched value test error')
 
     def testFiltKeyUnmatched(self):
@@ -71,7 +71,7 @@ class PayloadEndpointPyTest(unittest.TestCase):
 
         self._testBuild(plFilt, epFilt)
 
-        self.assertEqual(self.deliveredPayload, None,
+        self.assertEqual(self.deliveredPayloadEnvelope, None,
                          'PayloadIO/PayloadEndpoint unmatched value test error')
 
     def testFunctionGoesOutOfScope(self):
@@ -82,13 +82,13 @@ class PayloadEndpointPyTest(unittest.TestCase):
 
         def subScope():
             def outOfScopeFunc(payloadEnvelope:PayloadEnvelope, **kwargs):
-                self.deliveredPayload = payloadEnvelope
+                self.deliveredPayloadEnvelope = payloadEnvelope
 
             PayloadEndpoint(filt, outOfScopeFunc)
 
         PayloadIO().process(payload)
 
-        self.assertEqual(self.deliveredPayload, None,
+        self.assertEqual(self.deliveredPayloadEnvelope, None,
                          'PayloadIO/PayloadEndpoint unmatched value test error')
 
     def testClassGoesOutOdScope(self):
@@ -103,7 +103,7 @@ class PayloadEndpointPyTest(unittest.TestCase):
 
         PayloadIO().process(payload)
 
-        self.assertEqual(self.deliveredPayload, None,
+        self.assertEqual(self.deliveredPayloadEnvelope, None,
                          'PayloadIO/PayloadEndpoint unmatched value test error')
 
     def testClassStaysInScope(self):
@@ -117,5 +117,5 @@ class PayloadEndpointPyTest(unittest.TestCase):
 
         PayloadIO().process(payload)
 
-        self.assertEqual(self.deliveredPayload, payload,
+        self.assertEqual(self.deliveredPayloadEnvelope, payload,
                          'PayloadIO/PayloadEndpoint unmatched value test error')

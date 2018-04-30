@@ -8,7 +8,7 @@
 """
 import logging
 import uuid
-from typing import Optional, Union, Dict, List
+from typing import Optional, Union, Dict, List, Any
 from weakref import WeakValueDictionary
 
 from twisted.internet import task, reactor
@@ -23,7 +23,6 @@ from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
 from vortex.PayloadFilterKeys import rapuiServerEcho
 from vortex.PayloadIO import PayloadIO
 from vortex.VortexABC import VortexABC, VortexInfo
-from vortex.VortexServerConnection import VortexServerConnection
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ class VortexServer(VortexABC):
 
         # Store all our sessions
         self._httpSessionsBySessionUuid: WeakValueDictionary = WeakValueDictionary()
-        self._connectionByVortexUuid: Dict[str, VortexServerConnection] = {}
+        self._connectionByVortexUuid: Dict[str, Any] = {}
 
     def name(self):
         return self._name
@@ -247,3 +246,4 @@ class VortexSession(object):
 
 
 registerAdapter(VortexSession, Session, VortexSessionI)
+

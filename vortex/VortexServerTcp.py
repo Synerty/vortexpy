@@ -15,7 +15,7 @@ from twisted.internet.protocol import connectionDone, Factory
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServerConnection import VortexServerConnection
 from .Payload import Payload
-from .PayloadEnvelope import VortexMsgList
+from .PayloadEnvelope import VortexMsgList, PayloadEnvelope
 from .VortexServer import VortexServer
 
 logger = logging.getLogger(name=__name__)
@@ -50,9 +50,9 @@ class VortexTcpServerProtocol(VortexPayloadProtocol):
 
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {}
-        connectPayloadFilt[Payload.vortexUuidKey] = self._vortex.uuid()
-        connectPayloadFilt[Payload.vortexNameKey] = self._vortex.name()
-        self._conn.write(Payload(filt=connectPayloadFilt).toVortexMsg())
+        connectPayloadFilt[PayloadEnvelope.vortexUuidKey] = self._vortex.uuid()
+        connectPayloadFilt[PayloadEnvelope.vortexNameKey] = self._vortex.name()
+        self._conn.write(PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg())
 
         self._vortex.connectionOpened(self._httpSession, self._conn)
 

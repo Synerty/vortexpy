@@ -118,12 +118,11 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
             return self._handlePoll(payloadEnvelope, tupleSelector, sendResponse)
 
     def _handleUnsubscribe(self, tupleSelector: TupleSelector, vortexUuid: str):
-        tsStr = tupleSelector.toJsonStr()
 
-        if not self._hasTupleSelector(tsStr):
+        if not self._hasTupleSelector(tupleSelector):
             return
 
-        cache = self._getCache(tsStr)
+        cache = self._getCache(tupleSelector)
         try:
             cache.vortexUuids.remove(vortexUuid)
         except KeyError:
@@ -133,10 +132,9 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
                          tupleSelector: TupleSelector,
                          sendResponse: SendVortexMsgResponseCallable,
                          vortexUuid: str):
-        tsStr = tupleSelector.toJsonStr()
 
         # Add support for just getting data, no subscription.
-        cache = self._getCache(tsStr)
+        cache = self._getCache(tupleSelector)
         if cache:
             if cache.lastServerPayloadDate is not None and cache.cacheEnabled:
                 respPayloadEnvelope = PayloadEnvelope(filt=payloadEnvelope.filt,
@@ -153,8 +151,9 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
         cache.vortexUuids.add(vortexUuid)
         # Allow the cache to be disabled
-        cache.cacheEnabled = cache.cacheEnabled and payloadEnvelope.filt.get(
-            "cacheEnabled", True)
+        cache.cacheEnabled = (
+                cache.cacheEnabled and payloadEnvelope.filt.get("cacheEnabled", True)
+        )
 
         self._sendRequestToServer(payloadEnvelope)
 
@@ -166,14 +165,13 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
     def _sendUnsubscribeToServer(self, tupleSelector: TupleSelector):
         payloadEnvelope = PayloadEnvelope()
-        payloadEnvelope.filt["tupleSelector"] = tupleSelector.toJsonStr()
+        payloadEnvelope.filt["tupleSelector"] = tupleSelector
         payloadEnvelope.filt["unsubscribe"] = True
         self._sendRequestToServer(payloadEnvelope)
 
     def _handlePoll(self, payloadEnvelope: PayloadEnvelope,
                     tupleSelector: TupleSelector,
                     sendResponse: SendVortexMsgResponseCallable):
-        tsStr = tupleSelector.toJsonStr()
 
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
         responseFilt = copy(payloadEnvelope.filt)
@@ -186,7 +184,7 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
             d.addErrback(vortexLogFailure, logger, consumeError=True)
             # logger.debug("Received response from observable")
 
-        cache = self._getCache(tsStr)
+        cache = self._getCache(tupleSelector)
         if cache and cache.lastServerPayloadDate is not None and cache.cacheEnabled:
             payloadEnvelope.encodedPayload = cache.encodedPayload
             payloadEnvelope.date = cache.lastServerPayloadDate
@@ -225,10 +223,9 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
     @deferToThreadWrapWithLogger(logger)
     def _processUpdateFromBackend(self, payloadEnvelope: PayloadEnvelope):
 
-        tupleSelector = payloadEnvelope.filt["tupleSelector"]
-        tsStr = tupleSelector.toJsonStr()
+        tupleSelector :TupleSelector = payloadEnvelope.filt["tupleSelector"]
 
-        if not self._hasTupleSelector(tsStr):
+        if not self._hasTupleSelector(tupleSelector):
             return
 
         cache, requiredUpdate = self._updateCache(payloadEnvelope)
