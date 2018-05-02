@@ -49,14 +49,14 @@ class PayloadEndpoint(object):
         if not "key" in filt:
             e = Exception("There is no 'key' in the payload filt"
                           ", There must be one for routing")
-            logger.exception(str(e))
+            logger.exception(e)
             raise e
 
         self._wref: Callable[[], Optional[Callable]] = None
         if isinstance(callable_, types.FunctionType):
             w = None
             if hasattr(callable_, '_endpointWeakClass'):
-                w = getattr(callable_, '_endpointWeakClass')
+                w = callable_._endpointWeakClass
 
             else:
                 class W():
@@ -74,6 +74,13 @@ class PayloadEndpoint(object):
         else:
             weakObject = weakref.ref(callable_.__self__)
             weakMethod = weakref.ref(callable_.__func__)
+
+            if callable_.__func__.__name__ == 'func':
+                logger.warning(
+                    "The registered callback is 'func' this is likely"
+                    " a method wrapped in @deferToThreadWrapWithLogger, %s",
+                    filt
+                )
 
             def getCallable():
                 obj = weakObject()

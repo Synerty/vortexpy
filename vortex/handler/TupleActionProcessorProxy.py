@@ -1,7 +1,7 @@
 import logging
 from copy import copy
 
-from twisted.internet.defer import TimeoutError, inlineCallbacks
+from twisted.internet.defer import TimeoutError, inlineCallbacks, Deferred
 from twisted.python.failure import Failure
 
 from vortex.DeferUtil import vortexLogFailure
@@ -51,8 +51,6 @@ class TupleActionProcessorProxy:
         if vortexName == self._proxyToVortexName:
             return
 
-        print(payloadEnvelope.filt)
-
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
         responseFilt = copy(payloadEnvelope.filt)
 
@@ -68,10 +66,8 @@ class TupleActionProcessorProxy:
 
         # This is not a lambda, so that it can have a breakpoint
         def reply(payloadEnvelope: PayloadEnvelope):
-            print("RESP")
-            print(payloadEnvelope.filt)
             payloadEnvelope.filt = responseFilt
-            d = payloadEnvelope.toVortexMsgDefer()
+            d: Deferred = payloadEnvelope.toVortexMsgDefer()
             d.addCallback(sendResponse)
             return d
 

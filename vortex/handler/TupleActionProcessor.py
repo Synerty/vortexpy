@@ -107,8 +107,8 @@ class TupleActionProcessor:
             raise Exception("No delegate registered for %s" % tupleName)
 
         d = self._customMaybeDeferred(delegate, tupleAction)
-        d.addCallback(self._callback, payload.filt, tupleName, sendResponse)
-        d.addErrback(self._errback, payload.filt, tupleName, sendResponse)
+        d.addCallback(self._callback, payloadEnvelope.filt, tupleName, sendResponse)
+        d.addErrback(self._errback, payloadEnvelope.filt, tupleName, sendResponse)
 
     @inlineCallbacks
     def _callback(self, result, replyFilt: dict, tupleName: str,

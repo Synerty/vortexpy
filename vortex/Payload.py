@@ -46,24 +46,18 @@ class Payload(Jsonable):
         if not isinstance(self.tuples, list):
             self.tuples = [self.tuples]
 
-    def makePayloadEnvelope(self, result=None):
+    def makePayloadEnvelope(self, result=None, compressionLevel: int = 9):
         from .PayloadEnvelope import PayloadEnvelope
         noMainThread()
-        encodedSelf = self.toEncodedPayload()
+        encodedSelf = self.toEncodedPayload(compressionLevel=compressionLevel)
         return PayloadEnvelope(self.filt,
                                encodedPayload=encodedSelf,
                                date=self.date,
                                result=result)
 
     @deferToThreadWrapWithLogger(logger)
-    def makePayloadEnvelopeDefer(self, result=None):
-        from .PayloadEnvelope import PayloadEnvelope
-        noMainThread()
-        encodedSelf = self.toEncodedPayload()
-        return PayloadEnvelope(self.filt,
-                               encodedPayload=encodedSelf,
-                               date=self.date,
-                               result=result)
+    def makePayloadEnvelopeDefer(self, result=None, compressionLevel: int = 9):
+        return self.makePayloadEnvelope(result=result, compressionLevel=compressionLevel)
 
     # -------------------------------------------
     # JSON Related methods

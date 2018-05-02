@@ -52,5 +52,6 @@ class TupleDataActionClient:
         )
 
         # Convert the data to TupleAction
+        d.addCallback(lambda payloadEnvelope: payloadEnvelope.decodePayloadDefer())
         d.addCallback(lambda payload: payload.tuples)
         return d
