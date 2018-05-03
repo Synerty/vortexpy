@@ -154,3 +154,6 @@ class PayloadResponse(Deferred):
         else:
             self._status = self.SUCCESS
             self.callback(payloadEnvelope)
+
+        # Return self, so that PayloadIO knows this is a asyncronous method
+        return self
