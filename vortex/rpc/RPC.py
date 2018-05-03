@@ -213,7 +213,7 @@ class _VortexRPC:
         payloadEnvelope = yield (
             Payload(filt=copy(self._filt),
                     tuples=[_VortexRPCArgTuple(args=args, kwargs=kwargs)])
-                .makePayloadEnvelopeDefer()
+                .makePayloadEnvelopeDefer(compressionLevel=4)
         )
 
         pr = PayloadResponse(payloadEnvelope,
