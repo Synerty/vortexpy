@@ -1,6 +1,6 @@
 import logging
 import typing
-from abc import abstractmethod
+from abc import abstractmethod, ABCMeta
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Set
 
@@ -52,13 +52,16 @@ class _CachedSubscribedData:
         )
 
 
-class TupleDataObservableCache:
+class TupleDataObservableCache(metaclass=ABCMeta):
     __CHECK_PERIOD = 30  # seconds
 
     def __init__(self) -> None:
         self.__cache: Dict[str, _CachedSubscribedData] = {}
 
     def shutdown(self):
+        if not self.__pollLoopingCall:
+            raise Exception("This has already been shutdown")
+
         self.__cache = {}
         self.__pollLoopingCall.stop()
         self.__pollLoopingCall = None
@@ -84,14 +87,16 @@ class TupleDataObservableCache:
     ## ----- Implement local observable
 
     def __cacheCheck(self):
+        currentVortexUuids = set(VortexFactory.getRemoteVortexUuids())
+
         for ts, cache in list(self.__cache.items()):
-            cache.vortexUuids = (
-                    cache.vortexUuids & set(VortexFactory.getRemoteVortexUuids())
-            )
-            if cache.vortexUuids:
+            cache.vortexUuids = cache.vortexUuids & currentVortexUuids
+
+            if cache.vortexUuids or cache.subject.observers:
                 cache.resetTearDown()
 
             elif cache.isReadyForTearDown():
+                logger.debug("Cleaning cache for %s", cache.tupleSelector)
                 self._sendUnsubscribeToServer(cache.tupleSelector)
                 del self.__cache[ts]
 

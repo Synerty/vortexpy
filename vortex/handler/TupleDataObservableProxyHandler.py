@@ -5,7 +5,6 @@ from twisted.internet.defer import TimeoutError, inlineCallbacks
 from twisted.python.failure import Failure
 
 from vortex.DeferUtil import deferToThreadWrapWithLogger, vortexLogFailure
-from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse

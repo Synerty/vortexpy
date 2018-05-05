@@ -52,3 +52,6 @@ class TupleSelector(Tuple):
         data = json.loads(jsonStr)
         return TupleSelector(name=data["name"], selector=data["selector"])
 
+    def __repr__(self):
+        return self.toJsonStr()
+
