@@ -1,7 +1,7 @@
 import logging
 from copy import copy
 
-from twisted.internet.defer import TimeoutError
+from twisted.internet.defer import TimeoutError, inlineCallbacks
 from twisted.python.failure import Failure
 
 from vortex.DeferUtil import deferToThreadWrapWithLogger, vortexLogFailure
@@ -90,14 +90,18 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
     ## ----- Implement proxy from here on in
 
+    @inlineCallbacks
     def _process(self, payloadEnvelope: PayloadEnvelope, vortexUuid: str, vortexName: str,
                  sendResponse: SendVortexMsgResponseCallable, **kwargs):
         if vortexName == self._proxyToVortexName:
-            self._processUpdateFromBackend(payloadEnvelope)
-        else:
-            self._processSubscribeFromFrontend(payloadEnvelope, vortexUuid, sendResponse)
+            yield self._processUpdateFromBackend(payloadEnvelope)
 
-    def _processSubscribeFromFrontend(self, payloadEnvelope: PayloadEnvelope, vortexUuid: str,
+        else:
+            yield self._processSubscribeFromFrontend(payloadEnvelope, vortexUuid,
+                                                     sendResponse)
+
+    def _processSubscribeFromFrontend(self, payloadEnvelope: PayloadEnvelope,
+                                      vortexUuid: str,
                                       sendResponse: SendVortexMsgResponseCallable):
         tupleSelector: TupleSelector = payloadEnvelope.filt["tupleSelector"]
 
@@ -112,7 +116,8 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
             return self._handleUnsubscribe(tupleSelector, vortexUuid)
 
         elif payloadEnvelope.filt.get("subscribe", True) and self._subscriptionsEnabled:
-            return self._handleSubscribe(payloadEnvelope, tupleSelector, sendResponse, vortexUuid)
+            return self._handleSubscribe(payloadEnvelope, tupleSelector, sendResponse,
+                                         vortexUuid)
 
         else:
             return self._handlePoll(payloadEnvelope, tupleSelector, sendResponse)
@@ -135,27 +140,27 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
         # Add support for just getting data, no subscription.
         cache = self._getCache(tupleSelector)
-        if cache:
-            if cache.lastServerPayloadDate is not None and cache.cacheEnabled:
-                respPayloadEnvelope = PayloadEnvelope(filt=payloadEnvelope.filt,
-                                              encodedPayload=cache.encodedPayload,
-                                              date = cache.lastServerPayloadDate)
+        if cache and cache.lastServerPayloadDate is not None and cache.cacheEnabled:
+            respPayloadEnvelope = PayloadEnvelope(filt=payloadEnvelope.filt,
+                                                  encodedPayload=cache.encodedPayload,
+                                                  date=cache.lastServerPayloadDate)
 
-                d = respPayloadEnvelope.toVortexMsgDefer()
-                d.addCallback(sendResponse)
-                d.addErrback(vortexLogFailure, logger, consumeError=True)
-                return
+            d = respPayloadEnvelope.toVortexMsgDefer()
+            d.addCallback(sendResponse)
+            d.addErrback(vortexLogFailure, logger, consumeError=True)
+
+        elif cache:
+            self._sendRequestToServer(payloadEnvelope)
 
         else:
             cache = self._makeCache(tupleSelector)
+            self._sendRequestToServer(payloadEnvelope)
 
         cache.vortexUuids.add(vortexUuid)
         # Allow the cache to be disabled
         cache.cacheEnabled = (
                 cache.cacheEnabled and payloadEnvelope.filt.get("cacheEnabled", True)
         )
-
-        self._sendRequestToServer(payloadEnvelope)
 
     def _sendRequestToServer(self, payloadEnvelope: PayloadEnvelope):
         payloadEnvelope.filt["observerName"] = self._observerName
@@ -223,7 +228,7 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
     @deferToThreadWrapWithLogger(logger)
     def _processUpdateFromBackend(self, payloadEnvelope: PayloadEnvelope):
 
-        tupleSelector :TupleSelector = payloadEnvelope.filt["tupleSelector"]
+        tupleSelector: TupleSelector = payloadEnvelope.filt["tupleSelector"]
 
         if not self._hasTupleSelector(tupleSelector):
             return
