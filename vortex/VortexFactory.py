@@ -9,6 +9,7 @@ from twisted.internet.defer import Deferred, DeferredList, succeed, inlineCallba
 from twisted.python.failure import Failure
 from txws import WebSocketFactory
 
+from vortex.DeferUtil import yesMainThread
 from vortex.PayloadEnvelope import VortexMsgList, Payload, PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
 from vortex.VortexABC import VortexABC
@@ -260,6 +261,7 @@ class VortexFactory:
 
         :return: A C{Deferred} which will callback when the message has been delivered.
         """
+        yesMainThread()
 
         vortexUuid = "local"
         vortexName = "local"
