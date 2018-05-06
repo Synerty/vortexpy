@@ -74,7 +74,7 @@ class TupleActionProcessorProxy:
         pr.addCallback(reply)
 
         pr.addCallback(lambda _: logger.debug("Received action response from server"))
-        pr.addErrback(self.__handlePrFailure, payloadEnvelope)
+        pr.addErrback(self.__handlePrFailure, payloadEnvelope, sendResponse)
 
         vortexMsg = yield payloadEnvelope.toVortexMsgDefer()
         try:
@@ -84,7 +84,9 @@ class TupleActionProcessorProxy:
             logger.exception(e)
 
     @inlineCallbacks
-    def __handlePrFailure(self, f: Failure, payloadEnvelope: PayloadEnvelope):
+    def __handlePrFailure(self, f: Failure,
+                          payloadEnvelope: PayloadEnvelope,
+                          sendResponse: SendVortexMsgResponseCallable):
         payload = yield payloadEnvelope.decodePayloadDefer()
         action = payload.tuples[0]
         if f.check(TimeoutError):
@@ -102,3 +104,8 @@ class TupleActionProcessorProxy:
             )
 
         vortexLogFailure(f, logger)
+
+        vortexMsg = yield PayloadEnvelope(filt=payloadEnvelope.filt,
+                                          result=str(f.value)).toVortexMsgDefer()
+
+        sendResponse(vortexMsg)
