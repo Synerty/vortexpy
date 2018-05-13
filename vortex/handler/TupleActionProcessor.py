@@ -31,8 +31,9 @@ class TupleActionProcessorDelegateABC(metaclass=ABCMeta):
 class TupleActionProcessor:
     def __init__(self, tupleActionProcessorName: str,
                  additionalFilt: Optional[Dict] = None,
-                 defaultDelegate: Optional[
-                     TupleActionProcessorDelegateABC] = None) -> None:
+                 defaultDelegate: Optional[TupleActionProcessorDelegateABC] = None,
+                 acceptOnlyFromVortex: Optional[str] = None
+                 ) -> None:
         """ Constructor
 
         :param tupleActionProcessorName: The name of this observable
@@ -40,6 +41,9 @@ class TupleActionProcessor:
         :param additionalFilt: Any additional filter keys that are required
 
         :param defaultDelegate: The default delegate to send all actions to
+
+        :param acceptOnlyFromVortex: Accept requests only from this vortex,
+            Or None to accept from any.
         """
 
         self._tupleActionProcessorName = tupleActionProcessorName
@@ -51,7 +55,8 @@ class TupleActionProcessor:
         if additionalFilt:
             self._filt.update(additionalFilt)
 
-        self._endpoint = PayloadEndpoint(self._filt, self._process)
+        self._endpoint = PayloadEndpoint(self._filt, self._process,
+                                         acceptOnlyFromVortex=acceptOnlyFromVortex)
 
         self._tupleProcessorsByTupleName: Dict[str, TupleActionProcessorDelegateABC] = {}
 

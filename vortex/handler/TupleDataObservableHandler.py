@@ -1,14 +1,13 @@
 import logging
-from typing import Union
-
 from abc import abstractmethod, ABCMeta
 from collections import defaultdict, namedtuple
+from typing import Union, Optional
+
 from twisted.internet import reactor
 from twisted.internet.defer import fail, Deferred, succeed, inlineCallbacks
 from twisted.python import failure
 
 from vortex.DeferUtil import vortexLogFailure
-from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.TupleSelector import TupleSelector
@@ -36,7 +35,10 @@ _ObserverDetails = namedtuple("_ObserverDetails", ["vortexUuid", "observerName"]
 
 
 class TupleDataObservableHandler:
-    def __init__(self, observableName, additionalFilt=None, subscriptionsEnabled=True):
+    def __init__(self, observableName,
+                 additionalFilt=None,
+                 subscriptionsEnabled=True,
+                 acceptOnlyFromVortex: Optional[str] = None):
         """ Constructor
 
         :param observableName: The name of this observable
@@ -44,6 +46,10 @@ class TupleDataObservableHandler:
         :param additionalFilt: Any additional filter keys that are required
 
         :param subscriptionsEnabled: Should subscriptions be enabled (default)
+
+        :param acceptOnlyFromVortex: Accept requests only from this vortex,
+            Or None to accept from any.
+
         """
         self._observableName = observableName
         self._subscriptionsEnabled = subscriptionsEnabled
@@ -52,7 +58,8 @@ class TupleDataObservableHandler:
         if additionalFilt:
             self._filt.update(additionalFilt)
 
-        self._endpoint = PayloadEndpoint(self._filt, self._process)
+        self._endpoint = PayloadEndpoint(self._filt, self._process,
+                                         acceptOnlyFromVortex=acceptOnlyFromVortex)
 
         self._observerDetailsByTupleSelector = defaultdict(set)
 
@@ -95,7 +102,8 @@ class TupleDataObservableHandler:
         tupleSelector = payloadEnvelope.filt["tupleSelector"]
         tsStr = tupleSelector.toJsonStr()
 
-        observerDetails = _ObserverDetails(vortexUuid, payloadEnvelope.filt.get("observerName"))
+        observerDetails = _ObserverDetails(vortexUuid,
+                                           payloadEnvelope.filt.get("observerName"))
 
         # Handle unsubscribe
         if payloadEnvelope.filt.get("unsubscribe"):

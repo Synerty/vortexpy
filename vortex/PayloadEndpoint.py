@@ -41,11 +41,16 @@ class PayloadEndpoint(object):
     payload filter then the payload will be passed to the supplied callable.
     """
 
-    def __init__(self, filt: Dict, callable_) -> None:
+    def __init__(self, filt: Dict, callable_,
+                 acceptOnlyFromVortex: Optional[str] = None) -> None:
         """
-        @param filt: The filter to match against payloads
-        @param callable_: This will be called and passed the payload if it matches
+        :param filt: The filter to match against payloads
+        :param callable_: This will be called and passed the payload if it matches
+        :param acceptOnlyFromVortex: Accept payloads only from this vortex,
+            Or None to accept from any.
         """
+        self._acceptOnlyFromVortex = acceptOnlyFromVortex
+
         if not "key" in filt:
             e = Exception("There is no 'key' in the payload filt"
                           ", There must be one for routing")
@@ -126,6 +131,10 @@ class PayloadEndpoint(object):
     def process(self, payloadEnvelope: PayloadEnvelope,
                 vortexUuid: str, vortexName: str, httpSession,
                 sendResponse: SendVortexMsgResponseCallable):
+
+        # Filter for the backend vortexes.
+        if self._acceptOnlyFromVortex and self._acceptOnlyFromVortex != vortexName:
+            return
 
         if self.check(payloadEnvelope):
             callable_ = self._wref()
