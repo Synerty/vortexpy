@@ -158,7 +158,8 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
         cache.vortexUuids.add(vortexUuid)
         # Allow the cache to be disabled
         cache.cacheEnabled = (
-                cache.cacheEnabled and payloadEnvelope.filt.get("cacheEnabled", True)
+                cache.cacheEnabled
+                and not payloadEnvelope.filt.get("disableCache", False)
         )
 
     def _sendRequestToServer(self, payloadEnvelope: PayloadEnvelope):

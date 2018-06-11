@@ -45,7 +45,7 @@ class TupleDataActionClient:
         if additionalFilt:
             filt.update(additionalFilt)
 
-        d =  Payload(filt=filt, tuples=[tupleAction]).makePayloadEnvelopeDefer()
+        d = Payload(filt=filt, tuples=[tupleAction]).makePayloadEnvelopeDefer()
         d.addCallback(
             lambda payloadEnvelope:
             PayloadResponse(payloadEnvelope, destVortexName=self._destVortexName)

@@ -28,6 +28,10 @@ class _CachedSubscribedData:
         self.vortexUuids: Set[str] = set()
         self.tearDownDate: Optional[datetime] = None
         self.encodedPayload: bytes = None
+
+        #: Is the cache enabled
+        # HINT: Once it's turned off for a tupleSelector, it remains off.
+        # Disabling it can also be done from VortexJS
         self.cacheEnabled = cacheEnabled
 
         #: Last Server Payload Date
