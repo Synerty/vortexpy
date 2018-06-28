@@ -178,6 +178,8 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
                     tupleSelector: TupleSelector,
                     sendResponse: SendVortexMsgResponseCallable):
 
+        useCache = payloadEnvelope.filt.get('useCache', True)
+
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
         responseFilt = copy(payloadEnvelope.filt)
 
@@ -189,12 +191,13 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
             d.addErrback(vortexLogFailure, logger, consumeError=True)
             # logger.debug("Received response from observable")
 
-        cache = self._getCache(tupleSelector)
-        if cache and cache.lastServerPayloadDate is not None and cache.cacheEnabled:
-            payloadEnvelope.encodedPayload = cache.encodedPayload
-            payloadEnvelope.date = cache.lastServerPayloadDate
-            reply(payloadEnvelope)
-            return
+        if useCache:
+            cache = self._getCache(tupleSelector)
+            if cache and cache.lastServerPayloadDate is not None and cache.cacheEnabled:
+                payloadEnvelope.encodedPayload = cache.encodedPayload
+                payloadEnvelope.date = cache.lastServerPayloadDate
+                reply(payloadEnvelope)
+                return
 
         # Track the response, log an error if it fails
         # 5 Seconds is long enough
