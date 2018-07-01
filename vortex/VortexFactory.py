@@ -5,12 +5,12 @@ from typing import Union, List, Optional, Dict
 
 from rx.subjects import Subject
 from twisted.internet import reactor
-from twisted.internet.defer import Deferred, DeferredList, succeed, inlineCallbacks
+from twisted.internet.defer import Deferred, DeferredList, succeed
 from twisted.python.failure import Failure
 from txws import WebSocketFactory
 
 from vortex.DeferUtil import yesMainThread
-from vortex.PayloadEnvelope import VortexMsgList, Payload, PayloadEnvelope
+from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
 from vortex.VortexABC import VortexABC
 from vortex.VortexClientHttp import VortexClientHttp
@@ -216,6 +216,16 @@ class VortexFactory:
         return remoteUuids
 
     @classmethod
+    def getRemoteVortexName(cls) -> List[str]:
+        remoteNames = set()
+
+        for vortex in cls._allVortexes():
+            for remoteVortexInfo in vortex.remoteVortexInfo:
+                remoteNames.add(remoteVortexInfo.name)
+
+        return list(remoteNames)
+
+    @classmethod
     def sendVortexMsg(cls,
                       vortexMsgs: Union[VortexMsgList, bytes],
                       destVortexName: Optional[str] = broadcast,
@@ -270,7 +280,7 @@ class VortexFactory:
 
         vortexMsgs = [vortexMsgs] if isinstance(vortexMsgs, bytes) else vortexMsgs
 
-        def send(payloadEnvelope:PayloadEnvelope):
+        def send(payloadEnvelope: PayloadEnvelope):
             try:
                 PayloadIO().process(
                     payloadEnvelope=payloadEnvelope,
