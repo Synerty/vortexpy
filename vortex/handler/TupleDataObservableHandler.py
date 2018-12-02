@@ -162,10 +162,14 @@ class TupleDataObservableHandler:
         filt.update(self._filt)
         vortexMsg = yield self._createVortexMsg(filt, tupleSelector)
 
+        # We can have multiple Observable clients on the one vortex, so make sure
+        # we only send one message for these.
+        destVortexUuids = set([od.vortexUuid for od in observerDetails])
+
         # Send the vortex messages
-        for od in observerDetails:
+        for destVortexUuid in destVortexUuids:
             d = VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
-                                            destVortexUuid=od.vortexUuid)
+                                            destVortexUuid=destVortexUuid)
             d.addErrback(vortexLogFailure, logger)
 
     def _customMaybeDeferred(self, f, *args, **kw):

@@ -33,14 +33,23 @@ class TupleDataObserverClient(TupleDataObservableCache):
 
         self._destVortexName = destVortexName
         self._observableName = observableName
-        self._filt = dict(name=observableName,
-                          observerName=observerName,
-                          key="tupleDataObservable")
+        self._observerName = observerName
+
+        self._sendFilt = dict(name=observableName,
+                              observerName=observerName,
+                              key="tupleDataObservable")
+
+        self._listenFilt = dict(name=observableName,
+                                key="tupleDataObservable")
 
         if additionalFilt:
-            self._filt.update(additionalFilt)
+            self._sendFilt.update(additionalFilt)
+            self._listenFilt.update(additionalFilt)
 
-        self._endpoint = PayloadEndpoint(self._filt, self._receivePayload)
+        self._endpoint = PayloadEndpoint(
+            self._listenFilt, self._receivePayload,
+            acceptOnlyFromVortex=destVortexName
+        )
 
         # There are no online checks for the vortex
         # isOnlineSub = statusService.isOnline
@@ -56,7 +65,7 @@ class TupleDataObserverClient(TupleDataObservableCache):
         TupleDataObservableCache.shutdown(self)
 
     def pollForTuples(self, tupleSelector: TupleSelector) -> Deferred:
-        startFilt = copy(self._filt)
+        startFilt = copy(self._sendFilt)
         startFilt.update({"subscribe": False,
                           "tupleSelector": tupleSelector})
 
@@ -83,6 +92,12 @@ class TupleDataObserverClient(TupleDataObservableCache):
 
     @inlineCallbacks
     def _receivePayload(self, payloadEnvelope: PayloadEnvelope, **kwargs):
+        # If this message is for a specific observer, and it's not us, then discard it.
+        filtObserverName = payloadEnvelope.filt.get("observerName")
+        if filtObserverName is not None and filtObserverName != self._observerName:
+            return
+
+        # If this message is an error response, then don't process it.
         if payloadEnvelope.result not in (None, True):
             logger.error("Vortex responded with error : %s" % payloadEnvelope.result)
             logger.error(str(payloadEnvelope.filt))
@@ -107,7 +122,7 @@ class TupleDataObserverClient(TupleDataObservableCache):
             )
 
     def _sendRequestToServer(self, payload):
-        payload.filt.update(self._filt)
+        payload.filt.update(self._sendFilt)
         d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
                                         destVortexName=self._destVortexName)
         d.addErrback(vortexLogFailure, logger, consumeError=True)
