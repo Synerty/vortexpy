@@ -57,6 +57,10 @@ class TupleDataObserverClient(TupleDataObservableCache):
         # .subscribe(online= > self.vortexOnlineChanged())
         # 
         # self.onDestroyEvent.subscribe(() = > isOnlineSub.unsubscribe())
+        VortexFactory \
+            .subscribeToVortexStatusChange(destVortexName) \
+            .filter(lambda online: online is True) \
+            .subscribe(self._vortexOnlineChanged)
 
         TupleDataObservableCache.start(self)
 
@@ -85,9 +89,7 @@ class TupleDataObserverClient(TupleDataObservableCache):
         self._tellServerWeWantData([tupleSelector])
         return cache.subject
 
-    # TODO Call this when the other end comes back online
-    # IDEA, A subscriber on VortexFactory would be great
-    def _vortexOnlineChanged(self) -> None:
+    def _vortexOnlineChanged(self, *args) -> None:
         self._tellServerWeWantData(self._tupleSelectors())
 
     @inlineCallbacks
