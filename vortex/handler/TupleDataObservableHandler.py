@@ -141,6 +141,19 @@ class TupleDataObservableHandler:
         """
         reactor.callLater(0, self._notifyOfTupleUpdateInMain, tupleSelector)
 
+    def notifyOfTupleUpdateForTuple(self, tupleName: str) -> None:
+        """ Notify of Tuple Update for Tuple
+
+        Like the above notification method, this method will aquire new data and
+        send it to observers.
+
+        """
+        for tupleSelectorStr in self._observerDetailsByTupleSelector:
+            tupleSelector = TupleSelector.fromJsonStr(tupleSelectorStr)
+
+            if tupleSelector.name == tupleName:
+                self.notifyOfTupleUpdate(tupleSelector)
+
     @inlineCallbacks
     def _notifyOfTupleUpdateInMain(self, tupleSelector: TupleSelector):
         tsStr = tupleSelector.toJsonStr()

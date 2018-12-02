@@ -85,7 +85,7 @@ class TupleDataObservableCache(metaclass=ABCMeta):
     def _tupleSelectors(self) -> typing.List[TupleSelector]:
         tupleSelectors = []
         for key in self.__cache:
-            tupleSelectors.append(TupleSelector()._fromJson(key))
+            tupleSelectors.append(TupleSelector.fromJsonStr(key))
         return tupleSelectors
 
     ## ----- Implement local observable
