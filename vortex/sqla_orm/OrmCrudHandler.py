@@ -379,7 +379,7 @@ class OrmCrudHandler(object):
         if self._retreiveAll:
             returnTuples = self.createDeclarative(session, payloadFilt)
 
-        self._ext.afterDeleteCommit(returnTuples, session, payloadFilt)
+        self._ext.afterDeleteCommit(tuples, session, payloadFilt)
         return Payload(tuples=returnTuples).makePayloadEnvelope(result=True)
 
     def sendModelUpdate(self, objId,
