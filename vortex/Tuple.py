@@ -253,9 +253,13 @@ class Tuple(Jsonable):
         return cls.__tupleType__ == other.__tupleType__
 
     def tupleClone(self):
-        return self.__class__(**{name: getattr(self, name)
-                                 for name in self.__fieldNames__
-                                 if hasattr(self, name)})
+        clone = self.__class__()
+        for name in self.__fieldNames__:
+            val = getattr(self, name)
+            if val:
+                setattr(clone, name, val)
+
+        return clone
 
     def tupleToSmallJsonDict(self):
         json = {'_tt': (self.__tupleTypeShort__
