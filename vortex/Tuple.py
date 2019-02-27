@@ -256,7 +256,7 @@ class Tuple(Jsonable):
         clone = self.__class__()
         for name in self.__fieldNames__:
             val = getattr(self, name)
-            if val:
+            if val is not None:
                 setattr(clone, name, val)
 
         return clone
