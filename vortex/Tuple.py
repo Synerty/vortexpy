@@ -8,21 +8,24 @@
 """
 import inspect
 import json
+import re
 from copy import deepcopy
 from datetime import datetime
-from typing import List, Dict, Set
+from time import strptime
+from typing import List, Dict
 
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.properties import RelationshipProperty
 from sqlalchemy.sql.schema import Sequence
 
+from vortex.SerialiseUtil import ISO8601_REGEXP
 from .Jsonable import Jsonable
 from .SerialiseUtil import T_RAPUI_TUPLE
 from .SerialiseUtil import convertFromWkbElement, ISO8601, WKBElement
 
 TUPLE_TYPES = []
-TUPLE_TYPES_BY_NAME: Dict[str, object] = {}
-_TUPLE_SHORT_NAMES: Set[str] = set()
+TUPLE_TYPES_BY_NAME: Dict[str, 'Tuple'] = {}
+TUPLE_TYPES_BY_SHORT_NAME: Dict[str, 'Tuple'] = {}
 
 JSON_EXCLUDE = "jsonExclude"
 
@@ -43,11 +46,11 @@ def addTupleType(cls):
                         "Tuple name is %s" % tupleType)
 
     if tupleTypeShort:
-        if tupleTypeShort in _TUPLE_SHORT_NAMES:
+        if tupleTypeShort in TUPLE_TYPES_BY_SHORT_NAME:
             raise Exception("Tuple short name is already registered.\n"
                             "Tuple short name is %s" % tupleTypeShort)
 
-        _TUPLE_SHORT_NAMES.add(tupleTypeShort)
+        TUPLE_TYPES_BY_SHORT_NAME[tupleTypeShort] = cls
 
     # Setup the lookups
     TUPLE_TYPES.append(cls)
@@ -133,7 +136,44 @@ def addTupleType(cls):
     fields.sort()
     cls.__fieldNames__ = fields
 
+    __mapShortFieldNames(cls)
+
     return cls
+
+
+def __mapShortFieldNames(cls):
+    # If this has already been set by the Tuple declaration, then don't mess with it.
+    if cls.__shortFieldNamesMap__:
+        return
+
+    fieldMap = {}
+    for normalName in cls.__fieldNames__:
+        field = getattr(cls, normalName, None)
+        if not field:
+            continue
+
+        if isinstance(field, TupleField):
+            if field.jsonExclude:
+                continue
+
+            shortName = field.shortName if field.shortName else field.name
+
+        elif isinstance(field, InstrumentedAttribute):
+            if isinstance(field.comparator.prop, RelationshipProperty):
+                continue
+
+            shortName = field.doc if field.doc else field.name
+
+        else:
+            continue
+
+        # Underscore means skip
+        if shortName == JSON_EXCLUDE:
+            continue
+
+        fieldMap[shortName] = normalName
+
+    cls.__shortFieldNamesMap__ = fieldMap
 
 
 def removeTuplesForPackage(packageName):
@@ -145,7 +185,7 @@ def removeTuplesForPackage(packageName):
 
 
 def removeTuplesForTupleNames(tupleNames):
-    global TUPLE_TYPES, TUPLE_TYPES_BY_NAME, _TUPLE_SHORT_NAMES
+    global TUPLE_TYPES, TUPLE_TYPES_BY_NAME, TUPLE_TYPES_BY_SHORT_NAME
 
     tupleNames = set(tupleNames)
 
@@ -164,8 +204,10 @@ def removeTuplesForTupleNames(tupleNames):
         if tupleName in TUPLE_TYPES_BY_NAME:
             del TUPLE_TYPES_BY_NAME[tupleName]
 
-    # Remove from tuple short names
-    _TUPLE_SHORT_NAMES = _TUPLE_SHORT_NAMES - set(tupleShortNames)
+    # Remove from tuple types by name
+    for tupleShortName in tupleShortNames:
+        if tupleShortName in TUPLE_TYPES_BY_SHORT_NAME:
+            del TUPLE_TYPES_BY_SHORT_NAME[tupleShortName]
 
 
 class TupleField(object):
@@ -184,9 +226,10 @@ class TupleField(object):
 
 class Tuple(Jsonable):
     ''' Tuple Type, EG com.synerty.rapui.UnitTestTuple'''
-    __tupleType__ :str= None
+    __tupleType__: str = None
     __tupleTypeShort__ = None
     __fieldNames__ = None
+    __shortFieldNamesMap__ = None
     __rapuiSerialiseType__ = T_RAPUI_TUPLE
 
     def __init__(self, **kwargs):
@@ -262,53 +305,78 @@ class Tuple(Jsonable):
         return clone
 
     def tupleToSmallJsonDict(self):
+        if not self.__shortFieldNamesMap__:
+            raise Exception("Tuple %s has no shortFieldNames defined" % self.tupleType())
+
         json = {'_tt': (self.__tupleTypeShort__
                         if self.__tupleTypeShort__ else
                         self.__tupleType__)}
 
-        for field in self.__class__.__dict__.values():
+        def convert(value):
+            if isinstance(value, list):
+                return [convert(v) for v in value]
 
-            if isinstance(field, TupleField):
-                if field.jsonExclude:
-                    continue
+            elif isinstance(value, Tuple):
+                return value.tupleToSmallJsonDict()
 
-                key = field.shortName if field.shortName else field.name
+            elif isinstance(value, WKBElement):
+                return convertFromWkbElement(value)
 
-            elif isinstance(field, InstrumentedAttribute):
-                if isinstance(field.comparator.prop, RelationshipProperty):
-                    continue
+            elif isinstance(value, TupleField):
+                return None
 
-                key = field.doc if field.doc else field.name
+            elif isinstance(value, datetime):
+                return value.strftime(ISO8601)
 
             else:
-                continue
+                return value
 
-            # Underscore means skip
-            if key == JSON_EXCLUDE:
-                continue
-
-            def convert(value):
-                if isinstance(value, list):
-                    return [convert(v) for v in value]
-
-                elif isinstance(value, Tuple):
-                    return value.tupleToSmallJsonDict()
-
-                elif isinstance(value, WKBElement):
-                    return convertFromWkbElement(value)
-
-                elif isinstance(value, TupleField):
-                    return None
-
-                elif isinstance(value, datetime):
-                    return value.strftime(ISO8601)
-
-                else:
-                    return value
-
-            json[key] = convert(getattr(self, field.name))
+        for shortName, normalName in self.__shortFieldNamesMap__.items():
+            json[shortName] = convert(getattr(self, normalName))
 
         return json
+
+    @staticmethod
+    def smallJsonDictToTuple(jsonDict: dict) -> 'Tuple':
+        tupleShortType = jsonDict.get('_tt')
+        if not tupleShortType:
+            raise Exception("Tuple.smallJsonDictToTuple: jsonDict has no _tt field")
+
+        Tuple_ = TUPLE_TYPES_BY_SHORT_NAME.get(tupleShortType)
+        if not Tuple_:
+            raise Exception(
+                "Tuple.smallJsonDictToTuple: %s is not a registered tuple type"
+                % tupleShortType
+            )
+
+        if not Tuple_.__shortFieldNamesMap__:
+            raise Exception("Tuple %s has no shortFieldNames defined" % Tuple.tupleType())
+
+        def convert(value):
+            if value is None:
+                return None
+
+            elif isinstance(value, list):
+                return [convert(v) for v in value]
+
+            elif isinstance(value, dict) and value.get('_tt', None):
+                return Tuple.smallJsonDictToTuple(value)
+
+            # elif isinstance(value, WKBElement):
+            #     return convertFromWkbElement(value)
+
+            elif isinstance(value, str) and re.match(value, ISO8601_REGEXP):
+                return strptime(value, ISO8601)
+
+            else:
+                return value
+
+        newTuple = Tuple_()
+
+        for shortName, normalName in Tuple_.__shortFieldNamesMap__.items():
+            setattr(newTuple, normalName, convert(jsonDict.get(shortName)))
+
+        return newTuple
 
     def tupleToSqlaBulkInsertDict(self):
         insertDict = {}

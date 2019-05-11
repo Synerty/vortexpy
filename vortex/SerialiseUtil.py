@@ -56,6 +56,7 @@ V_FALSE = '0'
 
 ISO8601_ORA = 'YYYY-MM-DD HH24:MI:SS.FF6'
 ISO8601 = '%Y-%m-%d %H:%M:%S.%f%z'
+ISO8601_REGEXP = r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}[+-]\d{2}:\d{2}$'
 ISO8601_NOTZ = '%Y-%m-%d %H:%M:%S.%f'
 
 TYPE_MAP_PY_TO_RAPUI = {decimal.Decimal: T_FLOAT,
