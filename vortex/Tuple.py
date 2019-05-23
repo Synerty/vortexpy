@@ -378,7 +378,7 @@ class Tuple(Jsonable):
 
         return newTuple
 
-    def tupleToSqlaBulkInsertDict(self):
+    def tupleToSqlaBulkInsertDict(self, includeNulls=True):
         insertDict = {}
 
         for field in self.__class__.__dict__.values():
@@ -396,7 +396,9 @@ class Tuple(Jsonable):
                 else:
                     return value
 
-            insertDict[field.name] = convert(getattr(self, field.name))
+            value = getattr(self, field.name)
+            if includeNulls or value is not None:
+                insertDict[field.name] = convert(value)
 
         return insertDict
 
