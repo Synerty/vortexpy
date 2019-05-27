@@ -304,7 +304,7 @@ class Tuple(Jsonable):
 
         return clone
 
-    def tupleToSmallJsonDict(self):
+    def tupleToSmallJsonDict(self, includeNones=True, includeFalse=True):
         if not self.__shortFieldNamesMap__:
             raise Exception("Tuple %s has no shortFieldNames defined" % self.tupleType())
 
@@ -332,7 +332,12 @@ class Tuple(Jsonable):
                 return value
 
         for shortName, normalName in self.__shortFieldNamesMap__.items():
-            json[shortName] = convert(getattr(self, normalName))
+            value = convert(getattr(self, normalName))
+            if value is None and not includeNones:
+                continue
+            if value is False and not includeFalse:
+                continue
+            json[shortName] = value
 
         return json
 
