@@ -82,6 +82,9 @@ class TupleDataObservableHandler:
     def hasTupleProvider(self, tupleName: str):
         return tupleName in self._tupleProvidersByTupleName
 
+    def hasTupleSubscribers(self, tupleSelector:TupleSelector):
+        return tupleSelector.toJsonStr() in self._observerDetailsByTupleSelector
+
     def shutdown(self):
         self._endpoint.shutdown()
 
