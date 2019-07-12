@@ -24,7 +24,8 @@ class TupleActionProcessorProxy:
 
     def __init__(self, tupleActionProcessorName,
                  proxyToVortexName: str,
-                 additionalFilt=None) -> None:
+                 additionalFilt=None,
+                 acceptOnlyFromVortex: Optional[str] = None) -> None:
         """ Constructor
 
         :param tupleActionProcessorName: The name of this and the other action handler
@@ -32,6 +33,10 @@ class TupleActionProcessorProxy:
         :param additionalFilt: Any additional filter keys that are required
         """
         self._proxyToVortexName = proxyToVortexName
+        self._delegateProcessor = TupleActionProcessor(
+            tupleActionProcessorName=tupleActionProcessorName,
+            __usedForProxy=True
+        )
 
         self._filt = dict(name=tupleActionProcessorName, key="tupleActionProcessorName")
 
@@ -43,14 +48,48 @@ class TupleActionProcessorProxy:
     def shutdown(self):
         self._endpoint.shutdown()
 
+    def setDelegate(self, tupleName: str, processor: TupleActionProcessorDelegateABC):
+        """ Add Tuple Action Processor Delegate
+
+        :param tupleName: The tuple name to process actions for.
+        :param processor: The processor to use for processing this tuple name.
+
+        """
+        self._delegateProcessor.setDelegate(tupleName, processor)
+
     @inlineCallbacks
     def _process(self, payloadEnvelope: PayloadEnvelope, vortexName: str,
-                 sendResponse: SendVortexMsgResponseCallable, **kwargs):
+                 sendResponse: SendVortexMsgResponseCallable, **kwargs) -> None:
 
         # Ignore responses from the backend, these are handled by PayloadResponse
         if vortexName == self._proxyToVortexName:
             return
 
+        # Shortcut the logic, so that we don't decode the payload unless we need to.
+        if not self._delegateProcessor.delegateCount:
+            yield self._processForProxy(payloadEnvelope, vortexName, sendResponse)
+            return
+
+        # If we have local processors, then work out if this tupleAction is meant for
+        # the local processor.
+        payload = yield payloadEnvelope.decodePayloadDefer()
+
+        assert len(payload.tuples) == 1, (
+                "TupleActionProcessor:%s Expected 1 tuples, received %s" % (
+            self._tupleActionProcessorName, len(payload.tuples)))
+
+        tupleAction = payload.tuples[0]
+
+        if self._delegateProcessor.hasDelegate(tupleAction.tupleName()):
+            self._processTupleAction(payloadEnvelope.filt, sendResponse, tupleAction)
+            return
+
+        # Else, Just send it on to the delegate we're proxying for (the backend)
+        yield self._processForProxy(payloadEnvelope, vortexName, sendResponse)
+
+    @inlineCallbacks
+    def _processForProxy(self, payloadEnvelope: PayloadEnvelope, vortexName: str,
+                         sendResponse: SendVortexMsgResponseCallable, **kwargs):
         # Keep a copy of the incoming filt, in case they are using PayloadResponse
         responseFilt = copy(payloadEnvelope.filt)
 

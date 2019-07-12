@@ -32,8 +32,8 @@ class TupleActionProcessor:
     def __init__(self, tupleActionProcessorName: str,
                  additionalFilt: Optional[Dict] = None,
                  defaultDelegate: Optional[TupleActionProcessorDelegateABC] = None,
-                 acceptOnlyFromVortex: Optional[str] = None
-                 ) -> None:
+                 acceptOnlyFromVortex: Optional[str] = None,
+                 __usedForProxy=False) -> None:
         """ Constructor
 
         :param tupleActionProcessorName: The name of this observable
@@ -49,16 +49,17 @@ class TupleActionProcessor:
         self._tupleActionProcessorName = tupleActionProcessorName
         self._defaultDelegate = defaultDelegate
 
-        self._filt = dict(name=tupleActionProcessorName,
-                          key="tupleActionProcessorName")
-
-        if additionalFilt:
-            self._filt.update(additionalFilt)
-
-        self._endpoint = PayloadEndpoint(self._filt, self._process,
-                                         acceptOnlyFromVortex=acceptOnlyFromVortex)
-
         self._tupleProcessorsByTupleName: Dict[str, TupleActionProcessorDelegateABC] = {}
+
+        if not __usedForProxy:
+            self._filt = dict(name=tupleActionProcessorName,
+                              key="tupleActionProcessorName")
+
+            if additionalFilt:
+                self._filt.update(additionalFilt)
+
+            self._endpoint = PayloadEndpoint(self._filt, self._process,
+                                             acceptOnlyFromVortex=acceptOnlyFromVortex)
 
     def setDelegate(self, tupleName: str, processor: TupleActionProcessorDelegateABC):
         """ Add Tuple Action Processor Delegate
@@ -78,6 +79,13 @@ class TupleActionProcessor:
 
         self._tupleProcessorsByTupleName[tupleName] = processor
 
+    @property
+    def delegateCount(self) -> int:
+        return len(self._tupleProcessorsByTupleName)
+
+    def hasDelegate(self, tupleName: str) -> bool:
+        return tupleName in self._tupleProcessorsByTupleName
+
     def shutdown(self):
         self._endpoint.shutdown()
 
@@ -95,12 +103,15 @@ class TupleActionProcessor:
 
         tupleAction = payload.tuples[0]
 
-        assert isinstance(tupleAction, TupleActionABC), (
-                "TupleActionProcessor:%s Expected TupleAction, received %s" % (
-            self._tupleActionProcessorName, tupleAction.__class__))
+        self._processTupleAction(payloadEnvelope.filt, sendResponse, tupleAction)
+
+    def _processTupleAction(self, payloadEnvelopeFilt, sendResponse, tupleAction):
+
+        assert isinstance(tupleAction, TupleActionABC), \
+            "TupleActionProcessor:%s Expected TupleAction, received %s" \
+            % (self._tupleActionProcessorName, tupleAction.__class__)
 
         tupleName = tupleAction.tupleName()
-
         processor = self._tupleProcessorsByTupleName.get(tupleName)
         if processor:
             delegate = processor.processTupleAction
@@ -110,10 +121,9 @@ class TupleActionProcessor:
 
         else:
             raise Exception("No delegate registered for %s" % tupleName)
-
         d = self._customMaybeDeferred(delegate, tupleAction)
-        d.addCallback(self._callback, payloadEnvelope.filt, tupleName, sendResponse)
-        d.addErrback(self._errback, payloadEnvelope.filt, tupleName, sendResponse)
+        d.addCallback(self._callback, payloadEnvelopeFilt, tupleName, sendResponse)
+        d.addErrback(self._errback, payloadEnvelopeFilt, tupleName, sendResponse)
 
     @inlineCallbacks
     def _callback(self, result, replyFilt: dict, tupleName: str,
