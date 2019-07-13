@@ -33,7 +33,7 @@ class TupleActionProcessor:
                  additionalFilt: Optional[Dict] = None,
                  defaultDelegate: Optional[TupleActionProcessorDelegateABC] = None,
                  acceptOnlyFromVortex: Optional[str] = None,
-                 __usedForProxy=False) -> None:
+                 usedForProxy__=False) -> None:
         """ Constructor
 
         :param tupleActionProcessorName: The name of this observable
@@ -51,7 +51,7 @@ class TupleActionProcessor:
 
         self._tupleProcessorsByTupleName: Dict[str, TupleActionProcessorDelegateABC] = {}
 
-        if not __usedForProxy:
+        if not usedForProxy__:
             self._filt = dict(name=tupleActionProcessorName,
                               key="tupleActionProcessorName")
 

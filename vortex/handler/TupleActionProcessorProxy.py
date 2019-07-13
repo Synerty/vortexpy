@@ -38,7 +38,7 @@ class TupleActionProcessorProxy:
         self._proxyToVortexName = proxyToVortexName
         self._delegateProcessor = TupleActionProcessor(
             tupleActionProcessorName=tupleActionProcessorName,
-            __usedForProxy=True
+            usedForProxy__=True
         )
 
         self._filt = dict(name=tupleActionProcessorName, key="tupleActionProcessorName")
