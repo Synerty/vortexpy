@@ -1,5 +1,6 @@
 import logging
 from copy import copy
+from typing import Optional
 
 from twisted.internet.defer import TimeoutError, inlineCallbacks, Deferred
 from twisted.python.failure import Failure
@@ -10,6 +11,8 @@ from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
+from vortex.handler.TupleActionProcessor import TupleActionProcessor, \
+    TupleActionProcessorDelegateABC
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +46,8 @@ class TupleActionProcessorProxy:
         if additionalFilt:
             self._filt.update(additionalFilt)
 
-        self._endpoint = PayloadEndpoint(self._filt, self._process)
+        self._endpoint = PayloadEndpoint(self._filt, self._process,
+                                         acceptOnlyFromVortex=acceptOnlyFromVortex)
 
     def shutdown(self):
         self._endpoint.shutdown()
