@@ -85,7 +85,7 @@ class TupleActionProcessorProxy:
         tupleAction = payload.tuples[0]
 
         if self._delegateProcessor.hasDelegate(tupleAction.tupleName()):
-            self._processTupleAction(payloadEnvelope.filt, sendResponse, tupleAction)
+            self._delegateProcessor._processTupleAction(payloadEnvelope.filt, sendResponse, tupleAction)
             return
 
         # Else, Just send it on to the delegate we're proxying for (the backend)
