@@ -7,7 +7,7 @@ from rx.subjects import Subject
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList, succeed
 from twisted.python.failure import Failure
-from txws import WebSocketFactory
+from txws import WebSocketFactory, WebSocketUpgradeResource
 
 from vortex.DeferUtil import yesMainThread
 from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
@@ -126,6 +126,28 @@ class VortexFactory:
         cls.__vortexServersByName[name].append(vortexServer)
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(vortexServer)
         reactor.listenTCP(port, WebSocketFactory(vortexWebsocketServerFactory))
+
+    @classmethod
+    def createHttpWebsocketServer(cls, name: str, rootResource) -> None:
+        """ Create Server
+
+        Create a vortex server, VortexServer clients connect to this vortex serer via HTTP(S)
+
+        VortexServer clients will connect and provide their names. This allows the factory to
+        abstract away the vortex UUIDs from their names.
+
+        :param name: The name of the local vortex.
+        :param port: The tcp port to listen on
+        :return: None
+        """
+
+        vortexServer = VortexServer(name)
+        cls.__vortexServersByName[name].append(vortexServer)
+        vortexWebsocketServerFactory = VortexWebsocketServerFactory(vortexServer)
+        websocketFactory = WebSocketFactory(vortexWebsocketServerFactory)
+
+        websocketResource = WebSocketUpgradeResource(websocketFactory)
+        rootResource.putChild(b"vortexws", websocketResource)
 
     @classmethod
     def createTcpServer(cls, name: str, port: int) -> None:

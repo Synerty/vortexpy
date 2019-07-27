@@ -7,50 +7,18 @@
  * Support : support@synerty.com
 """
 import logging
-from datetime import datetime
-from struct import pack
 from urllib.parse import urlparse, parse_qs
 
-import six
-import txws
-from twisted.internet import task
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.protocol import Protocol, connectionDone, Factory
 
 from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.VortexServerConnection import VortexServerConnection
-from .Payload import Payload
-from .VortexConnectionABC import VortexConnectionABC
-from .VortexServer import VortexServer, HEART_BEAT_PERIOD, HEART_BEAT_TIMEOUT
+from .VortexServer import VortexServer
 
 logger = logging.getLogger(name=__name__)
 
-
-def make_hybi07_frame(buf, opcode=0x1):
-    """
-    Make a HyBi-07 frame.
-
-    This function always creates unmasked frames, and attempts to use the
-    smallest possible lengths.
-    """
-
-    if len(buf) > 0xffff:
-        length = six.b("\x7f%s") % pack(">Q", len(buf))
-    elif len(buf) > 0x7d:
-        length = six.b("\x7e%s") % pack(">H", len(buf))
-    else:
-        length = six.b(chr(len(buf)))
-
-    if isinstance(buf, six.text_type):
-        buf = buf.encode('utf-8')
-
-    # Always make a normal packet.
-    header = chr(0x80 | opcode)
-    return six.b(header) + length + buf
-
-
-txws.make_hybi07_frame = make_hybi07_frame
 
 
 class VortexWebsocketServerProtocol(Protocol):
@@ -73,14 +41,17 @@ class VortexWebsocketServerProtocol(Protocol):
 
         params = parse_qs(urlparse(self.transport.location).query)
 
+        if 'vortexUuid' not in params or 'vortexName' not in params:
+            raise Exception("This isn't a vortex capable websocket. Check the URL")
+
         self._remoteVortexUuid = params['vortexUuid'][0]
         self._remoteVortexName = params['vortexName'][0]
         self._conn = VortexServerConnection(self._vortex,
-                                               self._remoteVortexUuid,
-                                               self._remoteVortexName,
-                                               self._httpSession,
-                                               self.transport,
-                                               self._addr)
+                                            self._remoteVortexUuid,
+                                            self._remoteVortexName,
+                                            self._httpSession,
+                                            self.transport,
+                                            self._addr)
 
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {}
@@ -109,8 +80,6 @@ class VortexWebsocketServerProtocol(Protocol):
             d.addErrback(vortexLogFailure, logger, consumeError=True)
             self._receiveBuffer = b''
 
-
-
     def connectionLost(self, reason=connectionDone):
         if self._conn:
             self._conn.transportClosed()
@@ -125,7 +94,6 @@ class VortexWebsocketServerProtocol(Protocol):
             payload=payloadEnvelope)
 
 
-
 class VortexWebsocketServerFactory(Factory):
     protocol = None
 
@@ -136,3 +104,4 @@ class VortexWebsocketServerFactory(Factory):
         p = VortexWebsocketServerProtocol(self._vortexServer, addr)
         p.factory = self
         return p
+
