@@ -1,7 +1,8 @@
 import logging
 
 import twisted
-from twisted.internet.defer import maybeDeferred, Deferred, inlineCallbacks
+from twisted.internet.defer import maybeDeferred, Deferred, inlineCallbacks, \
+    ensureDeferred
 from twisted.internet.threads import deferToThread
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,24 @@ def maybeDeferredWrap(funcToWrap):
 
     def func(*args, **kwargs):
         return maybeDeferred(funcToWrap, *args, **kwargs)
+
+    return func
+
+
+def ensureDeferredWrap(funcToWrap):
+    """ Ensured Deferred Wrap
+
+    A decorator that converts asyncio functions to ones that
+     return Twisted Deferred instead.
+
+    This keeps all the async processing in Twisteds reactive design while providing
+     support of the await/async syntax (and asyncio processing)
+
+
+    """
+
+    def func(*args, **kwargs):
+        return ensureDeferred(funcToWrap, *args, **kwargs)
 
     return func
 
