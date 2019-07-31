@@ -7,10 +7,12 @@
  * Support : support@synerty.com
 """
 import logging
+import resource
 from urllib.parse import urlparse, parse_qs
 
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.protocol import Protocol, connectionDone, Factory
+from twisted.web.server import NOT_DONE_YET
 
 from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEnvelope import PayloadEnvelope
@@ -20,9 +22,8 @@ from .VortexServer import VortexServer
 logger = logging.getLogger(name=__name__)
 
 
-
 class VortexWebsocketServerProtocol(Protocol):
-    def __init__(self, vortex: VortexServer, addr) -> None:
+    def __init__(self, vortex: VortexServer, addr, httpSession=None) -> None:
         self._vortex = vortex
         self._addr = addr
 
@@ -30,7 +31,7 @@ class VortexWebsocketServerProtocol(Protocol):
 
         self._remoteVortexUuid = None
         self._remoteVortexName = None
-        self._httpSession = None
+        self._httpSession = httpSession
 
         # Most messages don't need a buffer, but websockets can split messages
         # around the 128kb mark
@@ -75,6 +76,9 @@ class VortexWebsocketServerProtocol(Protocol):
 
         self._receiveBuffer += data
 
+        if self._httpSession:
+            self._httpSession.touch()
+
         if self._receiveBuffer.endswith(b'.'):
             d = self._processVortexMsg(self._receiveBuffer)
             d.addErrback(vortexLogFailure, logger, consumeError=True)
@@ -100,8 +104,34 @@ class VortexWebsocketServerFactory(Factory):
     def __init__(self, vortexServer: VortexServer) -> None:
         self._vortexServer = vortexServer
 
-    def buildProtocol(self, addr):
-        p = VortexWebsocketServerProtocol(self._vortexServer, addr)
+    def buildProtocol(self, addr, httpSession=None):
+        p = VortexWebsocketServerProtocol(self._vortexServer, addr, httpSession)
         p.factory = self
         return p
 
+
+class VortexWebSocketUpgradeResource(resource.Resource):
+    """ Vortex Websocket Upgrade Resource
+
+    If this resource is hit, it will attempt to upgrade the connection to a websocket.
+
+    """
+    isLeaf = 1
+
+    def __init__(self, websocketFactory):
+        """ Constructor
+
+        @:param websocketFactory: A factory that will build a WebsocketProtocol (above)
+        """
+        resource.Resource.__init__(self)
+        self._websocketFactory = websocketFactory
+
+    def render(self, request):
+        httpSession = request.getSession()
+        websocketProtocol = self._websocketFactory \
+            .buildProtocol(request.client.host, httpSession)
+        websocketProtocol.makeConnection(request.channel.transport)
+        websocketProtocol.initFromRequest(request)
+        request.channel.upgradeToWebsocket(websocketProtocol)
+
+        return NOT_DONE_YET
