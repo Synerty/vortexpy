@@ -7,8 +7,8 @@ from rx.subjects import Subject
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList, succeed
 from twisted.python.failure import Failure
-from txws import WebSocketFactory, WebSocketUpgradeResource
 
+from txws import WebSocketFactory
 from vortex.DeferUtil import yesMainThread
 from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
@@ -18,7 +18,8 @@ from vortex.VortexClientTcp import VortexClientTcp
 from vortex.VortexServer import VortexServer
 from vortex.VortexServerHttpResource import VortexServerHttpResource
 from vortex.VortexServerTcp import VortexTcpServerFactory
-from vortex.VortexServerWebsocket import VortexWebsocketServerFactory
+from vortex.VortexServerWebsocket import VortexWebsocketServerFactory, \
+    VortexWebSocketUpgradeResource, VortexWrappedWebSocketFactory
 
 logger = logging.getLogger(__name__)
 
@@ -144,9 +145,9 @@ class VortexFactory:
         vortexServer = VortexServer(name)
         cls.__vortexServersByName[name].append(vortexServer)
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(vortexServer)
-        websocketFactory = WebSocketFactory(vortexWebsocketServerFactory)
+        websocketFactory = VortexWrappedWebSocketFactory(vortexWebsocketServerFactory)
 
-        websocketResource = WebSocketUpgradeResource(websocketFactory)
+        websocketResource = VortexWebSocketUpgradeResource(websocketFactory)
         rootResource.putChild(b"vortexws", websocketResource)
 
     @classmethod

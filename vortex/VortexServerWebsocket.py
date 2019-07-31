@@ -7,13 +7,15 @@
  * Support : support@synerty.com
 """
 import logging
-import resource
 from urllib.parse import urlparse, parse_qs
 
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.protocol import Protocol, connectionDone, Factory
+from twisted.protocols.policies import WrappingFactory
+from twisted.web import resource
 from twisted.web.server import NOT_DONE_YET
 
+from txws import WebSocketProtocol
 from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.VortexServerConnection import VortexServerConnection
@@ -32,6 +34,13 @@ class VortexWebsocketServerProtocol(Protocol):
         self._remoteVortexUuid = None
         self._remoteVortexName = None
         self._httpSession = httpSession
+
+        def httpSessionExpiredCallback():
+            self._httpSession = None
+            self._conn.loseConnection()
+
+        if self._httpSession:
+            self._httpSession.notifyOnExpire(httpSessionExpiredCallback)
 
         # Most messages don't need a buffer, but websockets can split messages
         # around the 128kb mark
@@ -70,14 +79,14 @@ class VortexWebsocketServerProtocol(Protocol):
         if self._vortex.isShutdown():
             return None
 
+        if self._httpSession:
+            self._httpSession.touch()
+
         if data == b'.':
             self._conn.beatReceived()
             return
 
         self._receiveBuffer += data
-
-        if self._httpSession:
-            self._httpSession.touch()
 
         if self._receiveBuffer.endswith(b'.'):
             d = self._processVortexMsg(self._receiveBuffer)
@@ -110,6 +119,17 @@ class VortexWebsocketServerFactory(Factory):
         return p
 
 
+class VortexWrappedWebSocketFactory(WrappingFactory):
+    """
+    Factory which wraps another factory to provide WebSockets transports for
+    all of its protocols.
+    """
+
+    protocol = WebSocketProtocol
+
+    def buildProtocol(self, addr, httpSession):
+        return self.protocol(self, self.wrappedFactory.buildProtocol(addr, httpSession))
+
 class VortexWebSocketUpgradeResource(resource.Resource):
     """ Vortex Websocket Upgrade Resource
 
@@ -128,6 +148,7 @@ class VortexWebSocketUpgradeResource(resource.Resource):
 
     def render(self, request):
         httpSession = request.getSession()
+
         websocketProtocol = self._websocketFactory \
             .buildProtocol(request.client.host, httpSession)
         websocketProtocol.makeConnection(request.channel.transport)
