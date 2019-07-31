@@ -34,7 +34,7 @@ def ensureDeferredWrap(funcToWrap):
     """
 
     def func(*args, **kwargs):
-        return ensureDeferred(funcToWrap, *args, **kwargs)
+        return ensureDeferred(funcToWrap(*args, **kwargs))
 
     return func
 
