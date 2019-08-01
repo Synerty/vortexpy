@@ -37,7 +37,7 @@ class VortexWebsocketServerProtocol(Protocol):
 
         def httpSessionExpiredCallback():
             self._httpSession = None
-            self._conn.loseConnection()
+            self.transport.loseConnection()
 
         if self._httpSession:
             self._httpSession.notifyOnExpire(httpSessionExpiredCallback)
