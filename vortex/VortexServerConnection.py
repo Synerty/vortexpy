@@ -61,8 +61,12 @@ class VortexServerConnection(VortexConnectionABC):
         # Mark that we've just checked it
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
 
+        if checkTimout:
+            self._lastHeartBeatTime = datetime.now(pytz.utc)
+            return
+
         # If we havn't heard from the client, then close the connection
-        if not checkTimout and beatTimeout:
+        if beatTimeout:
             self._beatLoopingCall.stop()
             self.close()
             return

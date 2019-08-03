@@ -274,7 +274,11 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         # Mark that we've just checked it
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
 
-        if not checkTimout and beatTimeout:
+        if checkTimout:
+            self._lastBeatReceiveTime = datetime.now(pytz.utc)
+            return
+
+        if beatTimeout:
             self._reconnectAfterHeartBeatLost()
             return
 
