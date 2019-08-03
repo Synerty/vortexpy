@@ -9,6 +9,7 @@
 import logging
 import uuid
 from datetime import datetime
+from typing import Union, Optional, List
 
 import pytz
 import twisted
@@ -17,7 +18,7 @@ from twisted.internet import task, defer
 from twisted.internet.defer import Deferred
 from twisted.internet.error import ConnectionDone, ConnectionRefusedError
 from twisted.internet.protocol import connectionDone, ReconnectingClientFactory
-from typing import Union, Optional, List
+
 from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEnvelope import PayloadEnvelope, VortexMsgList
 from vortex.VortexABC import VortexABC, VortexInfo
@@ -31,7 +32,6 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
     def __init__(self, vortexClient=None) -> None:
         VortexPayloadProtocol.__init__(self, logger)
         self._vortexClient = vortexClient
-
 
         self._closed = False
 
@@ -124,6 +124,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         self._serverVortexName = None
 
         self._lastBeatReceiveTime = None
+        self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
 
         # Start our heart beat checker
         self._beatTimeoutLoopingCall = task.LoopingCall(self._checkBeat)
@@ -133,7 +134,6 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         self.__protocol = None
 
     #####################################################################################3
-
 
     # class EchoClientFactory(ReconnectingClientFactory):
     def startedConnecting(self, connector):
@@ -164,7 +164,6 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
                                                          reason)
 
     #####################################################################################3
-
 
     @property
     def localVortexInfo(self) -> VortexInfo:
@@ -263,10 +262,24 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         self._serverVortexUuid = uuid
 
     def _checkBeat(self):
-        deltaSeconds = (datetime.now(pytz.utc) - self._lastBeatReceiveTime).seconds
-        if not deltaSeconds > self.HEART_BEAT_TIMEOUT:
+
+        # If we've been asleep, then make note of that (VM suspended)
+        checkTimout = (datetime.now(pytz.utc) - self._lastHeartBeatCheckTime) \
+                          .seconds > self.HEART_BEAT_TIMEOUT
+
+        # Has the heart beat expired?
+        beatTimeout = (datetime.now(pytz.utc) - self._lastBeatReceiveTime) \
+                          .seconds > self.HEART_BEAT_TIMEOUT
+
+        # Mark that we've just checked it
+        self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
+
+        if not checkTimout and beatTimeout:
+            self._reconnectAfterHeartBeatLost()
             return
 
+
+    def _reconnectAfterHeartBeatLost(self):
         if self._retrying:
             return
 

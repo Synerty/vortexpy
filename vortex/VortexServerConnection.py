@@ -32,6 +32,7 @@ class VortexServerConnection(VortexConnectionABC):
                                      httpSessionUuid=httpSession)
 
         self._lastHeartBeatTime = datetime.now(pytz.utc)
+        self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
 
         self._transport = transport
         self._addr = addr
@@ -50,11 +51,22 @@ class VortexServerConnection(VortexConnectionABC):
             self._beatLoopingCall.stop()
             return
 
+        beatTimeout = (datetime.now(pytz.utc) - self._lastHeartBeatTime) \
+                          .seconds > HEART_BEAT_TIMEOUT
+
+        # If we've been asleep, then make note of that (VM suspended)
+        checkTimout = (datetime.now(pytz.utc) - self._lastHeartBeatCheckTime) \
+                          .seconds > HEART_BEAT_TIMEOUT
+
+        # Mark that we've just checked it
+        self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
+
         # If we havn't heard from the client, then close the connection
-        if (datetime.now(pytz.utc) - self._lastHeartBeatTime).seconds > HEART_BEAT_TIMEOUT:
+        if not checkTimout and beatTimeout:
             self._beatLoopingCall.stop()
             self.close()
             return
+
 
         # Otherwise, Send the heartbeats
         self._transport.write(b'.')
