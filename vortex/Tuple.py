@@ -358,23 +358,22 @@ class Tuple(Jsonable):
             raise Exception("Tuple %s has no shortFieldNames defined" % Tuple.tupleType())
 
         def convert(value):
-            if value is None:
-                return None
+            if value in (None, ''):
+                return value
 
-            elif isinstance(value, list):
+            if isinstance(value, list):
                 return [convert(v) for v in value]
 
-            elif isinstance(value, dict) and value.get('_tt', None):
+            if isinstance(value, dict) and value.get('_tt', None):
                 return Tuple.smallJsonDictToTuple(value)
 
             # elif isinstance(value, WKBElement):
             #     return convertFromWkbElement(value)
 
-            elif isinstance(value, str) and re.match(value, ISO8601_REGEXP):
+            if isinstance(value, str) and re.match(value, ISO8601_REGEXP):
                 return strptime(value, ISO8601)
 
-            else:
-                return value
+            return value
 
         newTuple = Tuple_()
 
