@@ -60,6 +60,9 @@ class PayloadIO(object):
 
         immutableEndpoints = list(self._endpoints)
         for endpoint in immutableEndpoints:
+            if not endpoint.check(payloadEnvelope, vortexName):
+                continue
+
             reactor.callLater(0, self._processLater, endpoint, payloadEnvelope,
                               vortexUuid, vortexName, httpSession, sendResponse)
 

@@ -103,7 +103,12 @@ class PayloadEndpoint(object):
     def filt(self):
         return copy(self._filt)
 
-    def check(self, payload):
+    def check(self, payloadEnvelope: PayloadEnvelope, vortexName: str) -> bool:
+
+        # Filter for the backend vortexes.
+        if self._acceptOnlyFromVortex and self._acceptOnlyFromVortex != vortexName:
+            return False
+
         def removeUnhashable(filt):
             items = set()
             for key, value in list(filt.items()):
@@ -123,7 +128,7 @@ class PayloadEndpoint(object):
                 items.add((key, value))
             return items
 
-        theirFilt = removeUnhashable(payload.filt)
+        theirFilt = removeUnhashable(payloadEnvelope.filt)
         ourFilt = removeUnhashable(self._filt)
 
         return set(ourFilt).issubset(theirFilt)
@@ -132,20 +137,18 @@ class PayloadEndpoint(object):
                 vortexUuid: str, vortexName: str, httpSession,
                 sendResponse: SendVortexMsgResponseCallable):
 
-        # Filter for the backend vortexes.
-        if self._acceptOnlyFromVortex and self._acceptOnlyFromVortex != vortexName:
+        if not self.check(payloadEnvelope, vortexName):
             return
 
-        if self.check(payloadEnvelope):
-            callable_ = self._wref()
-            if callable_:
-                return callable_(payloadEnvelope=payloadEnvelope,
-                                 vortexUuid=vortexUuid,
-                                 vortexName=vortexName,
-                                 httpSession=httpSession,
-                                 sendResponse=sendResponse)
-            else:
-                PayloadIO().remove(self)
+        callable_ = self._wref()
+        if callable_:
+            return callable_(payloadEnvelope=payloadEnvelope,
+                             vortexUuid=vortexUuid,
+                             vortexName=vortexName,
+                             httpSession=httpSession,
+                             sendResponse=sendResponse)
+        else:
+            PayloadIO().remove(self)
 
     def _callableExpired(self, expiredCallable):
         pass
