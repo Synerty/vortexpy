@@ -294,7 +294,6 @@ class _VortexRPC:
                 result = self.__func(*args, **kwargs)
 
         except Exception as e:
-            logger.exception(e)
             return fail(Failure(e))
 
         if isinstance(result, Deferred):
