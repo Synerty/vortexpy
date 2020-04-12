@@ -8,9 +8,10 @@
 """
 import logging
 import traceback
+import typing
 from copy import copy, deepcopy
 from json import JSONEncoder
-from typing import List, Optional
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,49 @@ class Jsonable(object):
     JSON_TUPLE_TYPE = '_c'
     JSON_FIELD_TYPE = "_ft"
     JSON_FIELD_DATA = "_fd"
+
+    __memoryLoggingRefs = None
+    __memoryLoggingEnabled = False
+
+    @classmethod
+    def setupMemoryLogging(cls) -> None:
+        cls.__memoryLoggingRefs = defaultdict(lambda: 0)
+        cls.__memoryLoggingEnabled = True
+
+    @classmethod
+    def memoryLoggingDump(cls, top=10, over=100) -> List[typing.Tuple[str, int]]:
+        if not Jsonable.__memoryLoggingRefs:
+            return []
+
+        data = sorted(Jsonable.__memoryLoggingRefs.items(),
+                      key=lambda x: x[1],
+                      reverse=True)
+
+        return list(filter(lambda x: x[1] >= over, data))[:top]
+
+    def __memLoggingKey(self):
+        if getattr(self, '__rapuiSerialiseType__') == T_RAPUI_TUPLE:
+            key = 'Tuple: ' + getattr(self, '__tupleType__')
+
+        elif getattr(self, '__rapuiSerialiseType__') == T_RAPUI_PAYLOAD:
+            assert hasattr(self, 'filt'), 'Payload is missing filt'
+            if 'key' in self.filt:
+                key = 'Payload: key=' + self.filt['key']
+            else:
+                key = 'Payload: ' + str(self.filt)
+
+        else:
+            key = 'Jsonable: ' + getattr(self, '__rapuiSerialiseType__')
+
+        return key
+
+    def __init__(self):
+        if Jsonable.__memoryLoggingEnabled:
+            Jsonable.__memoryLoggingRefs[self.__memLoggingKey()] += 1
+
+    def __del__(self):
+        if Jsonable.__memoryLoggingEnabled:
+            Jsonable.__memoryLoggingRefs[self.__memLoggingKey()] -= 1
 
     def __isRawJsonableField(self, name: str) -> bool:
         if not (name and self.__rawJonableFields__):
