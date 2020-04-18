@@ -1,6 +1,8 @@
 import logging
 import typing
+import weakref
 from abc import abstractmethod, ABCMeta
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Set
 
@@ -23,7 +25,41 @@ class _CachedSubscribedData:
     """
     TEARDOWN_WAIT = 120  # 2 minutes in seconds
 
+    __memoryLoggingRefs = None
+    __memoryLoggingEnabled = False
+
+    @classmethod
+    def setupMemoryLogging(cls) -> None:
+        cls.__memoryLoggingRefs = []
+        cls.__memoryLoggingEnabled = True
+
+    @classmethod
+    def memoryLoggingDump(cls, top=10, over=100) -> typing.List[typing.Tuple[str, int, int]]:
+        if not cls.__memoryLoggingRefs:
+            return []
+
+        # Filter out expired items
+        cls.__memoryLoggingRefs = list(filter(lambda o: o(), cls.__memoryLoggingRefs))
+
+        cachesByTupleType = defaultdict(list)
+        for cacheRef in cls.__memoryLoggingRefs:
+            cache = cacheRef()
+            if not cache:
+                continue
+            cachesByTupleType[cache.tupleSelector.name].append(len(cache.encodedPayload))
+
+        results = []
+        for tupleName, lengths in cachesByTupleType.items():
+            results.append((tupleName, len(lengths), sum(lengths)))
+
+        data = sorted(results, key=lambda x: x[2], reverse=True)
+
+        return list(filter(lambda x: x[2] >= over, data))[:top]
+
     def __init__(self, tupleSelector: TupleSelector, cacheEnabled: bool = True) -> None:
+        if _CachedSubscribedData.__memoryLoggingEnabled:
+            _CachedSubscribedData.__memoryLoggingRefs.append(weakref.ref(self))
+
         self.tupleSelector: TupleSelector = tupleSelector
         self.vortexUuids: Set[str] = set()
         self.tearDownDate: Optional[datetime] = None

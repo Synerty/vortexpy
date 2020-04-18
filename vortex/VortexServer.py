@@ -218,8 +218,9 @@ class VortexServer(VortexABC):
 
             return
 
+        from vortex.VortexServerConnection import VortexServerConnection
         conns: List[VortexServerConnection] = []
-        if vortexUuid == None:
+        if vortexUuid is None:
             conns = list(self._connectionByVortexUuid.values())
         elif vortexUuid in self._connectionByVortexUuid:
             conns.append(self._connectionByVortexUuid[vortexUuid])
