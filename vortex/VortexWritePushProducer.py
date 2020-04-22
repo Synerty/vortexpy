@@ -50,10 +50,6 @@ class VortexWritePushProducer(object):
         self._remoteVortexName = remoteVortexName
 
     def _startWriting(self):
-        coiterate(self._writeLoop())
-
-    def _writeLoop(self):
-
         # ---------------
         # Write in progress logic.
         # We should only have one write loop at a time
@@ -65,7 +61,7 @@ class VortexWritePushProducer(object):
         for priority in sorted(self._queueByPriority):
             queue = self._queueByPriority[priority]
 
-            while self._queueByPriority and not self._paused:
+            while queue and not self._paused:
                 data = queue.popleft()
                 if not queue:
                     del self._queueByPriority[priority]
@@ -85,11 +81,7 @@ class VortexWritePushProducer(object):
                         self._remoteVortexName,
                         _format_size(self._queuedDataLen))
 
-                logger.debug("%s: Producer paused, data len = %s",
-                             self._remoteVortexName, self._queuedDataLen)
-                self._transport.write(data, )
-
-                yield None  # Let the reactor have some time
+                self._transport.write(data)
 
         self._writingInProgress = False
 
