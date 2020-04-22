@@ -25,6 +25,7 @@ from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServer import HEART_BEAT_PERIOD
+from vortex.VortexWritePushProducer import VortexWritePushProducer
 
 logger = logging.getLogger(name=__name__)
 
@@ -41,6 +42,8 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
         d = self._sendBeatLoopingCall.start(HEART_BEAT_PERIOD, now=False)
         d.addErrback(lambda f: logger.exception(f.value))
 
+        self._producer: Optional[VortexWritePushProducer] = None
+
     def _beat(self):
         if self._vortexClient:
             self._vortexClient._beat()
@@ -48,6 +51,8 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
     def _nameAndUuidReceived(self, name, uuid):
         from vortex.VortexFactory import VortexFactory
         VortexFactory._notifyOfVortexStatusChange(name, online=True)
+
+        self._producer.setRemoteVortexName(self._serverVortexName)
 
         if self._vortexClient:
             self._vortexClient._setNameAndUuid(name=self._serverVortexName,
@@ -66,25 +71,31 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
             return
 
         # Send the heartbeats
-        self.transport.write(b'.')
+        self._producer.write(b'.', DEFAULT_PRIORITY)
 
-    def write(self, payloadVortexStr: bytes):
+    def write(self, payloadVortexStr: bytes, priority: int = DEFAULT_PRIORITY):
         if not twisted.python.threadable.isInIOThread():
             e = Exception("Write called from NON main thread")
             logger.exception(str(e))
             raise e
 
         assert not self._closed
-        self.transport.write(payloadVortexStr)
-        self.transport.write(b'.')
+        self._producer.write(payloadVortexStr + b'.', priority)
 
     def connectionMade(self):
+        self._producer = VortexWritePushProducer(self.transport, lambda: self.close())
+
+        # Register the producer if there isn't one already.
+        if not self.transport.producer:
+            self.transport.registerProducer(self._producer, True)
+
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {
             PayloadEnvelope.vortexUuidKey: self._vortexClient.uuid,
             PayloadEnvelope.vortexNameKey: self._vortexClient.name
         }
-        self.write(PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg())
+        self._producer.write(PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg(),
+                             DEFAULT_PRIORITY)
 
     def connectionLost(self, reason=connectionDone):
         from vortex.VortexFactory import VortexFactory
