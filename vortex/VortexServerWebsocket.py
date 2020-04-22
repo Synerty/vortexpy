@@ -14,11 +14,12 @@ from twisted.internet.protocol import Protocol, connectionDone, Factory
 from twisted.protocols.policies import WrappingFactory
 from twisted.web import resource
 from twisted.web.server import NOT_DONE_YET
-
 from txws import WebSocketProtocol
+
 from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.VortexServerConnection import VortexServerConnection
+from .PayloadPriority import DEFAULT_PRIORITY
 from .VortexServer import VortexServer
 
 logger = logging.getLogger(name=__name__)
@@ -67,7 +68,8 @@ class VortexWebsocketServerProtocol(Protocol):
         connectPayloadFilt = {}
         connectPayloadFilt[PayloadEnvelope.vortexUuidKey] = self._vortex.uuid()
         connectPayloadFilt[PayloadEnvelope.vortexNameKey] = self._vortex.name()
-        self._conn.write(PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg())
+        self._conn.write(PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg(),
+                         DEFAULT_PRIORITY)
 
         self._vortex.connectionOpened(self._httpSession, self._conn)
 
@@ -129,6 +131,7 @@ class VortexWrappedWebSocketFactory(WrappingFactory):
 
     def buildProtocol(self, addr, httpSession):
         return self.protocol(self, self.wrappedFactory.buildProtocol(addr, httpSession))
+
 
 class VortexWebSocketUpgradeResource(resource.Resource):
     """ Vortex Websocket Upgrade Resource

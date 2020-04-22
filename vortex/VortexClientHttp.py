@@ -15,14 +15,16 @@ from urllib.parse import urlencode
 
 import pytz
 from twisted.internet import reactor, task
-from twisted.internet.defer import succeed, Deferred
+from twisted.internet.defer import succeed, Deferred, inlineCallbacks
 from twisted.python.failure import Failure
 from twisted.web.client import Agent, CookieAgent
 from twisted.web.http_headers import Headers
 from twisted.web.iweb import IBodyProducer
 from zope.interface.declarations import implementer
 
+from vortex.DeferUtil import isMainThread
 from vortex.PayloadEnvelope import PayloadEnvelope, VortexMsgList
+from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 
@@ -153,7 +155,13 @@ class VortexClientHttp(VortexABC):
 
     def sendVortexMsg(self,
                       vortexMsgs: Union[VortexMsgList, bytes, None] = None,
-                      vortexUuid: Optional[str] = None) -> Deferred:
+                      vortexUuid: Optional[str] = None,
+                      priority: int = DEFAULT_PRIORITY) -> Deferred:
+        """ Send Vortex Msg
+
+        NOTE: Priority ins't supported as there is no buffer for this class.
+
+        """
 
         if vortexMsgs is None:
             vortexMsgs = self._reconnectVortexMsgs
@@ -168,9 +176,14 @@ class VortexClientHttp(VortexABC):
         # if not self.__protocol.serverVortexUuid:
         #     return []
 
+        if isMainThread():
+            return self._sendVortexMsgLater(vortexMsgs)
+
         return task.deferLater(reactor, 0, self._sendVortexMsgLater, vortexMsgs)
 
+    @inlineCallbacks
     def _sendVortexMsgLater(self, vortexMsgs: VortexMsgList):
+        yield None
         assert self._server
         assert vortexMsgs
 

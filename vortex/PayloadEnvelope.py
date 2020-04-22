@@ -25,14 +25,16 @@ logger = logging.getLogger(__name__)
 PayloadEnvelopeList = List['PayloadEnvelope']
 VortexMsgList = List[bytes]
 
+
 class NoPayloadException(Exception):
     pass
+
 
 class PayloadEnvelope(Jsonable):
     ''' Payload
     This object represents a hierarchy of data transferred between client and server
     '''
-    __fieldNames__ = ['filt',  'encodedPayload', 'result', 'date']
+    __fieldNames__ = ['filt', 'encodedPayload', 'result', 'date']
     __rapuiSerialiseType__ = T_RAPUI_PAYLOAD_ENVELOPE
 
     vortexUuidKey = '__vortexUuid__'
@@ -41,7 +43,7 @@ class PayloadEnvelope(Jsonable):
     def __init__(self, filt: Optional[Dict] = None,
                  encodedPayload: Optional[bytes] = None,
                  result=None,
-                 date:Optional[datetime]=None) -> None:
+                 date: Optional[datetime] = None) -> None:
         """ Constructor
 
         """

@@ -7,4 +7,5 @@
  * Support : support@synerty.com
 """
 
-__version__ = '1.2.14'
+RPC_PRIORITY = 10
+DEFAULT_PRIORITY = 100

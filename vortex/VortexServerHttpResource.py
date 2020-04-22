@@ -19,6 +19,7 @@ from twisted.web.server import NOT_DONE_YET
 
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.VortexServer import HEART_BEAT_PERIOD
+from .PayloadPriority import DEFAULT_PRIORITY
 from .VortexConnectionABC import VortexConnectionABC
 from .VortexServer import VortexServer
 
@@ -145,7 +146,7 @@ class VortexResourceConnection(VortexConnectionABC):
             self._write(self._buffer.popleft())
         self._buffer = None
 
-    def write(self, payloadVortexStr: bytes):
+    def write(self, payloadVortexStr: bytes, priority: int = DEFAULT_PRIORITY):
         assert not self._closed
         # If we have a buffer, write it.
         if self._buffer:

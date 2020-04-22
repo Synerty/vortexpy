@@ -5,7 +5,7 @@ from twisted.internet.defer import Deferred
 
 from vortex.PayloadEnvelope import VortexMsgList
 
-SendVortexMsgResponseCallable = Callable[[Union[VortexMsgList, bytes]], Deferred]
+SendVortexMsgResponseCallable = Callable[[Union[VortexMsgList, bytes], int], Deferred]
 
 
 class VortexInfo:

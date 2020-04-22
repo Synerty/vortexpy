@@ -7,11 +7,12 @@ from rx.subjects import Subject
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList, succeed
 from twisted.python.failure import Failure
-
 from txws import WebSocketFactory
+
 from vortex.DeferUtil import yesMainThread
 from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
+from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC
 from vortex.VortexClientHttp import VortexClientHttp
 from vortex.VortexClientTcp import VortexClientTcp
@@ -285,7 +286,8 @@ class VortexFactory:
         return DeferredList(deferreds)
 
     @classmethod
-    def sendVortexMsgLocally(cls, vortexMsgs: Union[VortexMsgList, bytes]) -> Deferred:
+    def sendVortexMsgLocally(cls, vortexMsgs: Union[VortexMsgList, bytes],
+                             priority: int = DEFAULT_PRIORITY) -> Deferred:
         """ Send VortexMsg
 
         Sends a payload to the remote vortex.

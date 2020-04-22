@@ -12,8 +12,10 @@ from datetime import datetime
 import pytz
 from twisted.internet import task
 
+from .PayloadPriority import DEFAULT_PRIORITY
 from .VortexConnectionABC import VortexConnectionABC
 from .VortexServer import VortexServer, HEART_BEAT_PERIOD, HEART_BEAT_TIMEOUT
+from .VortexWritePushProducer import VortexWritePushProducer
 
 logger = logging.getLogger(name=__name__)
 
@@ -41,6 +43,15 @@ class VortexServerConnection(VortexConnectionABC):
         self._beatLoopingCall = task.LoopingCall(self._beat)
         d = self._beatLoopingCall.start(HEART_BEAT_PERIOD, now=False)
         d.addErrback(lambda f: logger.exception(f.value))
+
+        self._producer = VortexWritePushProducer(transport,
+                                                 lambda: self.close(),
+                                                 remoteVortexName)
+
+        # Register the producer if there isn't one already.
+        # The websocket server already has one.
+        if not self._transport.producer:
+            transport.registerProducer(self._producer, True)
 
     def beatReceived(self):
         self._lastHeartBeatTime = datetime.now(pytz.utc)
@@ -71,9 +82,7 @@ class VortexServerConnection(VortexConnectionABC):
             self.close()
             return
 
-
-        # Otherwise, Send the heartbeats
-        self._transport.write(b'.')
+        self._producer.write(b'.', DEFAULT_PRIORITY)
 
     @property
     def ip(self):
@@ -83,13 +92,13 @@ class VortexServerConnection(VortexConnectionABC):
     def port(self):
         return self._addr.port
 
-    def write(self, payloadVortexStr: bytes):
+    def write(self, payloadVortexStr: bytes, priority: int = DEFAULT_PRIORITY):
         assert not self._closed
-        self._transport.write(payloadVortexStr)
-        self._transport.write(b'.')
+        self._producer.write(payloadVortexStr + b'.', priority)
 
     def close(self):
         self._transport.loseConnection()
 
     def transportClosed(self):
+        self._producer.close()
         VortexConnectionABC.close(self)
