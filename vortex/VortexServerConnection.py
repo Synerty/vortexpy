@@ -44,13 +44,15 @@ class VortexServerConnection(VortexConnectionABC):
         d = self._beatLoopingCall.start(HEART_BEAT_PERIOD, now=False)
         d.addErrback(lambda f: logger.exception(f.value))
 
-        self._producer = VortexWritePushProducer(transport,
-                                                 lambda: self.close(),
-                                                 remoteVortexName)
+        self._producer = None
 
         # Register the producer if there isn't one already.
         # The websocket server already has one.
         if not self._transport.producer:
+            self._producer = VortexWritePushProducer(transport,
+                                                     lambda: self.close(),
+                                                     remoteVortexName)
+
             transport.registerProducer(self._producer, True)
 
     def beatReceived(self):
@@ -82,7 +84,7 @@ class VortexServerConnection(VortexConnectionABC):
             self.close()
             return
 
-        self._producer.write(b'.', DEFAULT_PRIORITY)
+        self._write(b'.', DEFAULT_PRIORITY)
 
     @property
     def ip(self):
@@ -94,7 +96,14 @@ class VortexServerConnection(VortexConnectionABC):
 
     def write(self, payloadVortexStr: bytes, priority: int = DEFAULT_PRIORITY):
         assert not self._closed
-        self._producer.write(payloadVortexStr + b'.', priority)
+        self._write(payloadVortexStr, priority)
+        self._write(b'.', priority)
+
+    def _write(self, payloadVortexStr: bytes, priority: int):
+        if self._producer:
+            self._producer.write(payloadVortexStr, priority)
+        else:
+            self._transport.write(payloadVortexStr)
 
     def close(self):
         self._transport.loseConnection()

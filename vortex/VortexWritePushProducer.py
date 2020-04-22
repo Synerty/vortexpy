@@ -11,7 +11,7 @@ from collections import deque, defaultdict
 from typing import Callable, Deque, Dict
 
 from twisted.internet.interfaces import IPushProducer
-from twisted.internet.task import coiterate
+from txws import WebSocketProtocol
 from zope.interface import implementer
 
 logger = logging.getLogger(name=__name__)
@@ -46,6 +46,9 @@ class VortexWritePushProducer(object):
         self._queuedDataLen = 0
         self._queueByPriority: Dict[int, Deque] = defaultdict(deque)
 
+        # The websocket protocol likes one vortexmsg per frame
+        self._useFraming = isinstance(transport, WebSocketProtocol)
+
     def setRemoteVortexName(self, remoteVortexName: str):
         self._remoteVortexName = remoteVortexName
 
@@ -63,9 +66,6 @@ class VortexWritePushProducer(object):
 
             while queue and not self._paused:
                 data = queue.popleft()
-                if not queue:
-                    del self._queueByPriority[priority]
-
                 preLen = self._queuedDataLen
                 self._queuedDataLen -= len(data)
 
@@ -81,7 +81,12 @@ class VortexWritePushProducer(object):
                         self._remoteVortexName,
                         _format_size(self._queuedDataLen))
 
-                self._transport.write(data)
+                if self._useFraming:
+                    for frame in data.split(b'.'):
+                        self._transport.write(data)
+                        self._transport.write(b'.')
+                else:
+                    self._transport.write(data)
 
         self._writingInProgress = False
 
