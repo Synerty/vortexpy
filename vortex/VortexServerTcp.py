@@ -14,8 +14,8 @@ from twisted.internet.protocol import connectionDone, Factory
 
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServerConnection import VortexServerConnection
-from .Payload import Payload
 from .PayloadEnvelope import VortexMsgList, PayloadEnvelope
+from .PayloadPriority import DEFAULT_PRIORITY
 from .VortexServer import VortexServer
 
 logger = logging.getLogger(name=__name__)
@@ -57,12 +57,13 @@ class VortexTcpServerProtocol(VortexPayloadProtocol):
         self._vortex.connectionOpened(self._httpSession, self._conn)
 
     def _createResponseSenderCallable(self):
-        def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):
+        def sendResponse(vortexMsgs: Union[VortexMsgList, bytes],
+                         priority: int = DEFAULT_PRIORITY):
             if isinstance(vortexMsgs, bytes):
                 vortexMsgs = [vortexMsgs]
 
             for vortexMsg in vortexMsgs:
-                self._conn.write(vortexMsg)
+                self._conn.write(vortexMsg, priority)
 
             return succeed(True)
 

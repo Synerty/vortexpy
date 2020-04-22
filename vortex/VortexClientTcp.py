@@ -14,13 +14,14 @@ from typing import Union, Optional, List
 import pytz
 import twisted
 from twisted.internet import reactor
-from twisted.internet import task, defer
-from twisted.internet.defer import Deferred
+from twisted.internet import task
+from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.internet.error import ConnectionDone, ConnectionRefusedError
 from twisted.internet.protocol import connectionDone, ReconnectingClientFactory
 
-from vortex.DeferUtil import vortexLogFailure
+from vortex.DeferUtil import vortexLogFailure, isMainThread
 from vortex.PayloadEnvelope import PayloadEnvelope, VortexMsgList
+from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServer import HEART_BEAT_PERIOD
@@ -53,8 +54,10 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
                                                uuid=self._serverVortexUuid)
 
     def _createResponseSenderCallable(self):
-        def sendResponse(vortexMsgs: Union[VortexMsgList, bytes]):
-            return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs)
+        def sendResponse(vortexMsgs: Union[VortexMsgList, bytes],
+                         priority: int = DEFAULT_PRIORITY):
+            return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs,
+                                                    priority=priority)
 
         return sendResponse
 
@@ -224,7 +227,13 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
 
     def sendVortexMsg(self,
                       vortexMsgs: Union[VortexMsgList, bytes, None] = None,
-                      vortexUuid: Optional[str] = None) -> Deferred:
+                      vortexUuid: Optional[str] = None,
+                      priority: int = DEFAULT_PRIORITY) -> Deferred:
+        """ Send Vortex Msg
+
+        NOTE: Priority ins't supported as there is no buffer for this class.
+
+        """
 
         if vortexMsgs is None:
             vortexMsgs = self._reconnectVortexMsgs
@@ -239,9 +248,14 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         # if not self.__protocol.serverVortexUuid:
         #     return []
 
+        if isMainThread():
+            return self._sendVortexMsgLater(vortexMsgs)
+
         return task.deferLater(reactor, 0, self._sendVortexMsgLater, vortexMsgs)
 
+    @inlineCallbacks
     def _sendVortexMsgLater(self, vortexMsgs: VortexMsgList):
+        yield None
         assert self._server
         assert vortexMsgs
 
@@ -250,7 +264,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         for vortexMsg in vortexMsgs:
             self.__protocol.write(vortexMsg)
 
-        return defer.succeed(True)
+        return True
 
     def _beat(self):
         """ Beat, Called by protocol """
@@ -281,7 +295,6 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         if beatTimeout:
             self._reconnectAfterHeartBeatLost()
             return
-
 
     def _reconnectAfterHeartBeatLost(self):
         if self._retrying:

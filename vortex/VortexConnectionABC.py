@@ -10,6 +10,7 @@
 import logging
 from abc import ABCMeta, abstractmethod
 
+from .PayloadPriority import DEFAULT_PRIORITY
 from .VortexServer import VortexServer
 
 logger = logging.getLogger(name=__name__)
@@ -18,8 +19,8 @@ logger = logging.getLogger(name=__name__)
 class VortexConnectionABC(metaclass=ABCMeta):
     def __init__(self, logger,
                  vortexServer: VortexServer,
-                 remoteVortexUuid:str,
-                 remoteVortexName:str,
+                 remoteVortexUuid: str,
+                 remoteVortexName: str,
                  httpSessionUuid=None) -> None:
         self._vortexServer = vortexServer
         self._logger = logger
@@ -51,7 +52,7 @@ class VortexConnectionABC(metaclass=ABCMeta):
         return self._remoteVortexName
 
     @abstractmethod
-    def write(self, payloadVortexStr):
+    def write(self, payloadVortexStr: bytes, priority: int = DEFAULT_PRIORITY):
         """ Write
 
         EG

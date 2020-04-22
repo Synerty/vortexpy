@@ -12,16 +12,17 @@ from typing import Optional, Union, Dict, List, Any
 from weakref import WeakValueDictionary
 
 from twisted.internet import task, reactor
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.python.components import registerAdapter
 from twisted.web.server import Session
 from zope.interface import Interface, Attribute
 from zope.interface.declarations import implementer
 
-from vortex.DeferUtil import vortexLogFailure
+from vortex.DeferUtil import vortexLogFailure, isMainThread
 from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
 from vortex.PayloadFilterKeys import rapuiServerEcho
 from vortex.PayloadIO import PayloadIO
+from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
 
 logger = logging.getLogger(__name__)
@@ -156,13 +157,13 @@ class VortexServer(VortexABC):
             payload.filt.pop(rapuiServerEcho)
             self.sendVortexMsg(payload.toVortexMsg(), vortexUuid)
 
-        def sendResponse(vortexMsg: bytes) -> Deferred:
+        def sendResponse(vortexMsg: bytes, priority: int = DEFAULT_PRIORITY) -> Deferred:
             """ Send Back
 
             Sends a response back to where this payload come from.
 
             """
-            return self.sendVortexMsg(vortexMsg, vortexUuid)
+            return self.sendVortexMsg(vortexMsg, vortexUuid=vortexUuid, priority=priority)
 
         PayloadIO().process(payload,
                             vortexUuid=vortexUuid,
@@ -173,7 +174,8 @@ class VortexServer(VortexABC):
 
     def sendVortexMsg(self,
                       vortexMsgs: Union[VortexMsgList, bytes, None] = None,
-                      vortexUuid: Optional[str] = None):
+                      vortexUuid: Optional[str] = None,
+                      priority: int = DEFAULT_PRIORITY):
         """ Send Vortex Msg
 
         Sends the vortex message to any conencted clients with vortexUuid.
@@ -185,18 +187,25 @@ class VortexServer(VortexABC):
         if vortexMsgs is None:
             vortexMsgs = [PayloadEnvelope().toVortexMsg()]
 
-        return task.deferLater(reactor, 0, self._sendVortexMsgLater, vortexMsgs,
-                               vortexUuid=vortexUuid)
+        if isMainThread():
+            return self._sendVortexMsgLater(vortexMsgs, vortexUuid=vortexUuid,
+                                            priority=priority)
 
+        return task.deferLater(reactor, 0, self._sendVortexMsgLater, vortexMsgs,
+                               vortexUuid=vortexUuid, priority=priority)
+
+    @inlineCallbacks
     def _sendVortexMsgLater(self,
                             vortexMsgs: Union[VortexMsgList, bytes],
-                            vortexUuid: Optional[str]):
+                            vortexUuid: Optional[str],
+                            priority: int):
         """ Send the message.
 
         Send it later,
         This also means it doesn't matter what thread this is called from
 
         """
+        yield None
 
         if not isinstance(vortexMsgs, list):
             vortexMsgs = [vortexMsgs]
@@ -204,13 +213,16 @@ class VortexServer(VortexABC):
         # Deliver locally
         if vortexUuid == self._uuid:
             for vortexMsg in vortexMsgs:
+                def sendResponse(vortexMsg_, priority_=DEFAULT_PRIORITY):
+                    self._sendVortexMsgLater(vortexMsg_, self._uuid, priority_)
+
                 def cb(payloadEnvelope: PayloadEnvelope) -> None:
                     PayloadIO().process(
                         payloadEnvelope,
                         vortexUuid=self._uuid,
                         vortexName=self._name,
                         httpSession=None,
-                        sendResponse=lambda _: self._sendVortexMsgLater(_, self._uuid))
+                        sendResponse=sendResponse)
 
                 d = PayloadEnvelope.fromVortexMsgDefer(vortexMsg)
                 d.addCallback(cb)
@@ -227,7 +239,9 @@ class VortexServer(VortexABC):
 
         for conn in conns:
             for vortexMsg in vortexMsgs:
-                conn.write(vortexMsg)
+                conn.write(vortexMsg, priority)
+
+        return True
 
 
 ''' ---------------------------------------------------------------------------
@@ -247,4 +261,3 @@ class VortexSession(object):
 
 
 registerAdapter(VortexSession, Session, VortexSessionI)
-

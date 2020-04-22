@@ -11,6 +11,7 @@ from vortex.DeferUtil import yesMainThread
 from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadEnvelope import PayloadEnvelope
+from vortex.PayloadPriority import RPC_PRIORITY
 from vortex.PayloadResponse import PayloadResponse
 from vortex.Tuple import Tuple, addTupleType, TupleField
 from vortex.VortexFactory import VortexFactory
@@ -193,7 +194,7 @@ class _VortexRPC:
 
         vortexMsg = yield payloadEnvelope.toVortexMsgDefer()
 
-        yield sendResponseCallable(vortexMsg)
+        yield sendResponseCallable(vortexMsg, RPC_PRIORITY)
 
     @inlineCallbacks
     def __call__(self, *args, **kwargs):

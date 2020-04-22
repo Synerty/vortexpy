@@ -124,11 +124,15 @@ def deferToThreadWrapWithLogger(logger, consumeError=False, checkMainThread=True
     return wrapper
 
 
+def isMainThread():
+    return twisted.python.threadable.isInIOThread()
+
+
 def noMainThread():
-    if twisted.python.threadable.isInIOThread():
+    if isMainThread():
         raise Exception("Blocking operations shouldn't occur in the reactors thread.")
 
 
 def yesMainThread():
-    if not twisted.python.threadable.isInIOThread():
+    if not isMainThread():
         raise Exception("Async operations must occur in the reactors main thread.")

@@ -225,7 +225,7 @@ class VortexServerConnection(VortexConnectionABC):
     def port(self):
         return self._addr.port
 
-    def write(self, payloadVortexStr: bytes):
+    def write(self, payloadVortexStr: bytes, priority: int = DEFAULT_PRIORITY):
         assert not self._closed
         self._producer.write(payloadVortexStr + b'.', priority)
 
