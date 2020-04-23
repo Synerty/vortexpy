@@ -80,7 +80,7 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
             raise e
 
         assert not self._closed
-        self._producer.write(payloadVortexStr + b'.', priority)
+        self._producer.write(payloadVortexStr, priority)
 
     def connectionMade(self):
         self._producer = VortexWritePushProducer(self.transport, lambda: self.close())

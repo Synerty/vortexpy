@@ -97,7 +97,6 @@ class VortexServerConnection(VortexConnectionABC):
     def write(self, payloadVortexStr: bytes, priority: int = DEFAULT_PRIORITY):
         assert not self._closed
         self._write(payloadVortexStr, priority)
-        self._write(b'.', priority)
 
     def _write(self, payloadVortexStr: bytes, priority: int):
         if self._producer:

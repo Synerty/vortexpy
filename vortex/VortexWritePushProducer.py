@@ -81,12 +81,8 @@ class VortexWritePushProducer(object):
                         self._remoteVortexName,
                         _format_size(self._queuedDataLen))
 
-                if self._useFraming:
-                    for frame in data.split(b'.'):
-                        self._transport.write(data)
-                        self._transport.write(b'.')
-                else:
-                    self._transport.write(data)
+                self._transport.write(data)
+                self._transport.write(b'.')
 
         self._writingInProgress = False
 
