@@ -7,11 +7,12 @@
  * Support : support@synerty.com
 """
 import logging
+import typing
+import weakref
 from collections import deque, defaultdict
 from typing import Callable, Deque, Dict
 
 from twisted.internet.interfaces import IPushProducer
-from txws import WebSocketProtocol
 from zope.interface import implementer
 
 logger = logging.getLogger(name=__name__)
@@ -33,9 +34,45 @@ class VortexWritePushProducer(object):
     WARNING_DATA_LENGTH = 50 * 1024 * 1024
     ERROR_DATA_LENGTH = 50 * 1024 * 1024
 
+    __memoryLoggingRefs = None
+    __memoryLoggingEnabled = False
+
+    @classmethod
+    def setupMemoryLogging(cls) -> None:
+        cls.__memoryLoggingRefs = []
+        cls.__memoryLoggingEnabled = True
+
+    @classmethod
+    def memoryLoggingDump(cls, top=10,
+                          msgs=1) -> typing.List[typing.Tuple[str, int, int]]:
+        if not cls.__memoryLoggingRefs:
+            return []
+
+        # Filter out expired items
+        cls.__memoryLoggingRefs = list(filter(lambda o: o(), cls.__memoryLoggingRefs))
+
+        results = []
+        for producerRef in cls.__memoryLoggingRefs:
+            producer = producerRef()
+            if not producer:
+                continue
+
+            queueCount = sum([len(q) for q in producer._queueByPriority.values()])
+
+            results.append((producer._remoteVortexName,
+                            queueCount,
+                            producer._queuedDataLen))
+
+        data = sorted(results, key=lambda x: x[2], reverse=True)
+
+        return list(filter(lambda x: x[2] >= msgs, data))[:top]
+
     def __init__(self, transport,
                  stopProducingCallback: Callable,
                  remoteVortexName: str = 'Pending'):
+        if VortexWritePushProducer.__memoryLoggingEnabled:
+            VortexWritePushProducer.__memoryLoggingRefs.append(weakref.ref(self))
+
         self._transport = transport
         self._stopProducingCallback = stopProducingCallback
         self._remoteVortexName = remoteVortexName
@@ -45,9 +82,6 @@ class VortexWritePushProducer(object):
         self._closed = False
         self._queuedDataLen = 0
         self._queueByPriority: Dict[int, Deque] = defaultdict(deque)
-
-        # The websocket protocol likes one vortexmsg per frame
-        self._useFraming = isinstance(transport, WebSocketProtocol)
 
     def setRemoteVortexName(self, remoteVortexName: str):
         self._remoteVortexName = remoteVortexName
