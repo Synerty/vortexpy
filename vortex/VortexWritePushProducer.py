@@ -32,7 +32,8 @@ def _format_size(size):
 @implementer(IPushProducer)
 class VortexWritePushProducer(object):
     WARNING_DATA_LENGTH = 50 * 1024 * 1024
-    ERROR_DATA_LENGTH = 50 * 1024 * 1024
+    ERROR_DATA_LENGTH = 500 * 1024 * 1024
+    WRITE_CHUNK_SIZE = 128 * 1024
 
     __memoryLoggingRefs = None
     __memoryLoggingEnabled = False
@@ -69,24 +70,37 @@ class VortexWritePushProducer(object):
 
     def __init__(self, transport,
                  stopProducingCallback: Callable,
-                 remoteVortexName: str = 'Pending'):
+                 remoteVortexName: str = 'Pending',
+                 writeWholeFrames=False):
         if VortexWritePushProducer.__memoryLoggingEnabled:
             VortexWritePushProducer.__memoryLoggingRefs.append(weakref.ref(self))
 
         self._transport = transport
         self._stopProducingCallback = stopProducingCallback
         self._remoteVortexName = remoteVortexName
+        self._writeWholeFrames = writeWholeFrames
 
         self._paused = False
+        self._pausedDeferred = None
         self._writingInProgress = False
+        self._writingFrameInProgress = False
         self._closed = False
         self._queuedDataLen = 0
         self._queueByPriority: Dict[int, Deque] = defaultdict(deque)
+
+        self._currentlyWritingData: typing.Optional[bytes] = None
+        self._currentlyWritingDataOffset: int = 0
 
     def setRemoteVortexName(self, remoteVortexName: str):
         self._remoteVortexName = remoteVortexName
 
     def _startWriting(self):
+        if self._currentlyWritingData is not None:
+            self._startWritingFrame()
+
+        if self._paused:
+            return
+
         # ---------------
         # Write in progress logic.
         # We should only have one write loop at a time
@@ -98,7 +112,7 @@ class VortexWritePushProducer(object):
         for priority in sorted(self._queueByPriority):
             queue = self._queueByPriority[priority]
 
-            while queue and not self._paused:
+            while queue and not self._paused and not self._writingFrameInProgress:
                 data = queue.popleft()
                 preLen = self._queuedDataLen
                 self._queuedDataLen -= len(data)
@@ -115,10 +129,40 @@ class VortexWritePushProducer(object):
                         self._remoteVortexName,
                         _format_size(self._queuedDataLen))
 
-                self._transport.write(data)
-                self._transport.write(b'.')
+                if self._writeWholeFrames:
+                    self._transport.write(data)
+                    self._transport.write(b'.')
+
+                else:
+                    self._currentlyWritingData = data
+                    self._currentlyWritingDataOffset = 0
+                    self._startWritingFrame()
 
         self._writingInProgress = False
+
+    def _startWritingFrame(self):
+        # ---------------
+        # Write in progress logic.
+        # We should only have one write loop at a time
+        if self._writingFrameInProgress:
+            return
+        self._writingFrameInProgress = True
+
+        offset = self._currentlyWritingDataOffset
+        data = self._currentlyWritingData
+        while not self._paused and offset < len(data):
+            self._transport.write(data[offset:offset + self.WRITE_CHUNK_SIZE])
+            offset += self.WRITE_CHUNK_SIZE
+
+        if len(data) <= offset:
+            self._currentlyWritingDataOffset = 0
+            self._currentlyWritingData = None
+            self._transport.write(b'.')
+
+        else:
+            self._currentlyWritingDataOffset = offset
+
+        self._writingFrameInProgress = False
 
     def pauseProducing(self):
         """

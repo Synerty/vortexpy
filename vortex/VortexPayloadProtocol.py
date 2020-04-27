@@ -52,11 +52,11 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
             return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs)
         """
 
-    def dataReceived(self, bytes):
-        if bytes.startswith(b"<"):
+    def dataReceived(self, bytesIn):
+        if bytesIn.startswith(b"<"):
             raise Exception("Not Logged In")
 
-        self._data += bytes
+        self._data += bytesIn
         self._beat()
         self._processData()
 
