@@ -141,7 +141,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
 
         # Start our heart beat checker
-        self._beatTimeoutLoopingCall = task.LoopingCall(self._checkBeat)
+        self._beatLoopingCall = task.LoopingCall(self._checkBeat)
 
         self._reconnectVortexMsgs = [PayloadEnvelope().toVortexMsg()]
 
@@ -208,7 +208,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         self._port = port
 
         self._beat()
-        d = self._beatTimeoutLoopingCall.start(5.0, now=False)
+        d = self._beatLoopingCall.start(5.0, now=False)
         d.addErrback(vortexLogFailure, logger, consumeError=True)
 
         deferred = Deferred()
@@ -225,7 +225,11 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
 
         return deferred
 
-    def disconnect(self):
+    def close(self):
+        if self._beatLoopingCall and self._beatLoopingCall.running:
+            self._beatLoopingCall.stop()
+            self._beatLoopingCall = None
+
         self.stopTrying()
         self.__protocol.close()
 

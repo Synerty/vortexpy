@@ -250,7 +250,8 @@ VortexServer Session
 
 
 class VortexSessionI(Interface):
-    connections = Attribute("VortexServer connections for this session, by window uuid")
+    connections: Dict = Attribute(
+        "VortexServer connections for this session, by window uuid")
 
 
 @implementer(VortexSessionI)

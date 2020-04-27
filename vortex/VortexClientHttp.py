@@ -144,6 +144,11 @@ class VortexClientHttp(VortexABC):
         return deferred
 
     def disconnect(self):
+        if self._beatLoopingCall:
+            if self._beatLoopingCall.running:
+                self._beatLoopingCall.stop()
+            self._beatLoopingCall = None
+
         self.__protocol.transport.loseConnection()
 
     def addReconnectVortexMsg(self, vortexMsg: bytes):

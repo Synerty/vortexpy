@@ -46,7 +46,7 @@ class VortexClientTest(unittest.TestCase):
 
     def tearDown(self):
         try:
-            self.vortexClient.disconnect()
+            self.vortexClient.close()
         except:
             pass
 

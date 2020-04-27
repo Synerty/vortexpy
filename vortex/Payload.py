@@ -7,13 +7,13 @@
  * Support : support@synerty.com
 """
 import logging
-import ujson
 import zlib
 from base64 import b64encode, b64decode
 from datetime import datetime
 from typing import List, Optional, Dict
 
 import pytz
+import ujson
 
 from vortex.DeferUtil import deferToThreadWrapWithLogger, noMainThread
 from .Jsonable import Jsonable
@@ -46,6 +46,9 @@ class Payload(Jsonable):
         if not isinstance(self.tuples, list):
             self.tuples = [self.tuples]
 
+    # -------------------------------------------
+    # PayloadEnvelopes helper messages
+
     def makePayloadEnvelope(self, result=None, compressionLevel: int = 9):
         from .PayloadEnvelope import PayloadEnvelope
         noMainThread()
@@ -58,6 +61,20 @@ class Payload(Jsonable):
     @deferToThreadWrapWithLogger(logger)
     def makePayloadEnvelopeDefer(self, result=None, compressionLevel: int = 9):
         return self.makePayloadEnvelope(result=result, compressionLevel=compressionLevel)
+
+    # -------------------------------------------
+    # VortexMsg helper messages
+
+    def makePayloadEnvelopeVortexMsg(self, result=None, compressionLevel: int = 9):
+        noMainThread()
+        return self.makePayloadEnvelope(result=result,
+                                        compressionLevel=compressionLevel) \
+            .toVortexMsg()
+
+    @deferToThreadWrapWithLogger(logger)
+    def makePayloadEnvelopeVortexMsgDefer(self, result=None, compressionLevel: int = 9):
+        return self.makePayloadEnvelopeVortexMsg(result=result,
+                                                 compressionLevel=compressionLevel)
 
     # -------------------------------------------
     # JSON Related methods

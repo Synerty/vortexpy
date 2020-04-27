@@ -1,4 +1,4 @@
-from abc import ABCMeta, abstractproperty, abstractmethod
+from abc import ABCMeta, abstractmethod
 from typing import Optional, Union, Callable, List
 
 from twisted.internet.defer import Deferred
@@ -22,11 +22,13 @@ class VortexInfo:
 
 
 class VortexABC(metaclass=ABCMeta):
-    @abstractproperty
+    @property
+    @abstractmethod
     def localVortexInfo(self) -> VortexInfo:
         pass
 
-    @abstractproperty
+    @property
+    @abstractmethod
     def remoteVortexInfo(self) -> List[VortexInfo]:
         pass
 

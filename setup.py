@@ -20,7 +20,10 @@ requirements = [
     "vcversioner",
     "six",
     "ujson",
-    "pytz"
+    "pytz",
+
+    # Test requirements
+    "psutil"
 ]
 
 setup(

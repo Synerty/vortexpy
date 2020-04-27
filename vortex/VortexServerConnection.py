@@ -61,7 +61,8 @@ class VortexServerConnection(VortexConnectionABC):
     def _beat(self):
         # If we're closed, do nothing
         if self._closed:
-            self._beatLoopingCall.stop()
+            if self._beatLoopingCall.running:
+                self._beatLoopingCall.stop()
             return
 
         beatTimeout = (datetime.now(pytz.utc) - self._lastHeartBeatTime) \
@@ -105,6 +106,9 @@ class VortexServerConnection(VortexConnectionABC):
             self._transport.write(payloadVortexStr)
 
     def close(self):
+        if self._beatLoopingCall.running:
+            self._beatLoopingCall.stop()
+
         self._transport.loseConnection()
 
     def transportClosed(self):
