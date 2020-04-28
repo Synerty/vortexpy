@@ -1,0 +1,47 @@
+variables:
+    PEEK_NODE_VERSION: v7.1.0
+    LATEST_NODE_VERSION: v12.16.1
+    NVM_DIR: /usr/local/nvm
+
+stages:
+    - test
+
+
+unit_tests_linux:
+    allow_failure: false
+    image: nexus.synerty.com:5000/peek-linux
+    only:
+        - web
+        - triggers
+        - merge_requests
+    script:
+        - python setup.py develop
+        - pip install subunitreporter junitxml
+        - trial --reporter=subunit `find vortex/ -name "*Test.py"` | subunit-1to2 | subunit2junitxml -o report.xml
+    stage: test
+    artifacts:
+        reports:
+            junit: report.xml
+    tags:
+        - linux
+
+
+
+sonar:
+    allow_failure: false
+    image: nexus.synerty.com:5000/peek-linux
+    only:
+        - web
+        - triggers
+        - merge_requests
+    stage: test
+    script:
+        - echo "Run sonar-scanner"
+        - source $NVM_DIR/nvm.sh
+        - nvm use $LATEST_NODE_VERSION
+        - export NODE_PATH=`npm root -g`
+        - npm install -g typescript@3.7.5
+        - sonar-scanner
+    tags:
+        - linux
+

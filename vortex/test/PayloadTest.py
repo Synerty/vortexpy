@@ -6,21 +6,24 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
-import os
+import gc
+
 from twisted.trial import unittest
 
 from vortex.Payload import Payload
-from vortex.Tuple import TupleHash
 from vortex.PayloadFilterKeys import rapuiClientEcho
+from vortex.Tuple import TupleHash
+from vortex.test.VortexTcpMemoryLeakPayloadTest import MemoryCheckerTestMixin
 
 
-def makeTestPayloadA():
+def makeTestPayloadA(tupleDataSize=10 * 1024):
     payload = Payload()
     payload.filt[rapuiClientEcho] = None
+    payload.tuples = ['12345678' * int(tupleDataSize / 8)]
     return payload
 
 
-class PayloadPyTest(unittest.TestCase):
+class PayloadPyTest(unittest.TestCase, MemoryCheckerTestMixin):
     PERF_TEST_COUNT = 10000
 
     def setUp(self):
@@ -29,21 +32,59 @@ class PayloadPyTest(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def testPayloadToFromVortexMsg(self):
+    # @profile
+    def _makeStr(self, size):
+        _ = ['12345678' * int(size / 8)]
+        del _
+        gc.collect()
+
+    # @profile
+    def _payloadEncodeDecode(self, size):
+        origPayload = makeTestPayloadA(size)
+        origPayload.date = None
+
+        encodedPayload = origPayload.toEncodedPayload()
+        payload = Payload().fromEncodedPayload(encodedPayload)
+
+        self.assertEqual(payload.tuples[0], origPayload.tuples[0])
+
+    def testMakeStr_100m_x1000(self):
+        self._memCheckFunction(self._makeStr, 1000, 100 * 1024 ** 2)
+
+    def testPayloadToFromEncodedPayload_10k_x1000(self):
+        self._memCheckFunction(self._payloadEncodeDecode, 1000, 10 * 1024)
+
+    def testPayloadToFromEncodedPayload_100m_x100(self):
+        self._memCheckFunction(self._payloadEncodeDecode, 100, 10 * 1024 ** 2)
+
+    def testPayloadToFromEncodedPayload_1m_x1000(self):
+        self._memCheckFunction(self._payloadEncodeDecode, 1000, 1 * 1024 ** 2)
+
+    def testPayloadToFromEncodedPayload10mb(self):
+        # Create Payload
+        origPayload = makeTestPayloadA()
+        origPayload.tuples = ['1234567890' * 1024 ** 2]
+
+        encodedPayload = origPayload.toEncodedPayload()
+        payload = Payload().fromEncodedPayload(encodedPayload)
+
+        self.assertEqual(payload.tuples[0], origPayload.tuples[0])
+
+    def testPayloadToFromEncodedPayload(self):
         # Create Payload
         origPayload = makeTestPayloadA()
 
         # To VortexServer Message
-        vortexMsg = origPayload.toVortexMsg()
-        # print vortexMsg
+        encodedPayload = origPayload.toEncodedPayload()
+        # print encodedPayload
 
-        payload = Payload().fromVortexMsg(vortexMsg)
+        payload = Payload().fromEncodedPayload(encodedPayload)
 
         self.assertEqual(TupleHash(payload), TupleHash(payload))
         self.assertEqual(TupleHash(origPayload), TupleHash(origPayload))
 
         self.assertEqual(TupleHash(origPayload), TupleHash(payload),
-                         'Payload serialise -> deserialise error')
+                         'Payload serialise -> deserialize error')
 
     def testPayloadToFromJson(self):
         # Create Payload
@@ -51,8 +92,8 @@ class PayloadPyTest(unittest.TestCase):
 
         # To JSON
         jsonStr = origPayload._toJson()
-        # print vortexMsg
-        print(jsonStr)
+        # print encodedPayload
+        # print(jsonStr)
 
         payload = Payload()._fromJson(jsonStr)
 
@@ -61,7 +102,6 @@ class PayloadPyTest(unittest.TestCase):
 
         self.assertEqual(TupleHash(origPayload), TupleHash(payload),
                          'Payload serialise -> deserialise error')
-
 
     def testPayloadJsonPerformanceSingle(self):
         origPayload = makeTestPayloadA()
@@ -70,12 +110,12 @@ class PayloadPyTest(unittest.TestCase):
         jsonStr = origPayload._toJson()
         payload = Payload()._fromJson(jsonStr)
 
-    def testPayloadVortexMsgPerformanceSingle(self):
+    def testPayloadEncodedPayloadPerformanceSingle(self):
         origPayload = makeTestPayloadA()
         for x in range(self.PERF_TEST_COUNT):
             origPayload.tuples.append(makeTestPayloadA())
-        vortexMsg = origPayload.toVortexMsg()
-        payload = Payload().fromVortexMsg(vortexMsg)
+        encodedPayload = origPayload.toEncodedPayload()
+        payload = Payload().fromEncodedPayload(encodedPayload)
 
     def testPayloadJsonPerformanceMultiple(self):
         origPayload = makeTestPayloadA()
@@ -83,9 +123,8 @@ class PayloadPyTest(unittest.TestCase):
             jsonStr = origPayload._toJson()
             payload = Payload()._fromJson(jsonStr)
 
-    def testPayloadVortexMsgPerformanceMultiple(self):
+    def testPayloadEncodedPayloadPerformanceMultiple(self):
         origPayload = makeTestPayloadA()
         for _ in range(self.PERF_TEST_COUNT):
-            vortexMsg = origPayload.toVortexMsg()
-            payload = Payload().fromVortexMsg(vortexMsg)
-
+            encodedPayload = origPayload.toEncodedPayload()
+            payload = Payload().fromEncodedPayload(encodedPayload)

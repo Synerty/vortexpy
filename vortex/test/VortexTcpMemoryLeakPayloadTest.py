@@ -32,18 +32,44 @@ class MemoryCheckerTestMixin:
         self._process = psutil.Process(os.getpid())
         unreachable = gc.collect()
         self._initialMem = self._process.memory_info().rss
+        self._initialUnreachable = unreachable
+        self._lastMem = self._initialMem
 
-    def _memCheck(self, grace=20 * 1024 * 1024):
+    def _memCheck(self, grace=0):
         unreachable = gc.collect()
-        # self.assertFalse(unreachable, "The garbage collector couldn't release everything")
+        self.assertLessEqual(unreachable, self._initialUnreachable,
+                             "The garbage collector couldn't release everything")
         self._memPrintIncrease()
         memNow = self._process.memory_info().rss
         self.assertLessEqual(memNow, self._initialMem + grace)
 
-    def _memPrintIncrease(self):
-        unreachable = gc.collect()
-        print("Memory growth is "
-              + "{:,d}".format(self._process.memory_info().rss - self._initialMem))
+    def _memPrintIncrease(self, printOnlyOnGrowth=False):
+        gc.collect()
+        memNow = self._process.memory_info().rss
+        thisDiff = memNow - self._initialMem
+        lastDiff = self._lastMem - self._initialMem
+        growth = thisDiff - lastDiff
+        self._lastMem = memNow
+        if not printOnlyOnGrowth or growth:
+            print("Memory growth is %s, total growth %s, total %s" % (
+                "{:,d}".format(growth),
+                "{:,d}".format(thisDiff),
+                "{:,d}".format(memNow)))
+
+    def _memCheckFunction(self, callable, loopCount, *args, **kwargs):
+        assert loopCount >= 10, "We need at least 10 loops to check this"
+        # Give the memory 5 loops to warmed up, it shouldn't need more than 2
+        startMemIndex = 5
+        for index in range(loopCount):
+            if index == startMemIndex:  # Mark the second loop only
+                self._memMark()
+
+            callable(*args, **kwargs)
+
+            if startMemIndex <= index:
+                self._memPrintIncrease(printOnlyOnGrowth=True)
+
+        self._memCheck(grace=0)
 
 
 class VortexTcpConnectTestMixin:
@@ -155,7 +181,7 @@ class VortexSendReceiveTestMixin:
                 self.state.dataQueueEmptyDeferred.errback(Failure(e))
 
     @inlineCallbacks
-    def _vortexTestTcpServerClient(self, printStatusEveryXMessage: int,
+    def _vortexTestTcpServerClient(self, printStatusEveryXMessage: Optional[int] = 1000,
                                    maxMessageSizeBytes: Optional[int] = None,
                                    exactMessageSizeBytes: Optional[int] = None,
                                    totalBytesToSend: Optional[int] = None,
@@ -217,8 +243,6 @@ class VortexSendReceiveTestMixin:
                          "{:,d}".format(len(data)),
                          "{:,d}".format(state.totalSent)))
 
-        self._memPrintIncrease()
-
         # Wait for all the sending to complete
         yield state.dataQueueEmptyDeferred
 
@@ -271,7 +295,7 @@ class VortexTcpConnectTest(unittest.TestCase,
             yield self._connect()
             self._disconnect()
             self._memPrintIncrease()
-        self._memCheck()
+        self._memPrintIncrease()
 
     @inlineCallbacks
     def test_vortexReconnect100(self):
@@ -288,11 +312,10 @@ class VortexTcpConnectTest(unittest.TestCase,
             print("Reconnecting #%s" % x)
             yield self._connect()
             yield self._vortexTestTcpServerClient(totalMessagesToSend=10,
-                                                  printStatusEveryXMessage=1,
-                                                  maxMessageSizeBytes=100 * 1024)
+                                                  exactMessageSizeBytes=100 * 1024)
             self._disconnect()
             self._memPrintIncrease()
-        self._memCheck()
+        self._memPrintIncrease()
 
     @inlineCallbacks
     def test_vortexReconnect100_with_data(self):
@@ -317,7 +340,7 @@ class VortexTcpMemoryLeakTest(unittest.TestCase,
                                               exactMessageSizeBytes=size,
                                               payloadCompression=compression)
         self._disconnect()
-        self._memCheck()
+        self._memPrintIncrease()
 
     @inlineCallbacks
     def test_1vortexSend1_1kb_compression1(self):
@@ -354,7 +377,7 @@ class VortexTcpMemoryLeakTest(unittest.TestCase,
                                               sendFromServerOnly=fromServer,
                                               payloadCompression=compression)
         self._disconnect()
-        self._memCheck()
+        self._memPrintIncrease()
 
     @inlineCallbacks
     def test_2vortexSend1mb_1kb(self):
@@ -378,7 +401,7 @@ class VortexTcpMemoryLeakTest(unittest.TestCase,
                                                   printStatusEveryXMessage=1000,
                                                   maxMessageSizeBytes=100 * 1024)
             self._disconnect()
-            self._memCheck()
+            self._memPrintIncrease()
 
         print(" ===== END LOOP ===== ")
         mem._memPrintIncrease()
@@ -398,7 +421,7 @@ class VortexTcpMemoryLeakTest(unittest.TestCase,
             yield self._vortexTestTcpServerClient(totalBytesToSend=1024 ** 2,
                                                   printStatusEveryXMessage=1000,
                                                   maxMessageSizeBytes=1 * 1024)
-            self._memCheck()
+            self._memPrintIncrease()
 
         self._disconnect()
         print(" ===== END LOOP ===== ")
@@ -462,7 +485,6 @@ class VortexTcpMemoryLeakLargeMessagesTest(unittest.TestCase,
             yield d
             self._memPrintIncrease()
 
-        self._memCheck(grace=30 * 1024 ** 2)
 
     @inlineCallbacks
     def test_1vortexSend50mb_oneway_msg10kb(self):
@@ -507,7 +529,7 @@ class VortexTcpMemoryLeakLargeTransfersTest(unittest.TestCase,
                                               maxMessageSizeBytes=10 * 1024 ** 2,
                                               payloadCompression=compression)
         self._disconnect()
-        self._memCheck()
+        self._memPrintIncrease()
 
     @inlineCallbacks
     def test_2vortexSend1gb_compression1(self):
