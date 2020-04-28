@@ -22,8 +22,12 @@ requirements = [
     "ujson",
     "pytz",
 
+    # RxPY by Microsoft. Used everywhere
+    # TODO Upgrade to rx 3.x.x
+    "rx < 3.0.0",
+
     # Test requirements
-    "psutil"
+    "psutil",
 ]
 
 setup(
