@@ -15,6 +15,8 @@ from typing import Callable, Deque, Dict
 from twisted.internet.interfaces import IPushProducer
 from zope.interface import implementer
 
+from vortex.DeferUtil import nonConcurrentMethod
+
 logger = logging.getLogger(name=__name__)
 
 
@@ -94,25 +96,27 @@ class VortexWritePushProducer(object):
     def setRemoteVortexName(self, remoteVortexName: str):
         self._remoteVortexName = remoteVortexName
 
+    @property
+    def _canContinue(self):
+        return not self._paused \
+               and not self._startWritingFrame.running \
+               and [q for q in self._queueByPriority.values() if q]
+
+    @nonConcurrentMethod
     def _startWriting(self):
         if self._currentlyWritingData is not None:
             self._startWritingFrame()
 
-        if self._paused:
-            return
+        while self._canContinue:
+            # Send the messages in order of priority
+            for priority in sorted(self._queueByPriority):
+                if not self._canContinue:
+                    return
 
-        # ---------------
-        # Write in progress logic.
-        # We should only have one write loop at a time
-        if self._writingInProgress:
-            return
-        self._writingInProgress = True
+                queue = self._queueByPriority[priority]
+                if not queue:
+                    continue
 
-        # Send the messages in order of priority
-        for priority in sorted(self._queueByPriority):
-            queue = self._queueByPriority[priority]
-
-            while queue and not self._paused and not self._writingFrameInProgress:
                 data = queue.popleft()
                 preLen = self._queuedDataLen
                 self._queuedDataLen -= len(data)
@@ -138,8 +142,7 @@ class VortexWritePushProducer(object):
                     self._currentlyWritingDataOffset = 0
                     self._startWritingFrame()
 
-        self._writingInProgress = False
-
+    @nonConcurrentMethod
     def _startWritingFrame(self):
         # ---------------
         # Write in progress logic.

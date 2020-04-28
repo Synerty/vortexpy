@@ -8,6 +8,21 @@ from twisted.internet.threads import deferToThread
 logger = logging.getLogger(__name__)
 
 
+def nonConcurrentMethod(method):
+    def call(*args, **kwargs):
+        if call.running:
+            return
+        call.running = True
+        try:
+            return method(*args, **kwargs)
+        finally:
+            call.running = False
+
+    call.running = False
+
+    return call
+
+
 def maybeDeferredWrap(funcToWrap):
     """ Maybe Deferred Wrap
 

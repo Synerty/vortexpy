@@ -8,12 +8,14 @@
 """
 import logging
 from abc import ABCMeta, abstractmethod
+from collections import deque
 
+from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.error import ConnectionDone, ConnectionLost
 from twisted.internet.protocol import Protocol, connectionDone
 
-from vortex.Payload import Payload
+from vortex.DeferUtil import nonConcurrentMethod
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
 
@@ -26,6 +28,9 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
         self._serverVortexUuid = None
         self._serverVortexName = None
         self._logger = logger
+
+        self._processVortexMsgsInProgress = False
+        self._vortexMsgsQueue = deque()
 
     @abstractmethod
     def _beat(self):
@@ -77,33 +82,37 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
             except:
                 self._logger.exception(reasonFailure.value)
 
-    @inlineCallbacks
     def _processData(self):
         if not self._data:
             return
 
-        def getNextChunk():
+        def getNextChunkIter():
             try:
-                return self._data.index(b'.')
+                while True:
+                    yield self._data.index(b'.')
             except ValueError:
                 # There is no '.' in it, wait for more data.
-                return None
+                return
 
-        while getNextChunk() is not None:  # NOT ZERO
-            nextChunk = getNextChunk()
+        for nextChunk in getNextChunkIter():
             vortexMsg = self._data[:nextChunk]
-
-            if b"." in vortexMsg:
-                print(vortexMsg)
-                raise Exception("Something went wrong, there is a '.' in the msg")
-
             self._data = self._data[nextChunk + 1:]
 
-            self._beat()
+            # If we get two heartbeats in a row, this will be false
+            if len(vortexMsg):
+                self._vortexMsgsQueue.append(vortexMsg)
 
-            # If the vortex message is omitted entirly, then this is just a heart beat.
-            if len(vortexMsg) == 0:
-                continue
+        if self._vortexMsgsQueue and not self._processVortexMsgs.running:
+            reactor.callLater(0, self._processVortexMsgs)
+
+    @inlineCallbacks
+    @nonConcurrentMethod
+    def _processVortexMsgs(self):
+        while self._vortexMsgsQueue:
+            vortexMsg = self._vortexMsgsQueue.popleft()
+
+            if b"." in vortexMsg:
+                raise Exception("Something went wrong, there is a '.' in the msg")
 
             try:
                 payloadEnvelope = yield PayloadEnvelope().fromVortexMsgDefer(vortexMsg)
