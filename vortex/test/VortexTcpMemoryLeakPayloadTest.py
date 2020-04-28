@@ -544,13 +544,5 @@ class VortexTcpMemoryLeakLargeTransfersTest(unittest.TestCase,
         yield self.__vortexSendTest(1024 ** 3 * 3, compression=1)
 
     @inlineCallbacks
-    def test_3vortexSend3gb_compression9(self):
-        yield self.__vortexSendTest(1024 ** 3 * 3, compression=9)
-
-    @inlineCallbacks
     def test_4vortexSend10gb_compression1(self):
         yield self.__vortexSendTest(1024 ** 3 * 10, compression=1)
-
-    @inlineCallbacks
-    def test_4vortexSend10gb_compression9(self):
-        yield self.__vortexSendTest(1024 ** 3 * 10, compression=9)
