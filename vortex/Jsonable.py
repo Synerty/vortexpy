@@ -12,6 +12,7 @@ import typing
 from copy import copy, deepcopy
 from json import JSONEncoder
 from typing import List
+from _collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
