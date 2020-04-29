@@ -48,7 +48,7 @@ class PayloadPyTest(unittest.TestCase, MemoryCheckerTestMixin):
 
         self.assertEqual(payload.tuples[0], origPayload.tuples[0])
 
-    def testMakeStr_100m_x1000(self):
+    def testMakeStr_100m_x100(self):
         self._memCheckFunction(self._makeStr, 1000, 100 * 1024 ** 2)
 
     def testPayloadToFromEncodedPayload_10k_x1000(self):

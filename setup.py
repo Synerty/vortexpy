@@ -19,7 +19,7 @@ requirements = [
     # causes issues
     "vcversioner",
     "six",
-    "ujson",
+    "ujson<2.0.0",
     "pytz",
 
     # RxPY by Microsoft. Used everywhere

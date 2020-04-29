@@ -7,20 +7,19 @@
  * Support : support@synerty.com
 """
 
-from vortex.PayloadEndpoint import PayloadEndpoint
-from vortex.PayloadEnvelope import PayloadEnvelope
-from vortex.PayloadIO import PayloadIO
 from twisted.trial import unittest
 
 from vortex.Payload import Payload
-from vortex.VortexServerHttpResource import VortexServerHttpResource
+from vortex.PayloadEndpoint import PayloadEndpoint
+from vortex.PayloadEnvelope import PayloadEnvelope
+from vortex.PayloadIO import PayloadIO
 
 
 class PayloadEndpointPyTestAssignPayload():
     def __init__(self, unitTest):
         self._ut = unitTest
 
-    def process(self, payloadEnvelope:PayloadEnvelope, **kwargs):
+    def process(self, payloadEnvelope: PayloadEnvelope, **kwargs):
         self._ut.deliveredPayload = payloadEnvelope
 
 
@@ -36,20 +35,24 @@ class PayloadEndpointPyTest(unittest.TestCase):
         for x in range(6):
             payload.filt['%s' % x] = x
 
-        def processPayload(payloadEnvelope:PayloadEnvelope, **kwargs):
+        def processPayload(payloadEnvelope: PayloadEnvelope, **kwargs):
             self.deliveredPayloadEnvelope = payloadEnvelope
 
         self._keepFuncInScope = processPayload
 
         PayloadEndpoint(epFilt, processPayload)
 
-        PayloadIO().process(payload.makePayloadEnvelope())
+        PayloadIO().process(payloadEnvelope=payload.makePayloadEnvelope(),
+                            vortexUuid='test',
+                            vortexName='test',
+                            httpSession=None,
+                            sendResponse=lambda x: x)
 
         return payload
 
     def testFiltMatches(self):
-        plFilt = {'This matches': 555}
-        epFilt = {'This matches': 555}
+        plFilt = {'key': 'unittest', 'This matches': 555}
+        epFilt = {'key': 'unittest', 'This matches': 555}
 
         payload = self._testBuild(plFilt, epFilt)
 
@@ -57,8 +60,8 @@ class PayloadEndpointPyTest(unittest.TestCase):
                          'PayloadIO/PayloadEndpoint delivery error')
 
     def testFiltValueUnmatched(self):
-        plFilt = {'This matches': 555}
-        epFilt = {'This matches': 0}
+        plFilt = {'key': 'unittest', 'This matches': 555}
+        epFilt = {'key': 'unittest', 'This matches': 0}
 
         self._testBuild(plFilt, epFilt)
 
@@ -66,8 +69,8 @@ class PayloadEndpointPyTest(unittest.TestCase):
                          'PayloadIO/PayloadEndpoint unmatched value test error')
 
     def testFiltKeyUnmatched(self):
-        plFilt = {'This matches': 555}
-        epFilt = {'This doesnt matches': 555}
+        plFilt = {'key': 'unittest', 'This matches': 555}
+        epFilt = {'key': 'unittest', 'This doesnt matches': 555}
 
         self._testBuild(plFilt, epFilt)
 
@@ -75,24 +78,28 @@ class PayloadEndpointPyTest(unittest.TestCase):
                          'PayloadIO/PayloadEndpoint unmatched value test error')
 
     def testFunctionGoesOutOfScope(self):
-        filt = {'This matches': 555}
+        filt = {'key': 'unittest', 'This matches': 555}
 
         payload = Payload()
         payload.filt = filt
 
         def subScope():
-            def outOfScopeFunc(payloadEnvelope:PayloadEnvelope, **kwargs):
+            def outOfScopeFunc(payloadEnvelope: PayloadEnvelope, *args, **kwargs):
                 self.deliveredPayloadEnvelope = payloadEnvelope
 
             PayloadEndpoint(filt, outOfScopeFunc)
 
-        PayloadIO().process(payload)
+        PayloadIO().process(payloadEnvelope=payload.makePayloadEnvelope(),
+                            vortexUuid='test',
+                            vortexName='test',
+                            httpSession=None,
+                            sendResponse=lambda x: x)
 
         self.assertEqual(self.deliveredPayloadEnvelope, None,
                          'PayloadIO/PayloadEndpoint unmatched value test error')
 
     def testClassGoesOutOdScope(self):
-        filt = {'This matches': 555}
+        filt = {'key': 'unittest', 'This matches': 555}
 
         payload = Payload()
         payload.filt = filt
@@ -101,13 +108,17 @@ class PayloadEndpointPyTest(unittest.TestCase):
             inst = PayloadEndpointPyTestAssignPayload(self)
             PayloadEndpoint(filt, inst.process)
 
-        PayloadIO().process(payload)
+        PayloadIO().process(payloadEnvelope=payload.makePayloadEnvelope(),
+                            vortexUuid='test',
+                            vortexName='test',
+                            httpSession=None,
+                            sendResponse=lambda x: x)
 
         self.assertEqual(self.deliveredPayloadEnvelope, None,
                          'PayloadIO/PayloadEndpoint unmatched value test error')
 
     def testClassStaysInScope(self):
-        filt = {'This matches': 555}
+        filt = {'key': 'unittest', 'This matches': 555}
 
         payload = Payload()
         payload.filt = filt
@@ -115,7 +126,11 @@ class PayloadEndpointPyTest(unittest.TestCase):
         inst = PayloadEndpointPyTestAssignPayload(self)
         PayloadEndpoint(filt, inst.process)
 
-        PayloadIO().process(payload)
+        PayloadIO().process(payloadEnvelope=payload.makePayloadEnvelope(),
+                            vortexUuid='test',
+                            vortexName='test',
+                            httpSession=None,
+                            sendResponse=lambda x: x)
 
         self.assertEqual(self.deliveredPayloadEnvelope, payload,
                          'PayloadIO/PayloadEndpoint unmatched value test error')

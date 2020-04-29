@@ -302,10 +302,6 @@ class VortexTcpConnectTest(unittest.TestCase,
         yield self.__vortexReconnect(100)
 
     @inlineCallbacks
-    def test_vortexReconnect500(self):
-        yield self.__vortexReconnect(500)
-
-    @inlineCallbacks
     def __vortexReconnect_with_data(self, count):
         self._memMark()
         for x in range(count):
@@ -320,10 +316,6 @@ class VortexTcpConnectTest(unittest.TestCase,
     @inlineCallbacks
     def test_vortexReconnect100_with_data(self):
         yield self.__vortexReconnect_with_data(100)
-
-    @inlineCallbacks
-    def test_vortexReconnect500_with_data(self):
-        yield self.__vortexReconnect_with_data(500)
 
 
 class VortexTcpMemoryLeakTest(unittest.TestCase,
