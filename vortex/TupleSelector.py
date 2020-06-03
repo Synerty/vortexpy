@@ -20,7 +20,8 @@ class TupleSelector(Tuple):
     # name: str = TupleField(comment="The tuple name this selector is for")
     # selector: Dict[str, Any] = TupleField(comment="The values to select")
 
-    def __init__(self, name: Optional[str] = None, selector: Optional[Dict] = None) -> None:
+    def __init__(self, name: Optional[str] = None,
+                 selector: Optional[Dict] = None) -> None:
         Tuple.__init__(self)
         self.name = name
         self.selector = selector if selector else {}
@@ -38,11 +39,12 @@ class TupleSelector(Tuple):
 
         It sorts the dict keys and
         """
+        fieldJsonDict = self.toJsonField(self.selector)
         return json.dumps({'name': self.name,
-                           'selector': self.selector}, sort_keys=True)
+                           'selector': fieldJsonDict}, sort_keys=True)
 
     @classmethod
-    def fromJsonStr(self, jsonStr:str) -> "TupleSelector":
+    def fromJsonStr(self, jsonStr: str) -> "TupleSelector":
         """ From Json Str
 
         This method creates a new c{TupleSelector} from the ordered json string dumped
@@ -50,8 +52,9 @@ class TupleSelector(Tuple):
 
         """
         data = json.loads(jsonStr)
-        return TupleSelector(name=data["name"], selector=data["selector"])
+        newTs = TupleSelector(name=data["name"], selector={})
+        newTs.selector = newTs.fromJsonField(data["selector"])
+        return newTs
 
     def __repr__(self):
         return self.toJsonStr()
-
