@@ -6,7 +6,6 @@ from typing import Union, Optional, List
 from twisted.internet import reactor
 from twisted.internet.defer import fail, Deferred, succeed, inlineCallbacks
 from twisted.python import failure
-from twisted.python.deprecate import deprecated
 
 from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEndpoint import PayloadEndpoint
@@ -203,12 +202,16 @@ class TupleDataObservableHandler:
         tupleSelectors = self._getMappedTupleSelectors(tupleSelector)
         reactor.callLater(0, self._notifyOfTupleUpdateInMain, tupleSelectors)
 
-    @deprecated("1.3.0")
     def notifyOfTupleUpdateForTuple(self, tupleName: str) -> None:
         """ Notify of Tuple Update for Tuple
 
         Like the above notification method, this method will aquire new data and
         send it to observers.
+
+        .. note:: Calling this will not trigger the TupleSelector Update Mappers as
+                  this is an earlier soloution.
+
+                  For all new code, use notifyOfTupleUpdate() and define mappers.
 
         """
         tupleSelectors = []
