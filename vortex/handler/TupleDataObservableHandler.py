@@ -234,13 +234,13 @@ class TupleDataObservableHandler:
 
         # Filter out the offline observables
         onlineUuids = set(VortexFactory.getRemoteVortexUuids())
-        observerDetails = self._observerDataByTupleSelector[tsStr].observers
-        for od in observerDetails:
+        observers = self._observerDataByTupleSelector[tsStr].observers
+        for od in list(observers):
             if od.vortexUuid not in onlineUuids:
-                observerDetails.remove(od)
+                observers.remove(od)
 
         # Get / update the list of observing UUIDs
-        if not observerDetails:
+        if not observers:
             del self._observerDataByTupleSelector[tsStr]
             return
 
@@ -251,7 +251,7 @@ class TupleDataObservableHandler:
 
         # We can have multiple Observable clients on the one vortex, so make sure
         # we only send one message for these.
-        destVortexUuids = set([od.vortexUuid for od in observerDetails])
+        destVortexUuids = set([od.vortexUuid for od in observers])
 
         # Send the vortex messages
         for destVortexUuid in destVortexUuids:
