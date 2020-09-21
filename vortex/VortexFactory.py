@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 broadcast = None
 
+browserVortexName = "browser"
+
 
 class NoVortexException(Exception):
     """ No Vortex Exception

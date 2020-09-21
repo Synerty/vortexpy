@@ -29,13 +29,25 @@ TUPLE_TYPES_BY_SHORT_NAME: Dict[str, 'Tuple'] = {}
 
 JSON_EXCLUDE = "jsonExclude"
 
-
 def registeredTupleNames():
     return list(TUPLE_TYPES_BY_NAME.keys())
 
 
 def tupleForTupleName(tupleName):
     return TUPLE_TYPES_BY_NAME[tupleName]
+
+
+def getSqlaRelationshipFieldNames(cls):
+    objDict = _getTupleInternalDict(cls)
+
+    # Tell the tuple fields of their variable name
+    fields = []
+    for name, value in objDict.items():
+        if (isinstance(value, InstrumentedAttribute)
+                and isinstance(value.comparator.prop, RelationshipProperty)):
+            fields.append(value)
+
+    return fields
 
 
 def addTupleType(cls):
@@ -139,6 +151,31 @@ def addTupleType(cls):
     __mapShortFieldNames(cls)
 
     return cls
+
+
+def _getTupleInternalDict(cls):
+    """ Get Tuple Internal Dict
+
+    This is required because SQLAlchemy seems to alter the inhertance.
+    OR __dict__ just doesn't contian attributes defined in the base classes
+    If we inherit from a tuple that has a tuple field, that field should be included
+    """
+
+    def getBaseClassTupleFields(cls, objDict):
+        # Skip these types
+        if cls in (object, Tuple, Jsonable):
+            return
+
+        for name, value in cls.__dict__.items():
+            # SQLAlchemy takes care of it's own fields.
+            if isinstance(value, TupleField):
+                objDict[name] = value
+
+    objDict = {}
+    for baseCls in reversed(inspect.getmro(cls)[1:]):  # The first item is us
+        getBaseClassTupleFields(baseCls, objDict)
+    objDict.update(cls.__dict__)
+    return objDict
 
 
 def __mapShortFieldNames(cls):

@@ -41,6 +41,8 @@ class PayloadEndpoint(object):
     payload filter then the payload will be passed to the supplied callable.
     """
 
+    PERMITTER = None
+
     def __init__(self, filt: Dict, callable_,
                  acceptOnlyFromVortex: Optional[str] = None) -> None:
         """
@@ -138,6 +140,10 @@ class PayloadEndpoint(object):
                 sendResponse: SendVortexMsgResponseCallable):
 
         if not self.check(payloadEnvelope, vortexName):
+            return
+
+        if self.PERMITTER and not self.PERMITTER.check(payloadEnvelope, httpSession):
+            logger.debug("Permission failed for %s", payloadEnvelope.filt)
             return
 
         callable_ = self._wref()
