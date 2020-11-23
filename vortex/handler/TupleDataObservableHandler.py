@@ -58,7 +58,7 @@ class TupleDataObservableHandler:
     def __init__(self, observableName,
                  additionalFilt=None,
                  subscriptionsEnabled=True,
-                 acceptOnlyFromVortex: Optional[str] = None):
+                 acceptOnlyFromVortex: Optional[Union[str,tuple]] = None):
         """ Constructor
 
         :param observableName: The name of this observable
@@ -68,7 +68,7 @@ class TupleDataObservableHandler:
         :param subscriptionsEnabled: Should subscriptions be enabled (default)
 
         :param acceptOnlyFromVortex: Accept requests only from this vortex,
-            Or None to accept from any.
+            The vortex can be str or tuple of str, or None to accept from any.
 
         """
         self._observableName = observableName
