@@ -1,6 +1,6 @@
 import logging
 from copy import copy
-from typing import Optional
+from typing import Optional, Union
 
 from twisted.internet.defer import TimeoutError, inlineCallbacks, Deferred
 from twisted.python.failure import Failure
@@ -28,7 +28,7 @@ class TupleActionProcessorProxy:
     def __init__(self, tupleActionProcessorName,
                  proxyToVortexName: str,
                  additionalFilt=None,
-                 acceptOnlyFromVortex: Optional[str] = None) -> None:
+                 acceptOnlyFromVortex: Optional[Union[str,tuple]] = None) -> None:
         """ Constructor
 
         :param tupleActionProcessorName: The name of this and the other action handler

@@ -11,7 +11,7 @@ import logging
 import types
 import weakref
 from copy import copy
-from typing import Callable, Optional, Dict
+from typing import Callable, Optional, Dict, Union
 
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
@@ -44,14 +44,16 @@ class PayloadEndpoint(object):
     PERMITTER = None
 
     def __init__(self, filt: Dict, callable_,
-                 acceptOnlyFromVortex: Optional[str] = None) -> None:
+                 acceptOnlyFromVortex: Optional[Union[str,tuple]] = None) -> None:
         """
         :param filt: The filter to match against payloads
         :param callable_: This will be called and passed the payload if it matches
         :param acceptOnlyFromVortex: Accept payloads only from this vortex,
-            Or None to accept from any.
+            The vortex can be str or tuple of str, or None to accept from any.
         """
         self._acceptOnlyFromVortex = acceptOnlyFromVortex
+        if isinstance(self._acceptOnlyFromVortex, str):
+            self._acceptOnlyFromVortex = (self._acceptOnlyFromVortex, )
 
         if not "key" in filt:
             e = Exception("There is no 'key' in the payload filt"
@@ -108,7 +110,7 @@ class PayloadEndpoint(object):
     def check(self, payloadEnvelope: PayloadEnvelope, vortexName: str) -> bool:
 
         # Filter for the backend vortexes.
-        if self._acceptOnlyFromVortex and self._acceptOnlyFromVortex != vortexName:
+        if self._acceptOnlyFromVortex and vortexName not in self._acceptOnlyFromVortex:
             return False
 
         def removeUnhashable(filt):

@@ -1,6 +1,6 @@
 import logging
 from abc import abstractmethod, ABCMeta
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from twisted.internet.defer import Deferred, fail, succeed, inlineCallbacks
 from twisted.python import failure
@@ -32,7 +32,7 @@ class TupleActionProcessor:
     def __init__(self, tupleActionProcessorName: str,
                  additionalFilt: Optional[Dict] = None,
                  defaultDelegate: Optional[TupleActionProcessorDelegateABC] = None,
-                 acceptOnlyFromVortex: Optional[str] = None,
+                 acceptOnlyFromVortex: Optional[Union[str,tuple]] = None,
                  usedForProxy__=False) -> None:
         """ Constructor
 
@@ -43,7 +43,7 @@ class TupleActionProcessor:
         :param defaultDelegate: The default delegate to send all actions to
 
         :param acceptOnlyFromVortex: Accept requests only from this vortex,
-            Or None to accept from any.
+            The vortex can be str or tuple of str, or None to accept from any.
         """
 
         self._tupleActionProcessorName = tupleActionProcessorName

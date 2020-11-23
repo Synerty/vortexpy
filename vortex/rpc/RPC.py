@@ -1,7 +1,7 @@
 import logging
 import sys
 from copy import copy
-from typing import Optional, Set
+from typing import Optional, Set, Union
 
 from twisted.internet.defer import succeed, fail, Deferred, TimeoutError, inlineCallbacks
 from twisted.internet.threads import deferToThread
@@ -68,7 +68,7 @@ class _VortexRPC:
 
     def __init__(self, func, listeningVortexName: str,
                  timeoutSeconds: float,
-                 acceptOnlyFromVortex: Optional[str],
+                 acceptOnlyFromVortex: Optional[Union[str,tuple]],
                  additionalFilt: dict,
                  deferToThread: bool,
                  inlineCallbacks: bool) -> None:
@@ -81,7 +81,7 @@ class _VortexRPC:
                                 deferreds errback with a TimeoutError
                 
         :param acceptOnlyFromVortex: Accept payloads (calls) only from this vortex.
-                Or None to accept from any.
+                The vortex can be str or tuple of str, or None to accept from any.
                 
         :param additionalFilt: If specified, the items from this dict will be added
                                 to the filt that this RPCs handler listens on.
@@ -99,6 +99,8 @@ class _VortexRPC:
         self.__listeningVortexName = listeningVortexName
         self.__timeoutSeconds = timeoutSeconds
         self.__acceptOnlyFromVortex = acceptOnlyFromVortex
+        if isinstance(self.__acceptOnlyFromVortex, str):
+            self.__acceptOnlyFromVortex = (self.__acceptOnlyFromVortex,)
         self.__deferToThread = deferToThread
         self.__inlineCallbacks = inlineCallbacks
 
@@ -167,9 +169,9 @@ class _VortexRPC:
             return
 
         # Apply the "allow" logic
-        if self.__acceptOnlyFromVortex and vortexName != self.__acceptOnlyFromVortex:
+        if self.__acceptOnlyFromVortex and vortexName not in self.__acceptOnlyFromVortex:
             logger.debug("Call from non-accepted vortex %s, allowing only from %s",
-                         vortexName, self.__acceptOnlyFromVortex)
+                         vortexName, str(self.__acceptOnlyFromVortex))
             return
 
         # Get the args tuple
@@ -309,7 +311,7 @@ class _VortexRPC:
 
 def vortexRPC(listeningVortexName: str,
               timeoutSeconds: float = 30.0,
-              acceptOnlyFromVortex: Optional[str] = None,
+              acceptOnlyFromVortex: Optional[Union[str,tuple]] = None,
               additionalFilt: Optional[dict] = None,
               deferToThread: bool = False,
               inlineCallbacks: bool = False):
