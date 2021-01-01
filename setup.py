@@ -13,7 +13,7 @@ if os.path.isdir(egg_info):
 requirements = [
     "SQLAlchemy >= 1.0.14",  # Database abstraction layer
     "GeoAlchemy2",  # Geospatial addons to SQLAlchemy
-    "txWS-Upgrade>=0.10.0",
+    "txwebsocket>=1.0.0",
 
     # txWS requires these, if we try to offline install the packages, txWS setup_requires
     # causes issues
