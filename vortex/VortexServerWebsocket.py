@@ -14,7 +14,7 @@ from twisted.internet.protocol import Protocol, connectionDone, Factory
 from twisted.protocols.policies import WrappingFactory
 from twisted.web import resource
 from twisted.web.server import NOT_DONE_YET
-from txws import WebSocketProtocol
+from txwebsocket.txws import WebSocketProtocol
 
 from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEnvelope import PayloadEnvelope

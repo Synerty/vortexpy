@@ -7,7 +7,7 @@ from rx.subjects import Subject
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList, succeed
 from twisted.python.failure import Failure
-from txws import WebSocketFactory
+from txwebsocket.txws import WebSocketFactory
 
 from vortex.DeferUtil import yesMainThread
 from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
