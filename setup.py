@@ -4,7 +4,7 @@ import shutil
 from setuptools import setup, find_packages
 
 package_name = "vortexpy"
-package_version = '2.1.0'
+package_version = '2.1.1'
 
 egg_info = "%s.egg-info" % package_name
 if os.path.isdir(egg_info):
