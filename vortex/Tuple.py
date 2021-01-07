@@ -345,9 +345,29 @@ class Tuple(Jsonable):
         if not self.__shortFieldNamesMap__:
             raise Exception("Tuple %s has no shortFieldNames defined" % self.tupleType())
 
-        json = {'_tt': (self.__tupleTypeShort__
-                        if self.__tupleTypeShort__ else
-                        self.__tupleType__)}
+        return self.__tupleToJsonDict(
+            includeNones=includeNones, 
+            includeFalse=includeFalse,
+            useShortNames=True
+        )
+
+    
+    def tupleToRestfulJsonDict(self, includeNones=True, includeFalse=True):
+        return self.__tupleToJsonDict(
+            includeNones=includeNones, 
+            includeFalse=includeFalse,
+            useShortNames=False
+        )
+
+
+    def __tupleToJsonDict(self, includeNones=True, includeFalse=True, useShortNames=True):
+
+        if useShortNames:
+            json = {'_tt': (self.__tupleTypeShort__
+                            if self.__tupleTypeShort__ else
+                            self.__tupleType__)}
+        else:
+            json = {}
 
         def convert(value):
             if isinstance(value, list):
@@ -374,7 +394,11 @@ class Tuple(Jsonable):
                 continue
             if value is False and not includeFalse:
                 continue
-            json[shortName] = value
+            if useShortName:
+                json[shortName] = value
+            else:
+                json[normalName] = value
+
 
         return json
 
