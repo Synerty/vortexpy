@@ -12,7 +12,12 @@ import re
 from copy import deepcopy
 from datetime import datetime
 from time import strptime
-from typing import List, Dict
+from typing import Dict
+from typing import List
+from typing import Type
+from typing import get_args
+from typing import get_origin
+from typing import get_type_hints
 
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.properties import RelationshipProperty
@@ -20,14 +25,17 @@ from sqlalchemy.sql.schema import Sequence
 
 from vortex.SerialiseUtil import ISO8601_REGEXP
 from .Jsonable import Jsonable
+from .SerialiseUtil import ISO8601
 from .SerialiseUtil import T_RAPUI_TUPLE
-from .SerialiseUtil import convertFromWkbElement, ISO8601, WKBElement
+from .SerialiseUtil import WKBElement
+from .SerialiseUtil import convertFromWkbElement
 
 TUPLE_TYPES = []
-TUPLE_TYPES_BY_NAME: Dict[str, 'Tuple'] = {}
-TUPLE_TYPES_BY_SHORT_NAME: Dict[str, 'Tuple'] = {}
+TUPLE_TYPES_BY_NAME: Dict[str, "Tuple"] = {}
+TUPLE_TYPES_BY_SHORT_NAME: Dict[str, "Tuple"] = {}
 
 JSON_EXCLUDE = "jsonExclude"
+
 
 def registeredTupleNames():
     return list(TUPLE_TYPES_BY_NAME.keys())
@@ -43,8 +51,9 @@ def getSqlaRelationshipFieldNames(cls):
     # Tell the tuple fields of their variable name
     fields = []
     for name, value in objDict.items():
-        if (isinstance(value, InstrumentedAttribute)
-                and isinstance(value.comparator.prop, RelationshipProperty)):
+        if isinstance(value, InstrumentedAttribute) and isinstance(
+            value.comparator.prop, RelationshipProperty
+        ):
             fields.append(value)
 
     return fields
@@ -54,13 +63,17 @@ def addTupleType(cls):
     tupleType = cls.tupleName()
     tupleTypeShort = cls.__tupleTypeShort__
     if tupleType in TUPLE_TYPES_BY_NAME or tupleType is None:
-        raise Exception("Tuple name is None or is already in registered.\n"
-                        "Tuple name is %s" % tupleType)
+        raise Exception(
+            "Tuple name is None or is already in registered.\n"
+            "Tuple name is %s" % tupleType
+        )
 
     if tupleTypeShort:
         if tupleTypeShort in TUPLE_TYPES_BY_SHORT_NAME:
-            raise Exception("Tuple short name is already registered.\n"
-                            "Tuple short name is %s" % tupleTypeShort)
+            raise Exception(
+                "Tuple short name is already registered.\n"
+                "Tuple short name is %s" % tupleTypeShort
+            )
 
         TUPLE_TYPES_BY_SHORT_NAME[tupleTypeShort] = cls
 
@@ -69,9 +82,11 @@ def addTupleType(cls):
     TUPLE_TYPES_BY_NAME[tupleType] = cls
 
     def underscoreException():
-        raise Exception('TupleFields can not start with an underscore. '
-                        'They can potentially clash with inner tuple workings'
-                        ' if they do.')
+        raise Exception(
+            "TupleFields can not start with an underscore. "
+            "They can potentially clash with inner tuple workings"
+            " if they do."
+        )
 
     # This is required because SQLAlchemy seems to alter the inhertance.
     # OR __dict__ just doesn't contian attributes defined in the base classes
@@ -108,10 +123,10 @@ def addTupleType(cls):
         else:
             continue
 
-        if name.startswith('_'):
+        if name.startswith("_"):
             underscoreException()
 
-        if shortName.startswith('_'):
+        if shortName.startswith("_"):
             underscoreException()
 
         value.name = name
@@ -119,8 +134,10 @@ def addTupleType(cls):
 
         if shortName != JSON_EXCLUDE:
             if shortName in shortFieldNames:
-                raise Exception('TupleField %s short name %s is alread registered'
-                                % (name, shortName))
+                raise Exception(
+                    "TupleField %s short name %s is alread registered"
+                    % (name, shortName)
+                )
 
             shortFieldNames.add(shortName)
 
@@ -128,8 +145,9 @@ def addTupleType(cls):
     hasFieldNames = cls.__fieldNames__ is not None
 
     if hasSlots and hasFieldNames:
-        raise Exception("Only one of __slots__ or __fieldNames__ can be defined"
-                        " but not both")
+        raise Exception(
+            "Only one of __slots__ or __fieldNames__ can be defined" " but not both"
+        )
 
     # If field names already exist, then work off these
     if hasFieldNames:
@@ -138,7 +156,9 @@ def addTupleType(cls):
         # Just check that the field names are defined.
         for fieldName in fields:
             if not hasattr(cls, fieldName):
-                raise Exception("Tuple %s doesn't have field %s" % (tupleType, fieldName))
+                raise Exception(
+                    "Tuple %s doesn't have field %s" % (tupleType, fieldName)
+                )
 
     # If field names already exist, then work off these
     if hasSlots:
@@ -154,7 +174,7 @@ def addTupleType(cls):
 
 
 def _getTupleInternalDict(cls):
-    """ Get Tuple Internal Dict
+    """Get Tuple Internal Dict
 
     This is required because SQLAlchemy seems to alter the inhertance.
     OR __dict__ just doesn't contian attributes defined in the base classes
@@ -214,9 +234,11 @@ def __mapShortFieldNames(cls):
 
 
 def removeTuplesForPackage(packageName):
-    tupleNames = [cls.tupleName()
-                  for cls in TUPLE_TYPES
-                  if cls.__name__.startswith("%s." % packageName)]
+    tupleNames = [
+        cls.tupleName()
+        for cls in TUPLE_TYPES
+        if cls.__name__.startswith("%s." % packageName)
+    ]
 
     removeTuplesForTupleNames(tupleNames)
 
@@ -229,9 +251,7 @@ def removeTuplesForTupleNames(tupleNames):
     def filt(cls):
         return cls.tupleName() not in tupleNames
 
-    tupleShortNames = [cls.__tupleTypeShort__
-                       for cls in TUPLE_TYPES
-                       if filt(cls)]
+    tupleShortNames = [cls.__tupleTypeShort__ for cls in TUPLE_TYPES if filt(cls)]
 
     # Remove from tuple types
     TUPLE_TYPES = list(filter(filt, TUPLE_TYPES))
@@ -248,11 +268,17 @@ def removeTuplesForTupleNames(tupleNames):
 
 
 class TupleField(object):
-    class _Map():
+    class _Map:
         pass
 
-    def __init__(self, defaultValue=None, typingType=None, comment="", shortName=None,
-                 jsonExclude=False):
+    def __init__(
+        self,
+        defaultValue=None,
+        typingType=None,
+        comment="",
+        shortName=None,
+        jsonExclude=False,
+    ):
         self.name = None
         self.shortName = shortName
         self.defaultValue = defaultValue
@@ -261,188 +287,7 @@ class TupleField(object):
         self.jsonExclude = jsonExclude
 
 
-class Tuple(Jsonable):
-    ''' Tuple Type, EG com.synerty.rapui.UnitTestTuple'''
-    __tupleType__: str = None
-    __tupleTypeShort__ = None
-    __fieldNames__ = None
-    __shortFieldNamesMap__ = None
-    __rapuiSerialiseType__ = T_RAPUI_TUPLE
-
-    def __init__(self, **kwargs):
-        Jsonable.__init__(self)
-
-        # If we're using slots, then don't use tuple fields (there arn't any anyway)
-        if hasattr(self.__class__, "__slots__"):
-            # noinspection PyTypeChecker
-            for key in self.__class__.__slots__:
-                if key in kwargs:
-                    setattr(self, key, kwargs.pop(key))
-                else:
-                    setattr(self, key, None)
-
-            if kwargs:
-                raise KeyError("kwargs %s were passed, but tuple %s has no such fields"
-                               % (', '.join(kwargs), self.__tupleType__))
-
-            return
-
-        # Reset all the tuples.
-        # We never want TupleField in an instance
-        for name in self.__fieldNames__:
-            tupleField = getattr(self.__class__, name)
-
-            if isinstance(tupleField, TupleField):
-                setattr(self, name, deepcopy(tupleField.defaultValue))
-
-            elif isinstance(tupleField, InstrumentedAttribute):
-                default = (self.__table__.c[name].default
-                           if name in self.__table__.c else
-                           None)
-
-                assign = (default is not None
-                          and getattr(self, name) is None
-                          and not isinstance(default, Sequence))
-                if assign:
-                    setattr(self, name, deepcopy(default.arg))
-
-        # It's faster to add these at the end, rather than have logic to add one or
-        # the other
-        for key, val in kwargs.items():
-            if not hasattr(self, key):
-                raise KeyError("kwarg %s was passed, but tuple %s has no such TupleField"
-                               % (key, self.__tupleType__))
-            setattr(self, key, val)
-
-    @classmethod
-    def tupleFieldNames(cls) -> List[str]:
-        return cls.__fieldNames__
-
-    @classmethod
-    def tupleName(cls):  # DEPRECIATED
-        return cls.__tupleType__
-
-    @classmethod
-    def tupleType(cls):
-        return cls.__tupleType__
-
-    @classmethod
-    def isSameTupleType(cls, other):
-        if not hasattr(other, '__tupleType__'):
-            return False
-        return cls.__tupleType__ == other.__tupleType__
-
-    def tupleClone(self):
-        clone = self.__class__()
-        for name in self.__fieldNames__:
-            val = getattr(self, name)
-            if val is not None:
-                setattr(clone, name, val)
-
-        return clone
-
-    def tupleToSmallJsonDict(self, includeNones=True, includeFalse=True):
-        if not self.__shortFieldNamesMap__:
-            raise Exception("Tuple %s has no shortFieldNames defined" % self.tupleType())
-
-        return self.__tupleToJsonDict(
-            includeNones=includeNones, 
-            includeFalse=includeFalse,
-            useShortNames=True
-        )
-
-    
-    def tupleToRestfulJsonDict(self, includeNones=True, includeFalse=True):
-        return self.__tupleToJsonDict(
-            includeNones=includeNones, 
-            includeFalse=includeFalse,
-            useShortNames=False
-        )
-
-
-    def __tupleToJsonDict(self, includeNones=True, includeFalse=True, useShortNames=True):
-
-        if useShortNames:
-            json = {'_tt': (self.__tupleTypeShort__
-                            if self.__tupleTypeShort__ else
-                            self.__tupleType__)}
-        else:
-            json = {}
-
-        def convert(value):
-            if isinstance(value, list):
-                return [convert(v) for v in value]
-
-            elif isinstance(value, Tuple):
-                return value.tupleToSmallJsonDict()
-
-            elif isinstance(value, WKBElement):
-                return convertFromWkbElement(value)
-
-            elif isinstance(value, TupleField):
-                return None
-
-            elif isinstance(value, datetime):
-                return value.strftime(ISO8601)
-
-            else:
-                return value
-
-        for shortName, normalName in self.__shortFieldNamesMap__.items():
-            value = convert(getattr(self, normalName))
-            if value is None and not includeNones:
-                continue
-            if value is False and not includeFalse:
-                continue
-            if useShortName:
-                json[shortName] = value
-            else:
-                json[normalName] = value
-
-
-        return json
-
-    @staticmethod
-    def smallJsonDictToTuple(jsonDict: dict) -> 'Tuple':
-        tupleShortType = jsonDict.get('_tt')
-        if not tupleShortType:
-            raise Exception("Tuple.smallJsonDictToTuple: jsonDict has no _tt field")
-
-        Tuple_ = TUPLE_TYPES_BY_SHORT_NAME.get(tupleShortType)
-        if not Tuple_:
-            raise Exception(
-                "Tuple.smallJsonDictToTuple: %s is not a registered tuple type"
-                % tupleShortType
-            )
-
-        if not Tuple_.__shortFieldNamesMap__:
-            raise Exception("Tuple %s has no shortFieldNames defined" % Tuple.tupleType())
-
-        def convert(value):
-            if value in (None, ''):
-                return value
-
-            if isinstance(value, list):
-                return [convert(v) for v in value]
-
-            if isinstance(value, dict) and value.get('_tt', None):
-                return Tuple.smallJsonDictToTuple(value)
-
-            # elif isinstance(value, WKBElement):
-            #     return convertFromWkbElement(value)
-
-            if isinstance(value, str) and re.match(value, ISO8601_REGEXP):
-                return strptime(value, ISO8601)
-
-            return value
-
-        newTuple = Tuple_()
-
-        for shortName, normalName in Tuple_.__shortFieldNamesMap__.items():
-            setattr(newTuple, normalName, convert(jsonDict.get(shortName)))
-
-        return newTuple
-
+class _TupleToSqlaJsonMixin:
     def tupleToSqlaBulkInsertDict(self, includeNulls=True):
         insertDict = {}
 
@@ -467,10 +312,368 @@ class Tuple(Jsonable):
 
         return insertDict
 
+
+class _TupleToPlainJsonMixin:
+    def tupleToSmallJsonDict(self, includeNones=True, includeFalse=True):
+        if not self.__shortFieldNamesMap__:
+            raise Exception(
+                "Tuple %s has no shortFieldNames defined" % self.tupleType()
+            )
+
+        return self.__tupleToJsonDict(
+            includeNones=includeNones, includeFalse=includeFalse, useShortNames=True
+        )
+
+    def tupleToRestfulJsonDict(self, includeNones=True, includeFalse=True):
+        return self.__tupleToJsonDict(
+            includeNones=includeNones, includeFalse=includeFalse, useShortNames=False
+        )
+
+    def __tupleToJsonDict(
+        self, includeNones=True, includeFalse=True, useShortNames=True
+    ):
+
+        if useShortNames:
+            json = {
+                "_tt": (
+                    self.__tupleTypeShort__
+                    if self.__tupleTypeShort__
+                    else self.__tupleType__
+                )
+            }
+        else:
+            json = {}
+
+        def convert(value):
+            if isinstance(value, list):
+                return [convert(v) for v in value]
+
+            elif isinstance(value, dict):
+                return {convert(k): convert(i) for k, i in value.items()}
+
+            elif isinstance(value, Tuple):
+                if useShortNames:
+                    return value.tupleToSmallJsonDict()
+                return value.tupleToRestfulJsonDict()
+
+            elif isinstance(value, WKBElement):
+                return convertFromWkbElement(value)
+
+            elif isinstance(value, TupleField):
+                return None
+
+            elif isinstance(value, datetime):
+                return value.strftime(ISO8601)
+
+            else:
+                return value
+
+        for shortName, normalName in self.__shortFieldNamesMap__.items():
+            value = convert(getattr(self, normalName))
+            if value is None and not includeNones:
+                continue
+            if value is False and not includeFalse:
+                continue
+            if useShortNames:
+                json[shortName] = value
+            else:
+                json[normalName] = value
+
+        return json
+
+    @staticmethod
+    def smallJsonDictToTuple(jsonDict: dict) -> "Tuple":
+        tupleShortType = jsonDict.get("_tt")
+        if not tupleShortType:
+            raise Exception("Tuple.smallJsonDictToTuple: jsonDict has no _tt field")
+
+        Tuple_ = TUPLE_TYPES_BY_SHORT_NAME.get(tupleShortType)
+        if not Tuple_:
+            raise Exception(
+                "Tuple.smallJsonDictToTuple: %s is not a registered tuple type"
+                % tupleShortType
+            )
+
+        if not Tuple_.__shortFieldNamesMap__:
+            raise Exception(
+                "Tuple %s has no shortFieldNames defined" % Tuple.tupleType()
+            )
+
+        def convert(value):
+            if value in (None, ""):
+                return value
+
+            if isinstance(value, list):
+                return [convert(v) for v in value]
+
+            if isinstance(value, dict):
+                if value.get("_tt", None):
+                    return Tuple.smallJsonDictToTuple(value)
+                return {convert(k): convert(i) for k, i in value.items()}
+
+            # elif isinstance(value, WKBElement):
+            #     return convertFromWkbElement(value)
+
+            if isinstance(value, str) and re.match(value, ISO8601_REGEXP):
+                return strptime(value, ISO8601)
+
+            return value
+
+        newTuple = Tuple_()
+
+        for shortName, normalName in Tuple_.__shortFieldNamesMap__.items():
+            setattr(newTuple, normalName, convert(jsonDict.get(shortName)))
+
+        return newTuple
+
+    @classmethod
+    def restfulJsonDictToTupleWithValidation(
+        cls, jsonDict: dict, TupleClass: Type["Tuple"]
+    ) -> "Tuple":
+        """Restful JsonDict to Tuple With Validation
+
+        This method uses the typings on the fields in a tuple to validate the
+        types of data
+        """
+
+        if not get_type_hints(TupleClass):
+            raise TypeError(f"{TupleClass} has no annotations")
+
+        typeHints = get_type_hints(TupleClass)
+
+        def getAndCheckTypeHint(fieldName):
+            typeHint = typeHints.get(fieldName, None)
+
+            if not typeHint:
+                raise TypeError(
+                    f"Type hint for {TupleClass} field {fieldName} is falsy"
+                )
+
+            # Check some type hints
+            if get_origin(typeHint) is dict:
+                keyHint, _ = get_args(typeHint)
+                if keyHint is not str:
+                    raise TypeError(
+                        f"Type hint for {TupleClass}"
+                        f" field {fieldName}"
+                        f" must have a str type for the key,"
+                        f" got {keyHint}"
+                    )
+
+            return typeHint
+
+        def raiseIfNotType(fieldName, typeHint, value):
+            # if the field type is of the type typeHint, then we are good.
+            if not get_origin(typeHint) and isinstance(value, typeHint):
+                return
+
+            # if the field type is of the type typeHint, then we are good.
+            if isinstance(value, list) and get_origin(typeHint) is list:
+                return
+
+            # if the field type is of the type typeHint, then we are good.
+            if isinstance(value, dict):
+                if get_origin(typeHint) is dict:
+                    return
+
+                # If the type is a tuple and the value is a dict, that's a pass
+                if hasattr(typeHint, "__tupleType__"):
+                    return
+
+            # handle the the Optional[fieldType] or Union case
+            if type(value) in get_args(typeHint):
+                return
+
+            # Handle the None and Optional[fieldType] case
+            if value is None and type(None) in get_args(typeHint):
+                return
+
+            raise TypeError(
+                f"Parsing {TupleClass}, field {fieldName}"
+                f" is not of type {typeHint}, got {type(value)} instead"
+            )
+
+        def convert(fieldName: str, value):
+            typeHint = getAndCheckTypeHint(fieldName)
+            raiseIfNotType(fieldName, typeHint, value)
+
+            if value in (None, ""):
+                return value
+
+            if isinstance(value, str) and re.match(value, ISO8601_REGEXP):
+                return strptime(value, ISO8601)
+
+            if isinstance(value, list):
+                listItemTypeHint = get_args(typeHint)[0]
+                data = []
+                if hasattr(listItemTypeHint, "__tupleType__"):
+                    for item in value:
+                        if not isinstance(item, dict):
+                            raise TypeError(
+                                f"Parsing {TupleClass}, field {fieldName}"
+                                f" list item is not a json object to convert to "
+                                f" {listItemTypeHint}, got {type(value)} instead"
+                            )
+
+                        data.append(
+                            cls.restfulJsonDictToTupleWithValidation(
+                                item, listItemTypeHint
+                            )
+                        )
+
+                else:
+                    for item in value:
+                        raiseIfNotType(fieldName, listItemTypeHint, item)
+                        data.append(item)
+
+                return data
+
+            if isinstance(value, dict):
+                # If this is just a single child tuple, import it
+                if hasattr(typeHint, "__tupleType__"):
+                    return cls.restfulJsonDictToTupleWithValidation(value, typeHint)
+
+                keyTypeHint, valueTypeHint = get_args(typeHint)
+
+                data = {}
+                if hasattr(valueTypeHint, "__tupleType__"):
+                    for key, item in value.items():
+                        raiseIfNotType(fieldName, keyTypeHint, key)
+                        if not isinstance(item, dict):
+                            raise TypeError(
+                                f"Parsing {TupleClass}, field {fieldName}"
+                                f" list item is not a json object to convert to "
+                                f" {valueTypeHint}, got {type(value)} instead"
+                            )
+
+                        data[key] = cls.restfulJsonDictToTupleWithValidation(
+                            item, valueTypeHint
+                        )
+
+                else:
+                    for key, item in value.items():
+                        raiseIfNotType(fieldName, keyTypeHint, key)
+                        raiseIfNotType(fieldName, valueTypeHint, item)
+                        data[key] = item  # No change
+
+                return data
+
+            # elif isinstance(value, WKBElement):
+            #     return convertFromWkbElement(value)
+
+            return value
+
+        newTuple = TupleClass()
+
+        for fieldName in TupleClass.__fieldNames__:
+            setattr(newTuple, fieldName, convert(fieldName, jsonDict.get(fieldName)))
+
+        return newTuple
+
+
+class Tuple(Jsonable, _TupleToPlainJsonMixin, _TupleToSqlaJsonMixin):
+    """Tuple
+
+    This class provides rich serialisation / deserialisation support.
+
+    The advantage over pure JSON is as follows:
+
+    * Data structures are restored into full Tuple classes, allowing the use of
+      properties, and methods on the tuples.
+
+    * Datetimes and ints are serialised and deserialsied
+
+    """
+
+    #: Tuple Type, EG com.synerty.rapui.UnitTestTuple
+    __tupleType__: str = None
+    __tupleTypeShort__ = None
+    __fieldNames__ = None
+    __shortFieldNamesMap__ = None
+    __rapuiSerialiseType__ = T_RAPUI_TUPLE
+
+    def __init__(self, **kwargs):
+        Jsonable.__init__(self)
+
+        # If we're using slots, then don't use tuple fields (there arn't any anyway)
+        if hasattr(self.__class__, "__slots__"):
+            # noinspection PyTypeChecker
+            for key in self.__class__.__slots__:
+                if key in kwargs:
+                    setattr(self, key, kwargs.pop(key))
+                else:
+                    setattr(self, key, None)
+
+            if kwargs:
+                raise KeyError(
+                    "kwargs %s were passed, but tuple %s has no such fields"
+                    % (", ".join(kwargs), self.__tupleType__)
+                )
+
+            return
+
+        # Reset all the tuples.
+        # We never want TupleField in an instance
+        for name in self.__fieldNames__:
+            tupleField = getattr(self.__class__, name)
+
+            if isinstance(tupleField, TupleField):
+                setattr(self, name, deepcopy(tupleField.defaultValue))
+
+            elif isinstance(tupleField, InstrumentedAttribute):
+                default = (
+                    self.__table__.c[name].default if name in self.__table__.c else None
+                )
+
+                assign = (
+                    default is not None
+                    and getattr(self, name) is None
+                    and not isinstance(default, Sequence)
+                )
+                if assign:
+                    setattr(self, name, deepcopy(default.arg))
+
+        # It's faster to add these at the end, rather than have logic to add one or
+        # the other
+        for key, val in kwargs.items():
+            if not hasattr(self, key):
+                raise KeyError(
+                    "kwarg %s was passed, but tuple %s has no such TupleField"
+                    % (key, self.__tupleType__)
+                )
+            setattr(self, key, val)
+
+    @classmethod
+    def tupleFieldNames(cls) -> List[str]:
+        return cls.__fieldNames__
+
+    @classmethod
+    def tupleName(cls):  # DEPRECIATED
+        return cls.__tupleType__
+
+    @classmethod
+    def tupleType(cls):
+        return cls.__tupleType__
+
+    @classmethod
+    def isSameTupleType(cls, other):
+        if not hasattr(other, "__tupleType__"):
+            return False
+        return cls.__tupleType__ == other.__tupleType__
+
+    def tupleClone(self):
+        clone = self.__class__()
+        for name in self.__fieldNames__:
+            val = getattr(self, name)
+            if val is not None:
+                setattr(clone, name, val)
+
+        return clone
+
     def _fromJson(self, jsonStr: str):
         jsonDict = json.loads(jsonStr)
 
-        assert (jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__)
+        assert jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__
         return self.fromJsonDict(jsonDict)
 
     def _toJson(self) -> str:
@@ -501,22 +704,23 @@ class Tuple(Jsonable):
         return id(self)
 
     def __repr__(self):
-        val = lambda name: (getattr(self, name)
-                            if hasattr(self, name) else
-                            'AttributeError')
+        val = lambda name: (
+            getattr(self, name) if hasattr(self, name) else "AttributeError"
+        )
 
-        vals = ['type = %s,' % self.tupleType()]
-        vals.extend(['%s = %s,' % (name, val(name)) for name in self.__fieldNames__])
+        vals = ["type = %s," % self.tupleType()]
+        vals.extend(["%s = %s," % (name, val(name)) for name in self.__fieldNames__])
 
-        return '\n'.join(vals)
+        return "\n".join(vals)
 
 
 class TupleHash(object):
     def __init__(self, tupl):
         self.tupl = tupl
         from .Payload import Payload
-        assert (tupl is not None)
-        assert (isinstance(tupl, Tuple) or isinstance(tupl, Payload))
+
+        assert tupl is not None
+        assert isinstance(tupl, Tuple) or isinstance(tupl, Payload)
 
     def _key(self):
         vals = []
@@ -533,8 +737,9 @@ class TupleHash(object):
                 val = tuple(newItems)
 
             elif isinstance(val, (list, set)):
-                newItems = [TupleHash(v)._key() if isinstance(v, Tuple) else v
-                            for v in val]
+                newItems = [
+                    TupleHash(v)._key() if isinstance(v, Tuple) else v for v in val
+                ]
                 val = tuple(newItems)
 
             elif isinstance(val, Tuple):

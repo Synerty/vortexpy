@@ -1,4 +1,4 @@
-'''
+"""
  *
  *  Copyright Synerty Pty Ltd 2013
  *
@@ -11,43 +11,51 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
  *
-'''
+"""
 import logging
+from datetime import datetime
+from typing import Dict
+from typing import List
+from typing import Union
 
-from vortex.Tuple import TupleField, Tuple, addTupleType
+from vortex.Tuple import Tuple
+from vortex.Tuple import TupleField
+from vortex.Tuple import addTupleType
 
 logger = logging.getLogger(__name__)
 
+
 @addTupleType
 class TestTuple(Tuple):
-    '''
+    """
     classdocs
-    '''
-    __tupleType__ = 'synerty.vortex.TestTuple'
-    aInt = TupleField()
-    aFloat = TupleField()
-    aString = TupleField()
-    aStrWithUnicode = TupleField()
-    aDate = TupleField()
-    aBoolTrue = TupleField()
-    aBoolFalse = TupleField()
-    aSet = TupleField()
-    aList = TupleField()
-    aDict = TupleField()
-    aSubTuple = TupleField()
-    aListOfSubTuples = TupleField()
+    """
+
+    __tupleType__ = "synerty.vortex.TestTuple"
+    aInt: bool = TupleField()
+    aFloat: float = TupleField()
+    aString: str = TupleField()
+    aStrWithUnicode: str = TupleField()
+    aDate: datetime = TupleField()
+    aBoolTrue: bool = TupleField()
+    aBoolFalse: bool = TupleField()
+    aSet: List[Union[str, int, bool]] = TupleField()
+    aList: List[Union[str, int, bool, float]] = TupleField()
+    aDict: Dict[Union[str, int], Union[str, float]] = TupleField()
+    aSubTuple: "TestSubTuple" = TupleField()
+    aListOfSubTuples: List["TestSubTuple"] = TupleField()
 
     def __init__(self, *args, **kwargs):
         # logger.debug("TestTuple constructed")
         Tuple.__init__(self, *args, **kwargs)
 
 
-
 @addTupleType
 class TestSubTuple(Tuple):
-    ''' Test Sub Tuple
+    """Test Sub Tuple
     This tuple will test if we can have tuples in tuples and still serialise and
     deserialise them.
-    '''
-    __tupleType__ = 'rapui.synerty.TestSubTuple'
-    subInt = TupleField()
+    """
+
+    __tupleType__ = "rapui.synerty.TestSubTuple"
+    subInt: int = TupleField()
