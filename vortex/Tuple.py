@@ -9,10 +9,11 @@
 import inspect
 import json
 import re
+from abc import ABCMeta, abstractmethod, ABC
 from copy import deepcopy
 from datetime import datetime
 from time import strptime
-from typing import Dict
+from typing import Dict, Optional, Annotated
 from typing import List
 from typing import Type
 from typing import get_args
@@ -313,6 +314,42 @@ class _TupleToSqlaJsonMixin:
         return insertDict
 
 
+class TupleFieldValidatorABC(ABC):
+    """Tuple Value Validator
+
+    This class can be used to validate value ranges within a vortex.Tuple field
+
+    """
+
+    @abstractmethod
+    def validate(self, fieldName: str, value):
+        """Validate
+
+        This method is called to validate the value.
+        If the value is invalid a ValueError will be raised.
+
+        :param fieldName: The name of the field being validated
+        :param value: The value to be checked
+        """
+
+
+class IntTupleFieldValidator(TupleFieldValidatorABC):
+    def __init__(self, low: Optional[int], high: Optional[int]):
+        self._low = low
+        self._high = high
+
+    def validate(self, fieldName: str, value):
+        if self._low is not None and value < self._low:
+            raise ValueError(
+                f"Field {fieldName}," f" Value {value} is less than {self._low}"
+            )
+
+        if self._high is not None and self._high < value:
+            raise ValueError(
+                f"Field {fieldName}," f" Value {value} is greater than {self._high}"
+            )
+
+
 class _TupleToPlainJsonMixin:
     def tupleToSmallJsonDict(self, includeNones=True, includeFalse=True):
         if not self.__shortFieldNamesMap__:
@@ -440,6 +477,7 @@ class _TupleToPlainJsonMixin:
             raise TypeError(f"{TupleClass} has no annotations")
 
         typeHints = get_type_hints(TupleClass)
+        extraTypeHits = get_type_hints(TupleClass, include_extras=True)
 
         def getAndCheckTypeHint(fieldName):
             typeHint = typeHints.get(fieldName, None)
@@ -462,9 +500,34 @@ class _TupleToPlainJsonMixin:
 
             return typeHint
 
-        def raiseIfNotType(fieldName, typeHint, value):
+        def getExtraTypeHint(fieldName):
+            extraTypeHit = extraTypeHits.get(fieldName, None)
+            return extraTypeHit
+
+        def getFieldValidatorFromExtraHint(extraTypeHint):
+
+            origin = get_origin(extraTypeHint)
+
+            # Check if the type hint is an Annotated
+            if origin is not Annotated:
+                return None
+
+            for hint in get_args(extraTypeHint):
+                if isinstance(hint, TupleFieldValidatorABC):
+                    return hint
+
+            return None
+
+        def raiseIfNotType(
+            fieldName,
+            typeHint,
+            value,
+            validator: Optional[TupleFieldValidatorABC] = None,
+        ):
             # if the field type is of the type typeHint, then we are good.
             if not get_origin(typeHint) and isinstance(value, typeHint):
+                if validator:
+                    validator.validate(fieldName, value)
                 return
 
             # if the field type is of the type typeHint, then we are good.
@@ -495,7 +558,10 @@ class _TupleToPlainJsonMixin:
 
         def convert(fieldName: str, value):
             typeHint = getAndCheckTypeHint(fieldName)
-            raiseIfNotType(fieldName, typeHint, value)
+            extraTypeHint = getExtraTypeHint(fieldName)
+            validator = getFieldValidatorFromExtraHint(extraTypeHint)
+
+            raiseIfNotType(fieldName, typeHint, value, validator)
 
             if value in (None, ""):
                 return value
@@ -505,6 +571,9 @@ class _TupleToPlainJsonMixin:
 
             if isinstance(value, list):
                 listItemTypeHint = get_args(typeHint)[0]
+                listItemTypeValidator = getFieldValidatorFromExtraHint(
+                    get_args(extraTypeHint)[0]
+                )
                 data = []
                 if hasattr(listItemTypeHint, "__tupleType__"):
                     for item in value:
@@ -523,7 +592,9 @@ class _TupleToPlainJsonMixin:
 
                 else:
                     for item in value:
-                        raiseIfNotType(fieldName, listItemTypeHint, item)
+                        raiseIfNotType(
+                            fieldName, listItemTypeHint, item, listItemTypeValidator
+                        )
                         data.append(item)
 
                 return data
@@ -532,6 +603,11 @@ class _TupleToPlainJsonMixin:
                 # If this is just a single child tuple, import it
                 if hasattr(typeHint, "__tupleType__"):
                     return cls.restfulJsonDictToTupleWithValidation(value, typeHint)
+
+                if not get_args(typeHint):
+                    raise Exception(
+                        "Typing should use `Dict[<type>,<type>]`," " not `dict`"
+                    )
 
                 keyTypeHint, valueTypeHint = get_args(typeHint)
 
@@ -551,9 +627,17 @@ class _TupleToPlainJsonMixin:
                         )
 
                 else:
+                    keyTypeExtraHint, valueTypeExtraHint = get_args(extraTypeHint)
+                    keyTypeValidator = getFieldValidatorFromExtraHint(keyTypeExtraHint)
+                    valueTypeValidator = getFieldValidatorFromExtraHint(
+                        valueTypeExtraHint
+                    )
+
                     for key, item in value.items():
-                        raiseIfNotType(fieldName, keyTypeHint, key)
-                        raiseIfNotType(fieldName, valueTypeHint, item)
+                        raiseIfNotType(fieldName, keyTypeHint, key, keyTypeValidator)
+                        raiseIfNotType(
+                            fieldName, valueTypeHint, item, valueTypeValidator
+                        )
                         data[key] = item  # No change
 
                 return data

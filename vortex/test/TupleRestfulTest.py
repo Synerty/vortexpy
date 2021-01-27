@@ -9,13 +9,14 @@
 
 import datetime
 import json
-from typing import Dict
+from typing import Dict, Annotated
 from typing import List
 from typing import Union
 
+from ddt import data, ddt
 from twisted.trial import unittest
 
-from vortex.Tuple import TUPLE_TYPES_BY_NAME, TupleHash
+from vortex.Tuple import TUPLE_TYPES_BY_NAME, TupleHash, IntTupleFieldValidator
 from vortex.Tuple import Tuple
 from vortex.Tuple import TupleField
 from vortex.Tuple import addTupleType
@@ -29,6 +30,7 @@ class RestfulTestTuple(Tuple):
 
     __tupleType__ = "synerty.vortex.RestfulTestTuple"
     aInt: int = TupleField()
+    aIntWithValidator: Annotated[int, IntTupleFieldValidator(1, 100)] = TupleField()
     aFloat: float = TupleField()
     aString: str = TupleField()
     aBoolTrue: bool = TupleField()
@@ -57,6 +59,7 @@ def _makeRestfultTestTuple():
     tuple_.aBoolFalse = False
     tuple_.aFloat = 2.56
     tuple_.aInt = 1231231
+    tuple_.aIntWithValidator = 50
     tuple_.aString = "test string from 345345345@$#%#$%#$%#$%#"
     tuple_.aList = ["y", 3, True, 3.3]
     tuple_.aDict = {
@@ -82,6 +85,7 @@ def _makeRestfultTestTuple():
     return tuple_
 
 
+@ddt
 class TupleRestfulTest(unittest.TestCase):
     def setUp(self):
         pass
@@ -89,24 +93,39 @@ class TupleRestfulTest(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def testToRestfulPass(self):
-        # Create tuple
-        origTuple = _makeRestfultTestTuple()
-
+    def _testSerialisation(self, origTuple):
         # To Restful JSON Object
         jsonDict = origTuple.tupleToRestfulJsonDict()
-
         # Pass it through the JSON object to JSON string conversion
         jsonDict = json.loads(json.dumps(jsonDict))
-
         # Reconstruct a new Tuple
         deserialisedTuple = RestfulTestTuple().restfulJsonDictToTupleWithValidation(
             jsonDict, RestfulTestTuple
         )
+        return deserialisedTuple
+
+    @data(-1, 110)
+    def testIntValidatorInvalid(self, int_):
+        # Create tuple
+        origTuple = _makeRestfultTestTuple()
+        origTuple.aIntWithValidator = int_
+        self.assertRaises(ValueError, self._testSerialisation, origTuple)
+
+    @data(1, 99)
+    def testIntValidatorValid(self, int_):
+        # Create tuple
+        origTuple = _makeRestfultTestTuple()
+        origTuple.aIntWithValidator = int_
+        self.assertEqual(self._testSerialisation(origTuple).aIntWithValidator, int_)
+
+    def testValidatorPass(self):
+        # Create tuple
+        origTuple = _makeRestfultTestTuple()
+
+        deserialisedTuple = self._testSerialisation(origTuple)
 
         self.assertEqual(TupleHash(origTuple), TupleHash(origTuple))
         self.assertEqual(TupleHash(deserialisedTuple), TupleHash(deserialisedTuple))
-
         self.assertEqual(
             TupleHash(origTuple),
             TupleHash(deserialisedTuple),
