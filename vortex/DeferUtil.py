@@ -1,11 +1,25 @@
 import logging
+from functools import wraps
+from typing import Union
 
 import twisted
-from twisted.internet.defer import maybeDeferred, Deferred, inlineCallbacks, \
-    ensureDeferred
+from twisted.internet import reactor
+from twisted.internet.defer import (
+    maybeDeferred,
+    Deferred,
+    inlineCallbacks,
+    ensureDeferred,
+)
 from twisted.internet.threads import deferToThread
 
 logger = logging.getLogger(__name__)
+
+
+def callMethodLater(func):
+    def wrapper(*args, **kwargs):
+        return reactor.callLater(0, func, *args, **kwargs)
+
+    return wrapper
 
 
 def nonConcurrentMethod(method):
@@ -24,7 +38,7 @@ def nonConcurrentMethod(method):
 
 
 def maybeDeferredWrap(funcToWrap):
-    """ Maybe Deferred Wrap
+    """Maybe Deferred Wrap
 
     A decorator that ensures a function will return a deferred.
 
@@ -37,7 +51,7 @@ def maybeDeferredWrap(funcToWrap):
 
 
 def ensureDeferredWrap(funcToWrap):
-    """ Ensured Deferred Wrap
+    """Ensured Deferred Wrap
 
     A decorator that converts asyncio functions to ones that
      return Twisted Deferred instead.
@@ -56,7 +70,7 @@ def ensureDeferredWrap(funcToWrap):
 
 def vortexLogFailure(failure, loggerArg, consumeError=False, successValue=True):
     try:
-        if not hasattr(failure, '_vortexLogged'):
+        if not hasattr(failure, "_vortexLogged"):
             if failure.getTraceback():
                 loggerArg.error(failure.getTraceback())
             failure._vortexFailureLogged = True
@@ -66,15 +80,16 @@ def vortexLogFailure(failure, loggerArg, consumeError=False, successValue=True):
 
 
 def vortexLogAndConsumeFailure(failure, loggerArg, successValue=True):
-    return vortexLogFailure(failure, loggerArg,
-                            consumeError=True, successValue=successValue)
+    return vortexLogFailure(
+        failure, loggerArg, consumeError=True, successValue=successValue
+    )
 
 
 printFailure = vortexLogFailure
 
 
 def vortexInlineCallbacksLogAndConsumeFailure(loggerArg):
-    """ Vortex InlineCallbacks Log and Consume Failure
+    """Vortex InlineCallbacks Log and Consume Failure
 
     This is exactly the same as @inlineCallbacks decorator, except it will log
     and consume any deferred failures that are thrown.
@@ -94,7 +109,7 @@ def vortexInlineCallbacksLogAndConsumeFailure(loggerArg):
 
 
 def deferToThreadWrapWithLogger(logger, consumeError=False, checkMainThread=True):
-    """ Defer To Thread Wrap With Logger
+    """Defer To Thread Wrap With Logger
 
     This method is a decorator used to send blocking methods to threads easily.
 
@@ -116,7 +131,9 @@ def deferToThreadWrapWithLogger(logger, consumeError=False, checkMainThread=True
 
 
     """
-    assert isinstance(logger, logging.Logger), """Usage:
+    assert isinstance(
+        logger, logging.Logger
+    ), """Usage:
     import logging
     logger = logging.getLogger(__name__)
     @deferToThreadWrapWithLogger(logger)
@@ -128,7 +145,8 @@ def deferToThreadWrapWithLogger(logger, consumeError=False, checkMainThread=True
         def func(*args, **kwargs):
             if not twisted.python.threadable.isInIOThread() and checkMainThread:
                 raise Exception(
-                    "Deferring to a thread can only be done from the main thread")
+                    "Deferring to a thread can only be done from the main thread"
+                )
 
             d = deferToThread(funcToWrap, *args, **kwargs)
             d.addErrback(vortexLogFailure, logger, consumeError=consumeError)
