@@ -19,9 +19,12 @@ logger = logging.getLogger(__name__)
 
 class TupleSelectorUpdateMapperABC(metaclass=ABCMeta):
     @abstractmethod
-    def mapTupleSelector(self, triggerTupleSelector: TupleSelector,
-                         allTupleSelectors: List[TupleSelector]) -> List[TupleSelector]:
-        """ Map Tuple Selector
+    def mapTupleSelector(
+        self,
+        triggerTupleSelector: TupleSelector,
+        allTupleSelectors: List[TupleSelector],
+    ) -> List[TupleSelector]:
+        """Map Tuple Selector
 
         Implementing this class provides some intelligence to the Observable
         to trigger a refresh of related data to the triggerTupleSelector.
@@ -33,9 +36,10 @@ class TupleSelectorUpdateMapperABC(metaclass=ABCMeta):
 
 class TuplesProviderABC(metaclass=ABCMeta):
     @abstractmethod
-    def makeVortexMsg(self, filt: dict,
-                      tupleSelector: TupleSelector) -> Union[Deferred, bytes]:
-        """ Make Vortex Msg
+    def makeVortexMsg(
+        self, filt: dict, tupleSelector: TupleSelector
+    ) -> Union[Deferred, bytes]:
+        """Make Vortex Msg
 
         The method generates the vortexMsg for the vortex to send.
 
@@ -55,11 +59,14 @@ class _ObserverData:
 
 
 class TupleDataObservableHandler:
-    def __init__(self, observableName,
-                 additionalFilt=None,
-                 subscriptionsEnabled=True,
-                 acceptOnlyFromVortex: Optional[Union[str,tuple]] = None):
-        """ Constructor
+    def __init__(
+        self,
+        observableName,
+        additionalFilt=None,
+        subscriptionsEnabled=True,
+        acceptOnlyFromVortex: Optional[Union[str, tuple]] = None,
+    ):
+        """Constructor
 
         :param observableName: The name of this observable
 
@@ -73,13 +80,13 @@ class TupleDataObservableHandler:
         """
         self._observableName = observableName
         self._subscriptionsEnabled = subscriptionsEnabled
-        self._filt = dict(name=observableName,
-                          key="tupleDataObservable")
+        self._filt = dict(name=observableName, key="tupleDataObservable")
         if additionalFilt:
             self._filt.update(additionalFilt)
 
-        self._endpoint = PayloadEndpoint(self._filt, self._process,
-                                         acceptOnlyFromVortex=acceptOnlyFromVortex)
+        self._endpoint = PayloadEndpoint(
+            self._filt, self._process, acceptOnlyFromVortex=acceptOnlyFromVortex
+        )
 
         self._observerDataByTupleSelector = {}
 
@@ -87,21 +94,23 @@ class TupleDataObservableHandler:
         self._tupleSelectorUpdateMappers = []
 
     def addTupleProvider(self, tupleName, provider: TuplesProviderABC):
-        """ Add Tuple Provider
-
-        """
-        assert not tupleName in self._tupleProvidersByTupleName, (
-                "Observable:%s, Tuple name %s is already registered" %
-                (self._observableName, tupleName))
+        """Add Tuple Provider"""
+        assert (
+            not tupleName in self._tupleProvidersByTupleName
+        ), "Observable:%s, Tuple name %s is already registered" % (
+            self._observableName,
+            tupleName,
+        )
 
         assert isinstance(provider, TuplesProviderABC), (
-                "Observable:%s, provider must be an instance of TuplesProviderABC"
-                % self._observableName)
+            "Observable:%s, provider must be an instance of TuplesProviderABC"
+            % self._observableName
+        )
 
         self._tupleProvidersByTupleName[tupleName] = provider
 
     def addTupleSelectorUpdateMapper(self, mapper: TupleSelectorUpdateMapperABC):
-        """ Add Tuple Selector Update Mapper
+        """Add Tuple Selector Update Mapper
 
         This mapper will be called every time a tuple selector is notified of an update.
 
@@ -120,32 +129,50 @@ class TupleDataObservableHandler:
         self._tupleProvidersByTupleName = {}
         self._observerDataByTupleSelector = {}
 
+    @inlineCallbacks
     def _createVortexMsg(self, filt, tupleSelector: TupleSelector) -> Deferred:
         tupleProvider = self._tupleProvidersByTupleName.get(tupleSelector.name)
-        assert tupleProvider, (
-                "Observable:%s, No providers registered for tupleName %s"
-                % (self._observableName, tupleSelector.name))
-
-        vortexMsgDefer = self._customMaybeDeferred(
-            tupleProvider.makeVortexMsg, filt, tupleSelector)
-        vortexMsgDefer.addErrback(vortexLogFailure, logger)
-        return vortexMsgDefer
+        assert (
+            tupleProvider
+        ), "Observable:%s, No providers registered for tupleName %s" % (
+            self._observableName,
+            tupleSelector.name,
+        )
+        try:
+            vortexMsg = yield self._customMaybeDeferred(
+                tupleProvider.makeVortexMsg, filt, tupleSelector
+            )
+        except Exception as e:
+            logger.exception(e)
+            raise
+        if not vortexMsg:
+            msg = f"TupleDataProvider did not return VortexPY message {tupleSelector}"
+            logger.error(msg)
+            raise Exception(msg)
+        return vortexMsg
 
     @inlineCallbacks
-    def _process(self, payloadEnvelope: PayloadEnvelope, vortexUuid: str,
-                 sendResponse: SendVortexMsgResponseCallable, **kwargs):
+    def _process(
+        self,
+        payloadEnvelope: PayloadEnvelope,
+        vortexUuid: str,
+        sendResponse: SendVortexMsgResponseCallable,
+        **kwargs,
+    ):
         tupleSelector = payloadEnvelope.filt["tupleSelector"]
         tsStr = tupleSelector.toJsonStr()
 
-        observerDetails = _ObserverDetails(vortexUuid,
-                                           payloadEnvelope.filt.get("observerName"))
+        observerDetails = _ObserverDetails(
+            vortexUuid, payloadEnvelope.filt.get("observerName")
+        )
 
         # Handle unsubscribe
         if payloadEnvelope.filt.get("unsubscribe"):
             if tsStr in self._observerDataByTupleSelector:
                 try:
-                    self._observerDataByTupleSelector[tsStr] \
-                        .observers.remove(observerDetails)
+                    self._observerDataByTupleSelector[tsStr].observers.remove(
+                        observerDetails
+                    )
 
                 except KeyError:
                     pass
@@ -168,12 +195,14 @@ class TupleDataObservableHandler:
         except Exception as e:
             logger.exception(e)
 
-    def _getMappedTupleSelectors(self, tupleSelector: TupleSelector
-                                 ) -> List[TupleSelector]:
+    def _getMappedTupleSelectors(
+        self, tupleSelector: TupleSelector
+    ) -> List[TupleSelector]:
 
         # Get all tuple selectors
-        allTupleSelectors = [data.tupleSelector
-                             for data in self._observerDataByTupleSelector.values()]
+        allTupleSelectors = [
+            data.tupleSelector for data in self._observerDataByTupleSelector.values()
+        ]
 
         # Create a dict so we end up with only unique ones
         tupleSelectorByStr = {tupleSelector.toJsonStr(): tupleSelector}
@@ -182,13 +211,15 @@ class TupleDataObservableHandler:
         for mapper in self._tupleSelectorUpdateMappers:
             mappedSelectors = mapper.mapTupleSelector(tupleSelector, allTupleSelectors)
             if mappedSelectors:
-                tupleSelectorByStr.update({ts.toJsonStr(): ts for ts in mappedSelectors})
+                tupleSelectorByStr.update(
+                    {ts.toJsonStr(): ts for ts in mappedSelectors}
+                )
 
         # Return a list of tuple selectors
         return list(tupleSelectorByStr.values())
 
     def notifyOfTupleUpdate(self, tupleSelector: TupleSelector) -> None:
-        """ Notify Of Tuple Update
+        """Notify Of Tuple Update
 
         This method tells the observable that an update has occurred and that it should
         send new data to it's observers.
@@ -203,7 +234,7 @@ class TupleDataObservableHandler:
         reactor.callLater(0, self._notifyOfTupleUpdateInMain, tupleSelectors)
 
     def notifyOfTupleUpdateForTuple(self, tupleName: str) -> None:
-        """ Notify of Tuple Update for Tuple
+        """Notify of Tuple Update for Tuple
 
         Like the above notification method, this method will aquire new data and
         send it to observers.
@@ -255,16 +286,19 @@ class TupleDataObservableHandler:
 
         # Send the vortex messages
         for destVortexUuid in destVortexUuids:
-            d = VortexFactory.sendVortexMsg(vortexMsgs=vortexMsg,
-                                            destVortexUuid=destVortexUuid)
+            d = VortexFactory.sendVortexMsg(
+                vortexMsgs=vortexMsg, destVortexUuid=destVortexUuid
+            )
             d.addErrback(vortexLogFailure, logger)
 
     def _customMaybeDeferred(self, f, *args, **kw):
         try:
             result = f(*args, **kw)
         except Exception as e:
-            logger.error("TupleDataObservableHandler:%s TupleProvider failed",
-                         self._observableName)
+            logger.error(
+                "TupleDataObservableHandler:%s TupleProvider failed",
+                self._observableName,
+            )
             logger.exception(e)
             return fail(failure.Failure(e))
 
