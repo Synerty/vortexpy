@@ -3,11 +3,27 @@ from datetime import datetime
 from datetime import timedelta
 from typing import Dict
 from typing import Set
+
 import pytz
 from twisted.internet import reactor
 
+from vortex.Tuple import TupleField, Tuple, addTupleType
+
+
+@addTupleType
+class _DebounceArgsTuple(Tuple):
+    __tupleType__ = __name__ + "._DebounceArgsTuple"
+    args = TupleField()
+    kwargs = TupleField()
+
 
 def debounceCall(debounceSeconds: float):
+    """Call a debounced function that delays invoking wrapped function until after wait n seconds
+
+    :param debounceSeconds: cooling down peroid of n seconds
+    :return: the wrapped function
+    """
+
     class Wrap:
         _lastCleanup = datetime.now(pytz.utc)
         _cleanupDelta = timedelta(minutes=1, seconds=debounceSeconds)
@@ -30,11 +46,15 @@ def debounceCall(debounceSeconds: float):
                     if self._cleanupDelta < now - val and key not in self._callsQueued:
                         self._calls.pop(key)
 
+        def __wrapArgsAndKwargs(self, *args, **kwargs):
+            hashedArgs = _DebounceArgsTuple(args=args, kwargs=kwargs).toJsonDict()
+            return json.dumps(hashedArgs)
+
         def call(self, funcSelf, *args, **kwargs):
             now = datetime.now(pytz.utc)
 
             # Create a hash of the args
-            hashedArgs = json.dumps(args) + json.dumps(kwargs)
+            hashedArgs = self.__wrapArgsAndKwargs(args, kwargs)
 
             # If this method has never been called before, call it
             lastCallDate = self._calls.get(hashedArgs)
