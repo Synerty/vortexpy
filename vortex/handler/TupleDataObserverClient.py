@@ -68,19 +68,27 @@ class TupleDataObserverClient(TupleDataObservableCache):
         self._endpoint.shutdown()
         TupleDataObservableCache.shutdown(self)
 
-    def pollForTuples(self, tupleSelector: TupleSelector) -> Deferred:
+    def pollForTuples(
+        self, tupleSelector: TupleSelector, logTimeoutError: bool = True
+    ) -> Deferred:
         startFilt = copy(self._sendFilt)
-        startFilt.update({"subscribe": False,
-                          "tupleSelector": tupleSelector})
+        startFilt.update({"subscribe": False, "tupleSelector": tupleSelector})
 
-        def updateCacheCallback(payloadEnvelope: PayloadEnvelope) -> PayloadEnvelope:
+        def updateCacheCallback(
+            payloadEnvelope: PayloadEnvelope,
+        ) -> PayloadEnvelope:
             cache, _ = self._updateCache(payloadEnvelope)
             return payloadEnvelope
 
-        pr = PayloadResponse(payloadEnvelope=PayloadEnvelope(startFilt),
-                             destVortexName=self._destVortexName)
+        pr = PayloadResponse(
+            payloadEnvelope=PayloadEnvelope(startFilt),
+            destVortexName=self._destVortexName,
+            logTimeoutError=logTimeoutError,
+        )
         pr.addCallback(updateCacheCallback)
-        pr.addCallback(lambda payloadEnvelope: payloadEnvelope.decodePayloadDefer())
+        pr.addCallback(
+            lambda payloadEnvelope: payloadEnvelope.decodePayloadDefer()
+        )
         pr.addCallback(lambda payload: payload.tuples)
         return pr
 
