@@ -6,6 +6,8 @@ from typing import Union, List, Optional, Dict
 from rx.subjects import Subject
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred, DeferredList, succeed
+from twisted.internet.defer import inlineCallbacks
+from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
 from txwebsocket.txws import WebSocketFactory
 
@@ -48,12 +50,23 @@ class VortexFactory:
 
     __isShutdown = False
 
+    __listeningPorts = []
+
     def __init__(self):
         raise Exception("Vortex Factory should not be instantiated")
 
     @classmethod
-    def shutdown(cls) -> None:
+    @inlineCallbacks
+    def shutdown(cls):
         cls.__isShutdown = True
+        for vortex in VortexFactory._allVortexes():
+            if hasattr(vortex, "close"):
+                vortex.close()
+                yield deferLater(reactor, 0.05, lambda: None)
+        while cls.__listeningPorts:
+            cls.__listeningPorts.pop().stopListening()
+            yield deferLater(reactor, 0.05, lambda: None)
+
 
     @classmethod
     def _getVortexSendRefs(cls, name=None, uuid=None
@@ -129,7 +142,8 @@ class VortexFactory:
         vortexServer = VortexServer(name)
         cls.__vortexServersByName[name].append(vortexServer)
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(vortexServer)
-        reactor.listenTCP(port, WebSocketFactory(vortexWebsocketServerFactory))
+        port = reactor.listenTCP(port, WebSocketFactory(vortexWebsocketServerFactory))
+        cls.__listeningPorts.append(port)
 
     @classmethod
     def createHttpWebsocketServer(cls, name: str, rootResource) -> None:
@@ -170,7 +184,8 @@ class VortexFactory:
         vortexServer = VortexServer(name)
         cls.__vortexServersByName[name].append(vortexServer)
         vortexTcpServerFactory = VortexTcpServerFactory(vortexServer)
-        reactor.listenTCP(port, vortexTcpServerFactory)
+        port = reactor.listenTCP(port, vortexTcpServerFactory)
+        cls.__listeningPorts.append(port)
 
     @classmethod
     def createHttpClient(cls, name: str, host: str, port: int) -> Deferred:

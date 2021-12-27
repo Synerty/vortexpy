@@ -61,6 +61,9 @@ def getSqlaRelationshipFieldNames(cls):
 
 
 def addTupleType(cls):
+    if not cls.tupleName():
+        cls.__tupleType__ = '%s.%s'%(cls.__module__, cls.__name__)
+
     tupleType = cls.tupleName()
     tupleTypeShort = cls.__tupleTypeShort__
     if tupleType in TUPLE_TYPES_BY_NAME or tupleType is None:

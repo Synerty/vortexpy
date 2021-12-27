@@ -68,6 +68,8 @@ class PayloadEnvelope(Jsonable):
 
     def decodePayload(self) -> Payload:
         if not self.encodedPayload:
+            if self.result:
+                logger.debug("encodedPayload is None, but maybe there was an error: %s", self.result)
             raise NoPayloadException()
 
         noMainThread()
