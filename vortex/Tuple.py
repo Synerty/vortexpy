@@ -13,7 +13,7 @@ from abc import ABCMeta, abstractmethod, ABC
 from copy import deepcopy
 from datetime import datetime
 from time import strptime
-from typing import Dict, Optional, Annotated
+from typing import Dict, Optional, Annotated, Any
 from typing import List
 from typing import Type
 from typing import get_args
@@ -150,7 +150,8 @@ def addTupleType(cls):
 
     if hasSlots and hasFieldNames:
         raise Exception(
-            "Only one of __slots__ or __fieldNames__ can be defined" " but not both"
+            "Only one of __slots__ or __fieldNames__ can be defined"
+            " but not both"
         )
 
     # If field names already exist, then work off these
@@ -203,10 +204,6 @@ def _getTupleInternalDict(cls):
 
 
 def __mapShortFieldNames(cls):
-    # If this has already been set by the Tuple declaration, then don't mess with it.
-    if cls.__shortFieldNamesMap__:
-        return
-
     fieldMap = {}
     for normalName in cls.__fieldNames__:
         field = getattr(cls, normalName, None)
@@ -255,7 +252,9 @@ def removeTuplesForTupleNames(tupleNames):
     def filt(cls):
         return cls.tupleName() not in tupleNames
 
-    tupleShortNames = [cls.__tupleTypeShort__ for cls in TUPLE_TYPES if filt(cls)]
+    tupleShortNames = [
+        cls.__tupleTypeShort__ for cls in TUPLE_TYPES if filt(cls)
+    ]
 
     # Remove from tuple types
     TUPLE_TYPES = list(filter(filt, TUPLE_TYPES))
@@ -271,7 +270,7 @@ def removeTuplesForTupleNames(tupleNames):
             del TUPLE_TYPES_BY_SHORT_NAME[tupleShortName]
 
 
-class TupleField(object):
+class TupleField:
     class _Map:
         pass
 
@@ -289,6 +288,11 @@ class TupleField(object):
         self.typingType = typingType
         self.comment = comment
         self.jsonExclude = jsonExclude
+
+
+class PolymorphicTupleTypeFieldArg:
+    def __init__(self, fieldName: str):
+        self.fieldName = fieldName
 
 
 class _TupleToSqlaJsonMixin:
@@ -349,8 +353,34 @@ class IntTupleFieldValidator(TupleFieldValidatorABC):
 
         if self._high is not None and self._high < value:
             raise ValueError(
-                f"Field {fieldName}," f" Value {value} is greater than {self._high}"
+                f"Field {fieldName},"
+                f" Value {value} is greater than {self._high}"
             )
+
+
+def getConcreteClass(TupleClass, jsonDict):
+    # Create concrete class for Tuple
+    if not hasattr(TupleClass, "__tupleArgs__"):
+        return TupleClass
+
+    polyType = [
+        p
+        for p in TupleClass.__tupleArgs__
+        if isinstance(p, PolymorphicTupleTypeFieldArg)
+    ]
+    if not polyType:
+        return TupleClass
+
+    fieldName = polyType[0].fieldName
+    ConcreteTupleClass = TUPLE_TYPES_BY_NAME[jsonDict[fieldName]]
+
+    if not issubclass(ConcreteTupleClass, TupleClass):
+        raise TypeError(
+            f"{ConcreteTupleClass.__name__} is not derived"
+            f" from {TupleClass.__name__}"
+        )
+
+    return ConcreteTupleClass
 
 
 class _TupleToPlainJsonMixin:
@@ -361,12 +391,16 @@ class _TupleToPlainJsonMixin:
             )
 
         return self.__tupleToJsonDict(
-            includeNones=includeNones, includeFalse=includeFalse, useShortNames=True
+            includeNones=includeNones,
+            includeFalse=includeFalse,
+            useShortNames=True,
         )
 
     def tupleToRestfulJsonDict(self, includeNones=True, includeFalse=True):
         return self.__tupleToJsonDict(
-            includeNones=includeNones, includeFalse=includeFalse, useShortNames=False
+            includeNones=includeNones,
+            includeFalse=includeFalse,
+            useShortNames=False,
         )
 
     def __tupleToJsonDict(
@@ -425,7 +459,9 @@ class _TupleToPlainJsonMixin:
     def smallJsonDictToTuple(jsonDict: dict) -> "Tuple":
         tupleShortType = jsonDict.get("_tt")
         if not tupleShortType:
-            raise Exception("Tuple.smallJsonDictToTuple: jsonDict has no _tt field")
+            raise Exception(
+                "Tuple.smallJsonDictToTuple: jsonDict has no _tt field"
+            )
 
         Tuple_ = TUPLE_TYPES_BY_SHORT_NAME.get(tupleShortType)
         if not Tuple_:
@@ -466,9 +502,9 @@ class _TupleToPlainJsonMixin:
 
         return newTuple
 
-    @classmethod
+    @staticmethod
     def restfulJsonDictToTupleWithValidation(
-        cls, jsonDict: dict, TupleClass: Type["Tuple"]
+        jsonDict: dict, TupleClass: Type["Tuple"]
     ) -> "Tuple":
         """Restful JsonDict to Tuple With Validation
 
@@ -478,6 +514,9 @@ class _TupleToPlainJsonMixin:
 
         if not get_type_hints(TupleClass):
             raise TypeError(f"{TupleClass} has no annotations")
+
+        # Create concrete class for Tuple
+        TupleClass = getConcreteClass(TupleClass, jsonDict)
 
         typeHints = get_type_hints(TupleClass)
         extraTypeHits = get_type_hints(TupleClass, include_extras=True)
@@ -588,7 +627,7 @@ class _TupleToPlainJsonMixin:
                             )
 
                         data.append(
-                            cls.restfulJsonDictToTupleWithValidation(
+                            TupleClass.restfulJsonDictToTupleWithValidation(
                                 item, listItemTypeHint
                             )
                         )
@@ -596,7 +635,10 @@ class _TupleToPlainJsonMixin:
                 else:
                     for item in value:
                         raiseIfNotType(
-                            fieldName, listItemTypeHint, item, listItemTypeValidator
+                            fieldName,
+                            listItemTypeHint,
+                            item,
+                            listItemTypeValidator,
                         )
                         data.append(item)
 
@@ -605,7 +647,9 @@ class _TupleToPlainJsonMixin:
             if isinstance(value, dict):
                 # If this is just a single child tuple, import it
                 if hasattr(typeHint, "__tupleType__"):
-                    return cls.restfulJsonDictToTupleWithValidation(value, typeHint)
+                    return TupleClass.restfulJsonDictToTupleWithValidation(
+                        value, typeHint
+                    )
 
                 if not get_args(typeHint):
                     raise Exception(
@@ -625,19 +669,27 @@ class _TupleToPlainJsonMixin:
                                 f" {valueTypeHint}, got {type(value)} instead"
                             )
 
-                        data[key] = cls.restfulJsonDictToTupleWithValidation(
+                        data[
+                            key
+                        ] = TupleClass.restfulJsonDictToTupleWithValidation(
                             item, valueTypeHint
                         )
 
                 else:
-                    keyTypeExtraHint, valueTypeExtraHint = get_args(extraTypeHint)
-                    keyTypeValidator = getFieldValidatorFromExtraHint(keyTypeExtraHint)
+                    keyTypeExtraHint, valueTypeExtraHint = get_args(
+                        extraTypeHint
+                    )
+                    keyTypeValidator = getFieldValidatorFromExtraHint(
+                        keyTypeExtraHint
+                    )
                     valueTypeValidator = getFieldValidatorFromExtraHint(
                         valueTypeExtraHint
                     )
 
                     for key, item in value.items():
-                        raiseIfNotType(fieldName, keyTypeHint, key, keyTypeValidator)
+                        raiseIfNotType(
+                            fieldName, keyTypeHint, key, keyTypeValidator
+                        )
                         raiseIfNotType(
                             fieldName, valueTypeHint, item, valueTypeValidator
                         )
@@ -653,7 +705,9 @@ class _TupleToPlainJsonMixin:
         newTuple = TupleClass()
 
         for fieldName in TupleClass.__fieldNames__:
-            setattr(newTuple, fieldName, convert(fieldName, jsonDict.get(fieldName)))
+            setattr(
+                newTuple, fieldName, convert(fieldName, jsonDict.get(fieldName))
+            )
 
         return newTuple
 
@@ -709,7 +763,9 @@ class Tuple(Jsonable, _TupleToPlainJsonMixin, _TupleToSqlaJsonMixin):
 
             elif isinstance(tupleField, InstrumentedAttribute):
                 default = (
-                    self.__table__.c[name].default if name in self.__table__.c else None
+                    self.__table__.c[name].default
+                    if name in self.__table__.c
+                    else None
                 )
 
                 assign = (
@@ -796,7 +852,9 @@ class Tuple(Jsonable, _TupleToPlainJsonMixin, _TupleToSqlaJsonMixin):
         )
 
         vals = ["type = %s," % self.tupleType()]
-        vals.extend(["%s = %s," % (name, val(name)) for name in self.__fieldNames__])
+        vals.extend(
+            ["%s = %s," % (name, val(name)) for name in self.__fieldNames__]
+        )
 
         return "\n".join(vals)
 
@@ -825,7 +883,8 @@ class TupleHash(object):
 
             elif isinstance(val, (list, set)):
                 newItems = [
-                    TupleHash(v)._key() if isinstance(v, Tuple) else v for v in val
+                    TupleHash(v)._key() if isinstance(v, Tuple) else v
+                    for v in val
                 ]
                 val = tuple(newItems)
 
