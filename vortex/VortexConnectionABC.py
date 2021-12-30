@@ -17,11 +17,14 @@ logger = logging.getLogger(name=__name__)
 
 
 class VortexConnectionABC(metaclass=ABCMeta):
-    def __init__(self, logger,
-                 vortexServer: VortexServer,
-                 remoteVortexUuid: str,
-                 remoteVortexName: str,
-                 httpSessionUuid=None) -> None:
+    def __init__(
+        self,
+        logger,
+        vortexServer: VortexServer,
+        remoteVortexUuid: str,
+        remoteVortexName: str,
+        httpSessionUuid=None,
+    ) -> None:
         self._vortexServer = vortexServer
         self._logger = logger
         self._remoteVortexUuid = remoteVortexUuid
@@ -35,7 +38,7 @@ class VortexConnectionABC(metaclass=ABCMeta):
 
     @property
     def remoteVortexUuid(self):
-        """ Vortex UUID
+        """Vortex UUID
 
         The vortex UUID of the remote vortex which this connection represents.
 
@@ -44,7 +47,7 @@ class VortexConnectionABC(metaclass=ABCMeta):
 
     @property
     def remoteVortexName(self):
-        """ Vortex Name
+        """Vortex Name
 
         The name of the remote vortex which this connection represents.
 
@@ -53,7 +56,7 @@ class VortexConnectionABC(metaclass=ABCMeta):
 
     @abstractmethod
     def write(self, payloadVortexStr: bytes, priority: int = DEFAULT_PRIORITY):
-        """ Write
+        """Write
 
         EG
 

@@ -45,31 +45,37 @@ class VortexWebsocketServerProtocol(Protocol):
 
         # Most messages don't need a buffer, but websockets can split messages
         # around the 128kb mark
-        self._receiveBuffer = b''
+        self._receiveBuffer = b""
 
     def __initConnection(self):
         # self.transport.setBinaryMode(True)
 
         params = parse_qs(urlparse(self.transport.location).query)
 
-        if 'vortexUuid' not in params or 'vortexName' not in params:
-            raise Exception("This isn't a vortex capable websocket. Check the URL")
+        if "vortexUuid" not in params or "vortexName" not in params:
+            raise Exception(
+                "This isn't a vortex capable websocket. Check the URL"
+            )
 
-        self._remoteVortexUuid = params['vortexUuid'][0]
-        self._remoteVortexName = params['vortexName'][0]
-        self._conn = VortexServerConnection(self._vortex,
-                                            self._remoteVortexUuid,
-                                            self._remoteVortexName,
-                                            self._httpSession,
-                                            self.transport,
-                                            self._addr)
+        self._remoteVortexUuid = params["vortexUuid"][0]
+        self._remoteVortexName = params["vortexName"][0]
+        self._conn = VortexServerConnection(
+            self._vortex,
+            self._remoteVortexUuid,
+            self._remoteVortexName,
+            self._httpSession,
+            self.transport,
+            self._addr,
+        )
 
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {}
         connectPayloadFilt[PayloadEnvelope.vortexUuidKey] = self._vortex.uuid()
         connectPayloadFilt[PayloadEnvelope.vortexNameKey] = self._vortex.name()
-        self._conn.write(PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg(),
-                         DEFAULT_PRIORITY)
+        self._conn.write(
+            PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg(),
+            DEFAULT_PRIORITY,
+        )
 
         self._vortex.connectionOpened(self._httpSession, self._conn)
 
@@ -84,16 +90,16 @@ class VortexWebsocketServerProtocol(Protocol):
         if self._httpSession:
             self._httpSession.touch()
 
-        if data == b'.':
+        if data == b".":
             self._conn.beatReceived()
             return
 
         self._receiveBuffer += data
 
-        if self._receiveBuffer.endswith(b'.'):
+        if self._receiveBuffer.endswith(b"."):
             d = self._processVortexMsg(self._receiveBuffer)
             d.addErrback(vortexLogFailure, logger, consumeError=True)
-            self._receiveBuffer = b''
+            self._receiveBuffer = b""
 
     def connectionLost(self, reason=connectionDone):
         if self._conn:
@@ -106,7 +112,8 @@ class VortexWebsocketServerProtocol(Protocol):
             httpSession=self._httpSession,
             vortexUuid=self._remoteVortexUuid,
             vortexName=self._remoteVortexName,
-            payload=payloadEnvelope)
+            payload=payloadEnvelope,
+        )
 
 
 class VortexWebsocketServerFactory(Factory):
@@ -130,19 +137,22 @@ class VortexWrappedWebSocketFactory(WrappingFactory):
     protocol = WebSocketProtocol
 
     def buildProtocol(self, addr, httpSession):
-        return self.protocol(self, self.wrappedFactory.buildProtocol(addr, httpSession))
+        return self.protocol(
+            self, self.wrappedFactory.buildProtocol(addr, httpSession)
+        )
 
 
 class VortexWebSocketUpgradeResource(resource.Resource):
-    """ Vortex Websocket Upgrade Resource
+    """Vortex Websocket Upgrade Resource
 
     If this resource is hit, it will attempt to upgrade the connection to a websocket.
 
     """
+
     isLeaf = 1
 
     def __init__(self, websocketFactory):
-        """ Constructor
+        """Constructor
 
         @:param websocketFactory: A factory that will build a WebsocketProtocol (above)
         """
@@ -152,8 +162,9 @@ class VortexWebSocketUpgradeResource(resource.Resource):
     def render(self, request):
         httpSession = request.getSession()
 
-        websocketProtocol = self._websocketFactory \
-            .buildProtocol(request.client.host, httpSession)
+        websocketProtocol = self._websocketFactory.buildProtocol(
+            request.client.host, httpSession
+        )
         websocketProtocol.makeConnection(request.channel.transport)
         websocketProtocol.initFromRequest(request)
         request.channel.upgradeToWebsocket(websocketProtocol)

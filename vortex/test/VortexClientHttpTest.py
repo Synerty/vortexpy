@@ -8,8 +8,8 @@ from twisted.internet.protocol import Factory, Protocol, connectionDone
 from vortex.Payload import Payload
 from vortex.VortexClientHttp import VortexClientHttp
 
-class DummyListenerProtocol(Protocol):
 
+class DummyListenerProtocol(Protocol):
     def connectionMade(self):
         pass
 
@@ -21,10 +21,8 @@ class DummyListenerProtocol(Protocol):
 
 
 class DummyListenerFactory(Factory):
-
     def buildProtocol(self, addr):
         return DummyListenerProtocol()
-
 
 
 class VortexClientTest(unittest.TestCase):
@@ -65,8 +63,9 @@ class VortexClientTest(unittest.TestCase):
         d = self.vortexClient.sendVortexMsg(Payload().toVortexMsg())
         deferreds.append(d)
 
-        d = self.vortexClient.sendVortexMsg([Payload().toVortexMsg(), Payload().toVortexMsg()])
+        d = self.vortexClient.sendVortexMsg(
+            [Payload().toVortexMsg(), Payload().toVortexMsg()]
+        )
         deferreds.append(d)
 
         return DeferredList(deferreds)
-

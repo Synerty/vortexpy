@@ -20,61 +20,66 @@ try:
     from geoalchemy2.elements import WKBElement
 
 except ImportError:
+
     class WKBElement:
         def __init__(self):
             raise NotImplementedError("")
+
 
 try:
     from geoalchemy2.elements import WKBElement
 
 except ImportError:
+
     class WKBElement:
         def __init__(self):
             raise NotImplementedError("")
+
 
 ###############################################################################
 # Utility functions
 ###############################################################################
 
-T_RAPUI_TUPLE = 'rt'
-T_RAPUI_PAYLOAD = 'rp'
-T_RAPUI_PAYLOAD_ENVELOPE = 'rpe'
-T_GENERIC_CLASS = 'gen'  # NOT SUPPORTED
-T_FLOAT = 'float'
-T_INT = 'int'
-T_STR = 'str'
-T_BYTES = 'bytes'
-T_BOOL = 'bool'
-T_DATETIME = 'datetime'
-T_DICT = 'dict'
-T_LIST = 'list'
-T_WKB = 'wkb' # Well Known Binary, a part of the GEO library
+T_RAPUI_TUPLE = "rt"
+T_RAPUI_PAYLOAD = "rp"
+T_RAPUI_PAYLOAD_ENVELOPE = "rpe"
+T_GENERIC_CLASS = "gen"  # NOT SUPPORTED
+T_FLOAT = "float"
+T_INT = "int"
+T_STR = "str"
+T_BYTES = "bytes"
+T_BOOL = "bool"
+T_DATETIME = "datetime"
+T_DICT = "dict"
+T_LIST = "list"
+T_WKB = "wkb"  # Well Known Binary, a part of the GEO library
 
-V_NULL = 'null'
-V_TRUE = '1'
-V_FALSE = '0'
+V_NULL = "null"
+V_TRUE = "1"
+V_FALSE = "0"
 
 ISO8601_ORA = "YYYY-MM-DD HH24:MI:SS.FF6"
 ISO8601 = "%Y-%m-%d %H:%M:%S.%f%z"
 ISO8601_REGEXP = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}[+-]\d{4}$"
 ISO8601_NOTZ = "%Y-%m-%d %H:%M:%S.%f"
 
-TYPE_MAP_PY_TO_RAPUI = {decimal.Decimal: T_FLOAT,
-                        float: T_FLOAT,
-                        str: T_STR,
-                        bytes: T_BYTES,
-                        int: T_INT,
-                        bool: T_BOOL,
-                        datetime: T_DATETIME,
-                        date: T_DATETIME,
-                        dict: T_DICT,
-                        defaultdict: T_DICT,
-                        list: T_LIST,
-                        set: T_LIST,
-                        tuple: T_LIST,
-                        WKBElement: T_WKB,
-                        InstrumentedList: T_LIST
-                        }
+TYPE_MAP_PY_TO_RAPUI = {
+    decimal.Decimal: T_FLOAT,
+    float: T_FLOAT,
+    str: T_STR,
+    bytes: T_BYTES,
+    int: T_INT,
+    bool: T_BOOL,
+    datetime: T_DATETIME,
+    date: T_DATETIME,
+    dict: T_DICT,
+    defaultdict: T_DICT,
+    list: T_LIST,
+    set: T_LIST,
+    tuple: T_LIST,
+    WKBElement: T_WKB,
+    InstrumentedList: T_LIST,
+}
 
 
 def className(o):
@@ -84,39 +89,45 @@ def className(o):
 
 def convertFromShape(shapelyShape):
     from shapely.geometry.polygon import Polygon
+
     if isinstance(shapelyShape, Polygon):
         coords = shapelyShape.exterior.coords
     else:
         coords = shapelyShape.coords
-    return [{'x': i[0], 'y': i[1]} for i in coords]
+    return [{"x": i[0], "y": i[1]} for i in coords]
 
 
 def convertFromWkbElement(value):
     from geoalchemy2.shape import to_shape
+
     return convertFromShape(to_shape(value))
 
 
-def serialiseWkb(wkb:WKBElement) -> str:
+def serialiseWkb(wkb: WKBElement) -> str:
     from geoalchemy2.shape import to_shape
     import shapely
+
     return b64encode(shapely.wkb.dumps(to_shape(wkb))).decode()
 
-def deserialiseWkb(wkbB64Data:str) -> WKBElement:
+
+def deserialiseWkb(wkbB64Data: str) -> WKBElement:
     from geoalchemy2.shape import from_shape
     import shapely
+
     return from_shape(shapely.wkb.loads(b64decode(wkbB64Data)))
 
 
-TYPE_MAP_RAPUI_TO_PY = {T_FLOAT: float,
-                        T_STR: str,
-                        T_BYTES: bytes,
-                        T_INT: int,
-                        T_BOOL: bool,
-                        T_DATETIME: datetime,
-                        T_DICT: dict,
-                        T_LIST: list,
-                        T_WKB: deserialiseWkb
-                        }
+TYPE_MAP_RAPUI_TO_PY = {
+    T_FLOAT: float,
+    T_STR: str,
+    T_BYTES: bytes,
+    T_INT: int,
+    T_BOOL: bool,
+    T_DATETIME: datetime,
+    T_DICT: dict,
+    T_LIST: list,
+    T_WKB: deserialiseWkb,
+}
 
 
 def decimalToStr(dec):
@@ -125,17 +136,17 @@ def decimalToStr(dec):
     Captures all of the information in the underlying representation.
     """
 
-    if str(dec) == '0E-10':
-        return '0'
+    if str(dec) == "0E-10":
+        return "0"
 
-    sign = ['', '-'][dec._sign]
+    sign = ["", "-"][dec._sign]
     if dec._is_special:
-        if dec._exp == 'F':
-            return sign + 'Infinity'
-        elif dec._exp == 'n':
-            return sign + 'NaN' + dec._int
+        if dec._exp == "F":
+            return sign + "Infinity"
+        elif dec._exp == "n":
+            return sign + "NaN" + dec._int
         else:  # dec._exp == 'N'
-            return sign + 'sNaN' + dec._int
+            return sign + "sNaN" + dec._int
 
     # number of digits of dec._int to left of decimal point
     leftdigits = dec._exp + len(dec._int)
@@ -144,24 +155,24 @@ def decimalToStr(dec):
     dotplace = leftdigits
 
     if dotplace <= 0:
-        intpart = '0'
-        fracpart = '.' + '0' * (-dotplace) + dec._int
+        intpart = "0"
+        fracpart = "." + "0" * (-dotplace) + dec._int
     elif dotplace >= len(dec._int):
-        intpart = dec._int + '0' * (dotplace - len(dec._int))
-        fracpart = ''
+        intpart = dec._int + "0" * (dotplace - len(dec._int))
+        fracpart = ""
     else:
         intpart = dec._int[:dotplace]
-        fracpart = '.' + dec._int[dotplace:]
+        fracpart = "." + dec._int[dotplace:]
 
     if leftdigits == dotplace:
-        exp = ''
+        exp = ""
     else:
         exp = "E%+d" % (leftdigits - dotplace)
 
-    s = (sign + intpart + fracpart + exp)
-    if '.' in s:
-        s = s.rstrip('0').rstrip('.')
-    assert (len(s))
+    s = sign + intpart + fracpart + exp
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    assert len(s)
     return s
 
 
@@ -180,7 +191,7 @@ def toStr(obj) -> str:
         return V_TRUE if obj else V_FALSE
 
     if isinstance(obj, bytes):
-        return b64encode(obj).decode() # to make it a str
+        return b64encode(obj).decode()  # to make it a str
 
     if isinstance(obj, str):
         return obj
@@ -195,7 +206,7 @@ def toStr(obj) -> str:
 
 def fromStr(val: str, typeName: str):
     if typeName == T_DATETIME:
-        if len(val) <= len('2017-06-06 09:40:37.097068'):
+        if len(val) <= len("2017-06-06 09:40:37.097068"):
             return datetime.strptime(val, ISO8601_NOTZ)
         return datetime.strptime(val, ISO8601)
 
@@ -225,14 +236,17 @@ def toRapuiType(value):
         return V_NULL
 
     from .Tuple import Tuple
+
     if isinstance(value, Tuple):
         return T_RAPUI_TUPLE
 
     from .Payload import Payload
+
     if isinstance(value, Payload):
         return T_RAPUI_PAYLOAD
 
     from .PayloadEnvelope import PayloadEnvelope
+
     if isinstance(value, PayloadEnvelope):
         return T_RAPUI_PAYLOAD_ENVELOPE
 

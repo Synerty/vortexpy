@@ -27,9 +27,10 @@ logger = logging.getLogger(name=__name__)
 
 
 class VortexServerHttpResource(Resource):
-    """ VortexServer Resource
-      This resource is the server endpoint for the vortex.
+    """VortexServer Resource
+    This resource is the server endpoint for the vortex.
     """
+
     isLeaf = True
 
     def __init__(self, vortex: VortexServer) -> None:
@@ -41,17 +42,16 @@ class VortexServerHttpResource(Resource):
         return b"You have reached the vortex. It only likes POST methods."
 
     def render_POST(self, request):
-        remoteVortexUuid = request.args[b'vortexUuid'][0].decode()
-        remoteVortexName = request.args[b'vortexName'][0].decode()
+        remoteVortexUuid = request.args[b"vortexUuid"][0].decode()
+        remoteVortexName = request.args[b"vortexName"][0].decode()
 
         if self.__vortex.isShutdown():
             return None
 
         httpSession = request.getSession()
-        conn = VortexResourceConnection(self.__vortex,
-                                        remoteVortexUuid,
-                                        remoteVortexName,
-                                        request)
+        conn = VortexResourceConnection(
+            self.__vortex, remoteVortexUuid, remoteVortexName, request
+        )
 
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {}
@@ -61,8 +61,10 @@ class VortexServerHttpResource(Resource):
 
         data = request.content.read()
         if len(data):
-            for vortexStr in data.strip(b'.').split(b'.'):
-                self._processVortexMsg(httpSession, conn, vortexStr.decode("UTF-8"))
+            for vortexStr in data.strip(b".").split(b"."):
+                self._processVortexMsg(
+                    httpSession, conn, vortexStr.decode("UTF-8")
+                )
 
         # Request will be around for a while, do some cleanups
         request.content = BytesIO()
@@ -85,28 +87,37 @@ class VortexServerHttpResource(Resource):
             httpSession=httpSession,
             vortexUuid=conn.remoteVortexUuid,
             vortexName=conn.remoteVortexName,
-            payload=payload)
+            payload=payload,
+        )
 
 
 class VortexResourceConnection(VortexConnectionABC):
-    def __init__(self, vortexServer: VortexServer,
-                 remoteVortexUuid: str,
-                 remoteVortexName: str,
-                 request) -> None:
-        VortexConnectionABC.__init__(self,
-                                     logger,
-                                     vortexServer,
-                                     remoteVortexUuid=remoteVortexUuid,
-                                     remoteVortexName=remoteVortexName,
-                                     httpSessionUuid=request.getSession().uid)
+    def __init__(
+        self,
+        vortexServer: VortexServer,
+        remoteVortexUuid: str,
+        remoteVortexName: str,
+        request,
+    ) -> None:
+        VortexConnectionABC.__init__(
+            self,
+            logger,
+            vortexServer,
+            remoteVortexUuid=remoteVortexUuid,
+            remoteVortexName=remoteVortexName,
+            httpSessionUuid=request.getSession().uid,
+        )
 
         self._request = request
-        self._request.responseHeaders.setRawHeaders(b'content-type'
-                                                    , [b'text/text'])
+        self._request.responseHeaders.setRawHeaders(
+            b"content-type", [b"text/text"]
+        )
 
         self._buffer: Deque[bytes] = collections.deque()
 
-        self._requestReadyCheckTimer = task.LoopingCall(self._checkIfRequestIsReady)
+        self._requestReadyCheckTimer = task.LoopingCall(
+            self._checkIfRequestIsReady
+        )
         self._requestReadyCheckTimer.start(0.001)
 
         # Start our heart beat
@@ -115,12 +126,16 @@ class VortexResourceConnection(VortexConnectionABC):
         d.addErrback(lambda f: logger.exception(f.value))
 
     def _beat(self):
-        if self._closed or self._request.finished or self._request.channel is None:
+        if (
+            self._closed
+            or self._request.finished
+            or self._request.channel is None
+        ):
             self._beatLoopingCall.stop()
             return
 
         # Send the heartbeats
-        self._request.write(b'.')
+        self._request.write(b".")
 
         # Touch the session
         self._request.getSession().touch()
@@ -162,7 +177,7 @@ class VortexResourceConnection(VortexConnectionABC):
             return
 
         self._request.write(payloadVortexStr)
-        self._request.write(b'.')
+        self._request.write(b".")
 
     def close(self):
         if self._beatLoopingCall.running:

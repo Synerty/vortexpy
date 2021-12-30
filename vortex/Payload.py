@@ -21,21 +21,20 @@ from .SerialiseUtil import T_RAPUI_PAYLOAD
 
 logger = logging.getLogger(__name__)
 
-PayloadList = List['Payload']
+PayloadList = List["Payload"]
 EncodedPayloadList = List[bytes]
 
 
 class Payload(Jsonable):
-    ''' Payload
+    """Payload
     This object represents a hierarchy of data transferred between client and server
-    '''
-    __fieldNames__ = ['filt', 'tuples', 'date']
+    """
+
+    __fieldNames__ = ["filt", "tuples", "date"]
     __rapuiSerialiseType__ = T_RAPUI_PAYLOAD
 
     def __init__(self, filt: Optional[Dict] = None, tuples=None) -> None:
-        """ Constructor
-
-        """
+        """Constructor"""
         self.filt = {} if filt is None else filt
         self.tuples = [] if tuples is None else tuples
         self.date = datetime.now(pytz.utc)
@@ -51,37 +50,44 @@ class Payload(Jsonable):
 
     def makePayloadEnvelope(self, result=None, compressionLevel: int = 9):
         from .PayloadEnvelope import PayloadEnvelope
+
         noMainThread()
         encodedSelf = self.toEncodedPayload(compressionLevel=compressionLevel)
-        return PayloadEnvelope(self.filt,
-                               encodedPayload=encodedSelf,
-                               date=self.date,
-                               result=result)
+        return PayloadEnvelope(
+            self.filt, encodedPayload=encodedSelf, date=self.date, result=result
+        )
 
     @deferToThreadWrapWithLogger(logger)
     def makePayloadEnvelopeDefer(self, result=None, compressionLevel: int = 9):
-        return self.makePayloadEnvelope(result=result, compressionLevel=compressionLevel)
+        return self.makePayloadEnvelope(
+            result=result, compressionLevel=compressionLevel
+        )
 
     # -------------------------------------------
     # VortexMsg helper messages
 
-    def makePayloadEnvelopeVortexMsg(self, result=None, compressionLevel: int = 9):
+    def makePayloadEnvelopeVortexMsg(
+        self, result=None, compressionLevel: int = 9
+    ):
         noMainThread()
-        return self.makePayloadEnvelope(result=result,
-                                        compressionLevel=compressionLevel) \
-            .toVortexMsg()
+        return self.makePayloadEnvelope(
+            result=result, compressionLevel=compressionLevel
+        ).toVortexMsg()
 
     @deferToThreadWrapWithLogger(logger)
-    def makePayloadEnvelopeVortexMsgDefer(self, result=None, compressionLevel: int = 9):
-        return self.makePayloadEnvelopeVortexMsg(result=result,
-                                                 compressionLevel=compressionLevel)
+    def makePayloadEnvelopeVortexMsgDefer(
+        self, result=None, compressionLevel: int = 9
+    ):
+        return self.makePayloadEnvelopeVortexMsg(
+            result=result, compressionLevel=compressionLevel
+        )
 
     # -------------------------------------------
     # JSON Related methods
     def _fromJson(self, jsonStr):
         jsonDict = ujson.loads(jsonStr)
 
-        assert (jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__)
+        assert jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__
         return self.fromJsonDict(jsonDict)
 
     def _toJson(self) -> str:
@@ -91,7 +97,9 @@ class Payload(Jsonable):
     # VortexServer Message Methods
     def toEncodedPayload(self, compressionLevel: int = 9) -> bytes:
         jsonStr = self._toJson()
-        return b64encode(zlib.compress(jsonStr.encode("UTF-8"), compressionLevel))
+        return b64encode(
+            zlib.compress(jsonStr.encode("UTF-8"), compressionLevel)
+        )
 
     @deferToThreadWrapWithLogger(logger)
     def toEncodedPayloadDefer(self, compressionLevel: int = 9) -> bytes:

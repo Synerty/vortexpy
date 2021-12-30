@@ -41,12 +41,14 @@ class VortexTcpServerProtocol(VortexPayloadProtocol):
     def _nameAndUuidReceived(self, name, uuid):
         self._remoteVortexUuid = uuid
         self._remoteVortexName = name
-        self._conn = VortexServerConnection(self._vortex,
-                                            self._remoteVortexUuid,
-                                            self._remoteVortexName,
-                                            self._httpSession,
-                                            self.transport,
-                                            self._addr)
+        self._conn = VortexServerConnection(
+            self._vortex,
+            self._remoteVortexUuid,
+            self._remoteVortexName,
+            self._httpSession,
+            self.transport,
+            self._addr,
+        )
 
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {}
@@ -57,8 +59,10 @@ class VortexTcpServerProtocol(VortexPayloadProtocol):
         self._vortex.connectionOpened(self._httpSession, self._conn)
 
     def _createResponseSenderCallable(self):
-        def sendResponse(vortexMsgs: Union[VortexMsgList, bytes],
-                         priority: int = DEFAULT_PRIORITY):
+        def sendResponse(
+            vortexMsgs: Union[VortexMsgList, bytes],
+            priority: int = DEFAULT_PRIORITY,
+        ):
             if isinstance(vortexMsgs, bytes):
                 vortexMsgs = [vortexMsgs]
 

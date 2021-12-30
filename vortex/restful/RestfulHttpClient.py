@@ -39,7 +39,10 @@ class RestfulHttpClient:
 
         # add http headers
         headers = Headers(
-            {"User-Agent": ["synerty/1.0"], "Content-Type": ["application/json"]}
+            {
+                "User-Agent": ["synerty/1.0"],
+                "Content-Type": ["application/json"],
+            }
         )
 
         # Add the gzip decoder
@@ -63,7 +66,9 @@ class RestfulHttpClient:
 
     def _parseTuple(self, bytes_):
         json_ = json.loads(bytes_.decode("utf-8"))
-        return Tuple.restfulJsonDictToTupleWithValidation(json_, self._ResponseTuple)
+        return Tuple.restfulJsonDictToTupleWithValidation(
+            json_, self._ResponseTuple
+        )
 
 
 @implementer(IBodyProducer)

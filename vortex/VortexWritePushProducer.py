@@ -21,11 +21,11 @@ logger = logging.getLogger(name=__name__)
 
 
 def _format_size(size):
-    for unit in ('B', 'KiB', 'MiB', 'GiB', 'TiB'):
-        if abs(size) < 100 and unit != 'B':
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if abs(size) < 100 and unit != "B":
             # 3 digits (xx.x UNIT)
             return "%.1f %s" % (size, unit)
-        if abs(size) < 10 * 1024 or unit == 'TiB':
+        if abs(size) < 10 * 1024 or unit == "TiB":
             # 4 or 5 digits (xxxx UNIT)
             return "%.0f %s" % (size, unit)
         size /= 1024
@@ -46,13 +46,16 @@ class VortexWritePushProducer(object):
         cls.__memoryLoggingEnabled = True
 
     @classmethod
-    def memoryLoggingDump(cls, top=10,
-                          msgs=1) -> typing.List[typing.Tuple[str, int, int]]:
+    def memoryLoggingDump(
+        cls, top=10, msgs=1
+    ) -> typing.List[typing.Tuple[str, int, int]]:
         if not cls.__memoryLoggingRefs:
             return []
 
         # Filter out expired items
-        cls.__memoryLoggingRefs = list(filter(lambda o: o(), cls.__memoryLoggingRefs))
+        cls.__memoryLoggingRefs = list(
+            filter(lambda o: o(), cls.__memoryLoggingRefs)
+        )
 
         results = []
         for producerRef in cls.__memoryLoggingRefs:
@@ -60,22 +63,33 @@ class VortexWritePushProducer(object):
             if not producer:
                 continue
 
-            queueCount = sum([len(q) for q in producer._queueByPriority.values()])
+            queueCount = sum(
+                [len(q) for q in producer._queueByPriority.values()]
+            )
 
-            results.append((producer._remoteVortexName,
-                            queueCount,
-                            producer._queuedDataLen))
+            results.append(
+                (
+                    producer._remoteVortexName,
+                    queueCount,
+                    producer._queuedDataLen,
+                )
+            )
 
         data = sorted(results, key=lambda x: x[2], reverse=True)
 
         return list(filter(lambda x: x[2] >= msgs, data))[:top]
 
-    def __init__(self, transport,
-                 stopProducingCallback: Callable,
-                 remoteVortexName: str = 'Pending',
-                 writeWholeFrames=False):
+    def __init__(
+        self,
+        transport,
+        stopProducingCallback: Callable,
+        remoteVortexName: str = "Pending",
+        writeWholeFrames=False,
+    ):
         if VortexWritePushProducer.__memoryLoggingEnabled:
-            VortexWritePushProducer.__memoryLoggingRefs.append(weakref.ref(self))
+            VortexWritePushProducer.__memoryLoggingRefs.append(
+                weakref.ref(self)
+            )
 
         self._transport = transport
         self._stopProducingCallback = stopProducingCallback
@@ -98,9 +112,11 @@ class VortexWritePushProducer(object):
 
     @property
     def _canContinue(self):
-        return not self._paused \
-               and not self._startWritingFrame.running \
-               and [q for q in self._queueByPriority.values() if q]
+        return (
+            not self._paused
+            and not self._startWritingFrame.running
+            and [q for q in self._queueByPriority.values() if q]
+        )
 
     @nonConcurrentMethod
     def _startWriting(self):
@@ -125,17 +141,19 @@ class VortexWritePushProducer(object):
                     logger.info(
                         "%s: Data Queue memory high warning - returned to normal : %s",
                         self._remoteVortexName,
-                        _format_size(self._queuedDataLen))
+                        _format_size(self._queuedDataLen),
+                    )
 
                 if self._queuedDataLen < self.ERROR_DATA_LENGTH < preLen:
                     logger.info(
                         "%s: Data Queue memory high error - returned to warning : %s",
                         self._remoteVortexName,
-                        _format_size(self._queuedDataLen))
+                        _format_size(self._queuedDataLen),
+                    )
 
                 if self._writeWholeFrames:
                     self._transport.write(data)
-                    self._transport.write(b'.')
+                    self._transport.write(b".")
 
                 else:
                     self._currentlyWritingData = data
@@ -154,13 +172,13 @@ class VortexWritePushProducer(object):
         offset = self._currentlyWritingDataOffset
         data = self._currentlyWritingData
         while not self._paused and offset < len(data):
-            self._transport.write(data[offset:offset + self.WRITE_CHUNK_SIZE])
+            self._transport.write(data[offset : offset + self.WRITE_CHUNK_SIZE])
             offset += self.WRITE_CHUNK_SIZE
 
         if len(data) <= offset:
             self._currentlyWritingDataOffset = 0
             self._currentlyWritingData = None
-            self._transport.write(b'.')
+            self._transport.write(b".")
 
         else:
             self._currentlyWritingDataOffset = offset
@@ -209,14 +227,18 @@ class VortexWritePushProducer(object):
         self._queueByPriority[priority].append(data)
 
         if preLen < self.WARNING_DATA_LENGTH < self._queuedDataLen:
-            logger.warning("%s: Data Queue memory high warning : %s",
-                           self._remoteVortexName,
-                           _format_size(self._queuedDataLen))
+            logger.warning(
+                "%s: Data Queue memory high warning : %s",
+                self._remoteVortexName,
+                _format_size(self._queuedDataLen),
+            )
 
         if preLen < self.ERROR_DATA_LENGTH < self._queuedDataLen:
-            logger.error("%s: Data Queue memory high error : %s",
-                         self._remoteVortexName,
-                         _format_size(self._queuedDataLen))
+            logger.error(
+                "%s: Data Queue memory high error : %s",
+                self._remoteVortexName,
+                _format_size(self._queuedDataLen),
+            )
 
         self._startWriting()
 

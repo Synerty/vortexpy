@@ -7,21 +7,20 @@ from twisted.internet import task
 from vortex.DeferUtil import deferToThreadWrapWithLogger
 from vortex.Payload import Payload
 from vortex.TupleSelector import TupleSelector
-from vortex.handler.TupleDataObservableHandler import TuplesProviderABC, \
-    TupleDataObservableHandler
+from vortex.handler.TupleDataObservableHandler import (
+    TuplesProviderABC,
+    TupleDataObservableHandler,
+)
 from vortex.test.TestTuple import TestTuple
 from vortex.test.TupleDataForTest import makeTestTupleData
 
 logger = logging.getLogger(__name__)
-testTuples1Selector = TupleSelector("testTuples1",
-                                    {"count": 4})
+testTuples1Selector = TupleSelector("testTuples1", {"count": 4})
 
-testTuples2Selector = TupleSelector("testTuples2",
-                                    {"count": 7})
+testTuples2Selector = TupleSelector("testTuples2", {"count": 7})
 
 
 class TestTupleProvider(TuplesProviderABC):
-
     @deferToThreadWrapWithLogger(logger)
     def makeVortexMsg(self, filt: dict, tupleSelector: TupleSelector) -> bytes:
         count = tupleSelector.selector["count"]
@@ -32,7 +31,11 @@ class TestTupleProvider(TuplesProviderABC):
             t.aDict = tupleSelector.selector
             t.aString = tupleSelector.name
 
-        return Payload(filt=filt, tuples=tuples).makePayloadEnvelope().toVortexMsg()
+        return (
+            Payload(filt=filt, tuples=tuples)
+            .makePayloadEnvelope()
+            .toVortexMsg()
+        )
 
 
 class NotifyTestTimer:
@@ -46,7 +49,9 @@ class NotifyTestTimer:
         cls.__loopingCall = task.LoopingCall(cls.__notify)
         d = cls.__loopingCall.start(2)
         d.addErrback(lambda f: logger.exception(f.value))
-        d.addCallback(lambda _: logger.debug("Observable tuple updates started"))
+        d.addCallback(
+            lambda _: logger.debug("Observable tuple updates started")
+        )
 
 
 observableHandler = TupleDataObservableHandler("vortexTestObservable")

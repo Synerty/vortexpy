@@ -27,7 +27,6 @@ from vortex.VortexServerTcp import VortexTcpServerFactory
 
 
 class MemoryCheckerTestMixin:
-
     def _memMark(self):
         self._process = psutil.Process(os.getpid())
         unreachable = gc.collect()
@@ -37,8 +36,11 @@ class MemoryCheckerTestMixin:
 
     def _memCheck(self, grace=0):
         unreachable = gc.collect()
-        self.assertLessEqual(unreachable, self._initialUnreachable,
-                             "The garbage collector couldn't release everything")
+        self.assertLessEqual(
+            unreachable,
+            self._initialUnreachable,
+            "The garbage collector couldn't release everything",
+        )
         self._memPrintIncrease()
         memNow = self._process.memory_info().rss
         self.assertLessEqual(memNow, self._initialMem + grace)
@@ -51,10 +53,14 @@ class MemoryCheckerTestMixin:
         growth = thisDiff - lastDiff
         self._lastMem = memNow
         if not printOnlyOnGrowth or growth:
-            print("Memory growth is %s, total growth %s, total %s" % (
-                "{:,d}".format(growth),
-                "{:,d}".format(thisDiff),
-                "{:,d}".format(memNow)))
+            print(
+                "Memory growth is %s, total growth %s, total %s"
+                % (
+                    "{:,d}".format(growth),
+                    "{:,d}".format(thisDiff),
+                    "{:,d}".format(memNow),
+                )
+            )
 
     def _memCheckFunction(self, callable, loopCount, *args, **kwargs):
         assert loopCount >= 10, "We need at least 10 loops to check this"
@@ -73,19 +79,18 @@ class MemoryCheckerTestMixin:
 
 
 class VortexTcpConnectTestMixin:
-
     @inlineCallbacks
     def _connect(self):
         port = 20000 + int(random() * 10000)
 
         # Create the server
-        self._vortexServer = VortexServer('test server')
+        self._vortexServer = VortexServer("test server")
         vortexTcpServerFactory = VortexTcpServerFactory(self._vortexServer)
         self._listenPort = reactor.listenTCP(port, vortexTcpServerFactory)
 
         # Create the client
-        self._vortexClient = VortexClientTcp('test client')
-        yield self._vortexClient.connect('127.0.0.1', port)
+        self._vortexClient = VortexClientTcp("test client")
+        yield self._vortexClient.connect("127.0.0.1", port)
 
     def _disconnect(self):
         self._listenPort.stopListening()
@@ -100,7 +105,7 @@ class VortexTcpConnectTestMixin:
 
 class VortexSendReceiveTestMixin:
     # Setup a queue state
-    _loopbackFilt = {'key': 'unittest'}
+    _loopbackFilt = {"key": "unittest"}
 
     class _State:
         def __init__(self, testSelf, sendFromServerOnly):
@@ -131,7 +136,6 @@ class VortexSendReceiveTestMixin:
             return self.testSelf._vortexServer
 
     class _Checker:
-
         def __init__(self, testSelf, state, printStatusEveryXMessage):
             self.endpoint = None
             self.testSelf = testSelf
@@ -156,8 +160,9 @@ class VortexSendReceiveTestMixin:
                         dataSent = dataReceived
                         if index:
                             self.state.totalMessagesOutOfOrder += 1
-                            self.state.highestOutOfOrderIndex = \
-                                max(self.state.highestOutOfOrderIndex, index)
+                            self.state.highestOutOfOrderIndex = max(
+                                self.state.highestOutOfOrderIndex, index
+                            )
                             self.state.dataQueue.remove(item)
 
                         else:
@@ -165,11 +170,18 @@ class VortexSendReceiveTestMixin:
 
                         break
 
-                if not (self.state.totalMessagesReceived % self.printStatusEveryXMessage):
-                    print("Received message %s, this %s, total %s"
-                          % (self.state.totalMessagesReceived,
-                             "{:,d}".format(len(dataReceived)),
-                             "{:,d}".format(self.state.totalReceived)))
+                if not (
+                    self.state.totalMessagesReceived
+                    % self.printStatusEveryXMessage
+                ):
+                    print(
+                        "Received message %s, this %s, total %s"
+                        % (
+                            self.state.totalMessagesReceived,
+                            "{:,d}".format(len(dataReceived)),
+                            "{:,d}".format(self.state.totalReceived),
+                        )
+                    )
 
                 self.testSelf.assertEqual(dataReceived, dataSent)
 
@@ -181,15 +193,22 @@ class VortexSendReceiveTestMixin:
                 self.state.dataQueueEmptyDeferred.errback(Failure(e))
 
     @inlineCallbacks
-    def _vortexTestTcpServerClient(self, printStatusEveryXMessage: Optional[int] = 1000,
-                                   maxMessageSizeBytes: Optional[int] = None,
-                                   exactMessageSizeBytes: Optional[int] = None,
-                                   totalBytesToSend: Optional[int] = None,
-                                   totalMessagesToSend: Optional[int] = None,
-                                   payloadCompression=9,
-                                   sendFromServerOnly=False):
-        assert totalBytesToSend or totalMessagesToSend, "We must have a total to send"
-        assert maxMessageSizeBytes or exactMessageSizeBytes, "We must have a msg size"
+    def _vortexTestTcpServerClient(
+        self,
+        printStatusEveryXMessage: Optional[int] = 1000,
+        maxMessageSizeBytes: Optional[int] = None,
+        exactMessageSizeBytes: Optional[int] = None,
+        totalBytesToSend: Optional[int] = None,
+        totalMessagesToSend: Optional[int] = None,
+        payloadCompression=9,
+        sendFromServerOnly=False,
+    ):
+        assert (
+            totalBytesToSend or totalMessagesToSend
+        ), "We must have a total to send"
+        assert (
+            maxMessageSizeBytes or exactMessageSizeBytes
+        ), "We must have a msg size"
 
         state = self._State(self, sendFromServerOnly)
         checker = self._Checker(self, state, printStatusEveryXMessage)
@@ -198,9 +217,11 @@ class VortexSendReceiveTestMixin:
 
         # Make random chunks of data
         def makeData():
-            size = random() * maxMessageSizeBytes \
-                if exactMessageSizeBytes is None \
+            size = (
+                random() * maxMessageSizeBytes
+                if exactMessageSizeBytes is None
                 else exactMessageSizeBytes
+            )
 
             packet = str(random())
             while len(packet) < size:
@@ -212,7 +233,10 @@ class VortexSendReceiveTestMixin:
             return packet
 
         def check():
-            if totalMessagesToSend and state.totalMessagesSent < totalMessagesToSend:
+            if (
+                totalMessagesToSend
+                and state.totalMessagesSent < totalMessagesToSend
+            ):
                 return True
 
             if totalBytesToSend and state.totalSent < totalBytesToSend:
@@ -227,8 +251,11 @@ class VortexSendReceiveTestMixin:
             state.totalSent += len(data)
             state.totalMessagesSent += 1
 
-            vortexMsg = yield Payload(self._loopbackFilt, data) \
-                .makePayloadEnvelopeVortexMsgDefer(compressionLevel=payloadCompression)
+            vortexMsg = yield Payload(
+                self._loopbackFilt, data
+            ).makePayloadEnvelopeVortexMsgDefer(
+                compressionLevel=payloadCompression
+            )
 
             state.dataSizeStats.append(len(data))
             state.vortexSizeStats.append(len(vortexMsg))
@@ -238,37 +265,55 @@ class VortexSendReceiveTestMixin:
             state.vortex(len(data)).sendVortexMsg(vortexMsg)
 
             if not (state.totalMessagesSent % printStatusEveryXMessage):
-                print("Sent     message %s, this %s, total %s"
-                      % (state.totalMessagesSent,
-                         "{:,d}".format(len(data)),
-                         "{:,d}".format(state.totalSent)))
+                print(
+                    "Sent     message %s, this %s, total %s"
+                    % (
+                        state.totalMessagesSent,
+                        "{:,d}".format(len(data)),
+                        "{:,d}".format(state.totalSent),
+                    )
+                )
 
         # Wait for all the sending to complete
         yield state.dataQueueEmptyDeferred
 
-        print("%s messages were out of order, the most out of order was %s"
-              % (state.totalMessagesOutOfOrder, state.highestOutOfOrderIndex))
+        print(
+            "%s messages were out of order, the most out of order was %s"
+            % (state.totalMessagesOutOfOrder, state.highestOutOfOrderIndex)
+        )
 
-        print("Sent %s from the vortex client"
-              % "{:,d}".format(state.totalSentFromClient))
+        print(
+            "Sent %s from the vortex client"
+            % "{:,d}".format(state.totalSentFromClient)
+        )
 
-        print("Sent %s from the vortex server"
-              % "{:,d}".format(state.totalSentFromServer))
+        print(
+            "Sent %s from the vortex server"
+            % "{:,d}".format(state.totalSentFromServer)
+        )
 
-        print("Data     : count %s, total size %s, max size %s, min size %s, average %s"
-              % (state.totalMessagesSent,
-                 "{:,d}".format(state.totalSent),
-                 "{:,d}".format(max(state.dataSizeStats)),
-                 "{:,d}".format(min(state.dataSizeStats)),
-                 "{:,d}".format(int(state.totalSent / state.totalMessagesSent))))
+        print(
+            "Data     : count %s, total size %s, max size %s, min size %s, average %s"
+            % (
+                state.totalMessagesSent,
+                "{:,d}".format(state.totalSent),
+                "{:,d}".format(max(state.dataSizeStats)),
+                "{:,d}".format(min(state.dataSizeStats)),
+                "{:,d}".format(int(state.totalSent / state.totalMessagesSent)),
+            )
+        )
 
         totalVortexMsgs = sum(state.vortexSizeStats)
-        print("VortexMsg: count %s, total size %s, max size %s, min size %s, average %s"
-              % (state.totalMessagesSent,
-                 "{:,d}".format(totalVortexMsgs),
-                 "{:,d}".format(max(state.vortexSizeStats)),
-                 "{:,d}".format(min(state.vortexSizeStats)),
-                 "{:,d}".format(int(totalVortexMsgs / state.totalMessagesSent))))
+        print(
+            "VortexMsg: count %s, total size %s, max size %s, min size %s, average %s"
+            % (
+                state.totalMessagesSent,
+                "{:,d}".format(totalVortexMsgs),
+                "{:,d}".format(max(state.vortexSizeStats)),
+                "{:,d}".format(min(state.vortexSizeStats)),
+                "{:,d}".format(int(totalVortexMsgs / state.totalMessagesSent)),
+            )
+        )
 
         # Run our checks
         self.assertEqual(state.totalSent, state.totalReceived)
@@ -283,10 +328,12 @@ class VortexSendReceiveTestMixin:
         gc.collect()
 
 
-class VortexTcpConnectTest(unittest.TestCase,
-                           MemoryCheckerTestMixin,
-                           VortexTcpConnectTestMixin,
-                           VortexSendReceiveTestMixin):
+class VortexTcpConnectTest(
+    unittest.TestCase,
+    MemoryCheckerTestMixin,
+    VortexTcpConnectTestMixin,
+    VortexSendReceiveTestMixin,
+):
     @inlineCallbacks
     def __vortexReconnect(self, count):
         self._memMark()
@@ -307,8 +354,9 @@ class VortexTcpConnectTest(unittest.TestCase,
         for x in range(count):
             print("Reconnecting #%s" % x)
             yield self._connect()
-            yield self._vortexTestTcpServerClient(totalMessagesToSend=10,
-                                                  exactMessageSizeBytes=100 * 1024)
+            yield self._vortexTestTcpServerClient(
+                totalMessagesToSend=10, exactMessageSizeBytes=100 * 1024
+            )
             self._disconnect()
             self._memPrintIncrease()
         self._memPrintIncrease()
@@ -318,19 +366,22 @@ class VortexTcpConnectTest(unittest.TestCase,
         yield self.__vortexReconnect_with_data(100)
 
 
-class VortexTcpMemoryLeakTest(unittest.TestCase,
-                              MemoryCheckerTestMixin,
-                              VortexTcpConnectTestMixin,
-                              VortexSendReceiveTestMixin):
-
+class VortexTcpMemoryLeakTest(
+    unittest.TestCase,
+    MemoryCheckerTestMixin,
+    VortexTcpConnectTestMixin,
+    VortexSendReceiveTestMixin,
+):
     @inlineCallbacks
     def __vortexSendMsgCountMsgSize(self, count, size, compression=9):
         self._memMark()
         yield self._connect()
-        yield self._vortexTestTcpServerClient(totalMessagesToSend=count,
-                                              printStatusEveryXMessage=1000,
-                                              exactMessageSizeBytes=size,
-                                              payloadCompression=compression)
+        yield self._vortexTestTcpServerClient(
+            totalMessagesToSend=count,
+            printStatusEveryXMessage=1000,
+            exactMessageSizeBytes=size,
+            payloadCompression=compression,
+        )
         self._disconnect()
         self._memPrintIncrease()
 
@@ -359,15 +410,18 @@ class VortexTcpMemoryLeakTest(unittest.TestCase,
         yield self.__vortexSendMsgCountMsgSize(10000, 100 * 1024, 9)
 
     @inlineCallbacks
-    def __vortexSendTotalSendMsgSize(self, totalSend, msgSize,
-                                     compression=9, fromServer=False):
+    def __vortexSendTotalSendMsgSize(
+        self, totalSend, msgSize, compression=9, fromServer=False
+    ):
         self._memMark()
         yield self._connect()
-        yield self._vortexTestTcpServerClient(totalBytesToSend=totalSend,
-                                              printStatusEveryXMessage=1000,
-                                              maxMessageSizeBytes=msgSize,
-                                              sendFromServerOnly=fromServer,
-                                              payloadCompression=compression)
+        yield self._vortexTestTcpServerClient(
+            totalBytesToSend=totalSend,
+            printStatusEveryXMessage=1000,
+            maxMessageSizeBytes=msgSize,
+            sendFromServerOnly=fromServer,
+            payloadCompression=compression,
+        )
         self._disconnect()
         self._memPrintIncrease()
 
@@ -389,9 +443,11 @@ class VortexTcpMemoryLeakTest(unittest.TestCase,
             print(" ===== Running iteration %s ===== " % i)
             self._memMark()
             yield self._connect()
-            yield self._vortexTestTcpServerClient(totalBytesToSend=1024 ** 2,
-                                                  printStatusEveryXMessage=1000,
-                                                  maxMessageSizeBytes=100 * 1024)
+            yield self._vortexTestTcpServerClient(
+                totalBytesToSend=1024 ** 2,
+                printStatusEveryXMessage=1000,
+                maxMessageSizeBytes=100 * 1024,
+            )
             self._disconnect()
             self._memPrintIncrease()
 
@@ -410,9 +466,11 @@ class VortexTcpMemoryLeakTest(unittest.TestCase,
             print(" ===== Running iteration %s ===== " % i)
             # Setup the parameters for the test
             self._memMark()
-            yield self._vortexTestTcpServerClient(totalBytesToSend=1024 ** 2,
-                                                  printStatusEveryXMessage=1000,
-                                                  maxMessageSizeBytes=1 * 1024)
+            yield self._vortexTestTcpServerClient(
+                totalBytesToSend=1024 ** 2,
+                printStatusEveryXMessage=1000,
+                maxMessageSizeBytes=1 * 1024,
+            )
             self._memPrintIncrease()
 
         self._disconnect()
@@ -432,10 +490,12 @@ class VortexTcpMemoryLeakTest(unittest.TestCase,
         yield self.__vortexSendTotalSendMsgSize(1024 ** 2 * 500, 1024 ** 2)
 
 
-class VortexTcpMemoryLeakLargeMessagesTest(unittest.TestCase,
-                                           MemoryCheckerTestMixin,
-                                           VortexTcpConnectTestMixin,
-                                           VortexSendReceiveTestMixin):
+class VortexTcpMemoryLeakLargeMessagesTest(
+    unittest.TestCase,
+    MemoryCheckerTestMixin,
+    VortexTcpConnectTestMixin,
+    VortexSendReceiveTestMixin,
+):
     # Increase the timeout to 15 minutes
     timeout = 30 * 60
 
@@ -443,26 +503,29 @@ class VortexTcpMemoryLeakLargeMessagesTest(unittest.TestCase,
 
     def _processData_patch(self):
         VortexTcpMemoryLeakLargeMessagesTest._patchedProcessData_dataReceivedLen += len(
-            self._data)
+            self._data
+        )
 
         # Just drop the data and continue
-        self._data = b''
+        self._data = b""
 
     @inlineCallbacks
     def __vortexSend1g_oneway_maxmsg(self, msgSize, totalSize=1024 ** 2 * 500):
         tracemalloc.start(5)
         self._memMark()
         yield self._connect()
-        yield self._vortexTestTcpServerClient(totalBytesToSend=totalSize,
-                                              printStatusEveryXMessage=1000,
-                                              exactMessageSizeBytes=msgSize,
-                                              sendFromServerOnly=True,
-                                              payloadCompression=0)
+        yield self._vortexTestTcpServerClient(
+            totalBytesToSend=totalSize,
+            printStatusEveryXMessage=1000,
+            exactMessageSizeBytes=msgSize,
+            sendFromServerOnly=True,
+            payloadCompression=0,
+        )
 
         self._disconnect()
 
         snapshot = tracemalloc.take_snapshot()
-        top_stats = snapshot.statistics('lineno')
+        top_stats = snapshot.statistics("lineno")
 
         print("[ Top 10 ]")
         for stat in top_stats[:10]:
@@ -477,49 +540,65 @@ class VortexTcpMemoryLeakLargeMessagesTest(unittest.TestCase,
             yield d
             self._memPrintIncrease()
 
-
     @inlineCallbacks
     def test_1vortexSend50mb_oneway_msg10kb(self):
-        yield self.__vortexSend1g_oneway_maxmsg(10 * 1024, totalSize=1024 ** 2 * 50)
+        yield self.__vortexSend1g_oneway_maxmsg(
+            10 * 1024, totalSize=1024 ** 2 * 50
+        )
 
     @inlineCallbacks
     def test_1vortexSend50mb_oneway_msg100kb(self):
-        yield self.__vortexSend1g_oneway_maxmsg(100 * 1024, totalSize=1024 ** 2 * 50)
+        yield self.__vortexSend1g_oneway_maxmsg(
+            100 * 1024, totalSize=1024 ** 2 * 50
+        )
 
     @inlineCallbacks
     def test_1vortexSend50mb_oneway_msg1mb(self):
-        yield self.__vortexSend1g_oneway_maxmsg(1 * 1024 ** 2, totalSize=1024 ** 2 * 50)
+        yield self.__vortexSend1g_oneway_maxmsg(
+            1 * 1024 ** 2, totalSize=1024 ** 2 * 50
+        )
 
     @inlineCallbacks
     def test_1vortexSend50mb_oneway_msg3mb(self):
-        yield self.__vortexSend1g_oneway_maxmsg(3 * 1024 ** 2, totalSize=1024 ** 2 * 50)
+        yield self.__vortexSend1g_oneway_maxmsg(
+            3 * 1024 ** 2, totalSize=1024 ** 2 * 50
+        )
 
     @inlineCallbacks
     def test_1vortexSend50mb_oneway_msg10mb(self):
-        yield self.__vortexSend1g_oneway_maxmsg(10 * 1024 ** 2, totalSize=1024 ** 2 * 50)
+        yield self.__vortexSend1g_oneway_maxmsg(
+            10 * 1024 ** 2, totalSize=1024 ** 2 * 50
+        )
 
     @inlineCallbacks
     def test_1vortexSend50mb_oneway_msg50mb(self):
-        yield self.__vortexSend1g_oneway_maxmsg(50 * 1024 ** 2, totalSize=1024 ** 2 * 50)
+        yield self.__vortexSend1g_oneway_maxmsg(
+            50 * 1024 ** 2, totalSize=1024 ** 2 * 50
+        )
 
     @inlineCallbacks
     def test_1vortexSend500mb_oneway_msg10mb(self):
-        yield self.__vortexSend1g_oneway_maxmsg(10 * 1024 ** 2, totalSize=500 * 1024 ** 2)
+        yield self.__vortexSend1g_oneway_maxmsg(
+            10 * 1024 ** 2, totalSize=500 * 1024 ** 2
+        )
 
 
-class VortexTcpMemoryLeakLargeTransfersTest(unittest.TestCase,
-                                            MemoryCheckerTestMixin,
-                                            VortexTcpConnectTestMixin,
-                                            VortexSendReceiveTestMixin):
-
+class VortexTcpMemoryLeakLargeTransfersTest(
+    unittest.TestCase,
+    MemoryCheckerTestMixin,
+    VortexTcpConnectTestMixin,
+    VortexSendReceiveTestMixin,
+):
     @inlineCallbacks
     def __vortexSendTest(self, total, compression):
         self._memMark()
         yield self._connect()
-        yield self._vortexTestTcpServerClient(totalBytesToSend=total,
-                                              printStatusEveryXMessage=10000,
-                                              maxMessageSizeBytes=10 * 1024 ** 2,
-                                              payloadCompression=compression)
+        yield self._vortexTestTcpServerClient(
+            totalBytesToSend=total,
+            printStatusEveryXMessage=10000,
+            maxMessageSizeBytes=10 * 1024 ** 2,
+            payloadCompression=compression,
+        )
         self._disconnect()
         self._memPrintIncrease()
 

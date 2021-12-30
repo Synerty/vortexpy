@@ -69,10 +69,14 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
         reasonFailure = reason
         self._processData()
         if reasonFailure.check(ConnectionDone):
-            self._logger.info("Connection closed by other end (it may be shutting down)")
+            self._logger.info(
+                "Connection closed by other end (it may be shutting down)"
+            )
 
         elif isinstance(reasonFailure.value, ConnectionLost):
-            self._logger.info("Connection to other end lost (We may be shutting down)")
+            self._logger.info(
+                "Connection to other end lost (We may be shutting down)"
+            )
 
         else:
             self._logger.error("Closed with error")
@@ -89,14 +93,14 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
         def getNextChunkIter():
             try:
                 while True:
-                    yield self._data.index(b'.')
+                    yield self._data.index(b".")
             except ValueError:
                 # There is no '.' in it, wait for more data.
                 return
 
         for nextChunk in getNextChunkIter():
             vortexMsg = self._data[:nextChunk]
-            self._data = self._data[nextChunk + 1:]
+            self._data = self._data[nextChunk + 1 :]
 
             # If we get two heartbeats in a row, this will be false
             if len(vortexMsg):
@@ -112,10 +116,14 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
             vortexMsg = self._vortexMsgsQueue.popleft()
 
             if b"." in vortexMsg:
-                raise Exception("Something went wrong, there is a '.' in the msg")
+                raise Exception(
+                    "Something went wrong, there is a '.' in the msg"
+                )
 
             try:
-                payloadEnvelope = yield PayloadEnvelope().fromVortexMsgDefer(vortexMsg)
+                payloadEnvelope = yield PayloadEnvelope().fromVortexMsgDefer(
+                    vortexMsg
+                )
 
                 if payloadEnvelope.isEmpty():
                     self._processServerInfoPayload(payloadEnvelope)
@@ -129,7 +137,7 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
                 raise
 
     def _processServerInfoPayload(self, payload):
-        """ Process Server Info Payload
+        """Process Server Info Payload
 
         The first payload a server sends to the client contains information about it's
         self.
@@ -142,14 +150,16 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
         if PayloadEnvelope.vortexNameKey in payload.filt:
             self._serverVortexName = payload.filt[PayloadEnvelope.vortexNameKey]
 
-        self._nameAndUuidReceived(name=self._serverVortexName,
-                                  uuid=self._serverVortexUuid)
+        self._nameAndUuidReceived(
+            name=self._serverVortexName, uuid=self._serverVortexUuid
+        )
 
     def _deliverPayload(self, payload):
 
-        PayloadIO().process(payload,
-                            vortexUuid=self._serverVortexUuid,
-                            vortexName=self._serverVortexName,
-                            httpSession=None,
-                            sendResponse=self._createResponseSenderCallable()
-                            )
+        PayloadIO().process(
+            payload,
+            vortexUuid=self._serverVortexUuid,
+            vortexName=self._serverVortexName,
+            httpSession=None,
+            sendResponse=self._createResponseSenderCallable(),
+        )

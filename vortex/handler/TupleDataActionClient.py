@@ -11,9 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 class TupleDataActionClient:
-    def __init__(self, destVortexName: str,
-                 tupleActionProcessorName: str, additionalFilt: dict = None) -> None:
-        """ Constructor
+    def __init__(
+        self,
+        destVortexName: str,
+        tupleActionProcessorName: str,
+        additionalFilt: dict = None,
+    ) -> None:
+        """Constructor
 
         :param destVortexName: The name of the destination vortex to send to.
 
@@ -22,13 +26,16 @@ class TupleDataActionClient:
         :param additionalFilt: Any additional filter keys that are required
         """
         self._destVortexName = destVortexName
-        self._filt = dict(name=tupleActionProcessorName,
-                          key="tupleActionProcessorName")
+        self._filt = dict(
+            name=tupleActionProcessorName, key="tupleActionProcessorName"
+        )
         if additionalFilt:
             self._filt.update(additionalFilt)
 
-    def pushAction(self, tupleAction: TupleActionABC, additionalFilt=None) -> Deferred:
-        """ Push Action
+    def pushAction(
+        self, tupleAction: TupleActionABC, additionalFilt=None
+    ) -> Deferred:
+        """Push Action
 
         This pushes the action, either locally or to the server, depending on the
         implementation.
@@ -47,11 +54,14 @@ class TupleDataActionClient:
 
         d = Payload(filt=filt, tuples=[tupleAction]).makePayloadEnvelopeDefer()
         d.addCallback(
-            lambda payloadEnvelope:
-            PayloadResponse(payloadEnvelope, destVortexName=self._destVortexName)
+            lambda payloadEnvelope: PayloadResponse(
+                payloadEnvelope, destVortexName=self._destVortexName
+            )
         )
 
         # Convert the data to TupleAction
-        d.addCallback(lambda payloadEnvelope: payloadEnvelope.decodePayloadDefer())
+        d.addCallback(
+            lambda payloadEnvelope: payloadEnvelope.decodePayloadDefer()
+        )
         d.addCallback(lambda payload: payload.tuples)
         return d

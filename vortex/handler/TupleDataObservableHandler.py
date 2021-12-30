@@ -49,7 +49,9 @@ class TuplesProviderABC(metaclass=ABCMeta):
         """
 
 
-_ObserverDetails = namedtuple("_ObserverDetails", ["vortexUuid", "observerName"])
+_ObserverDetails = namedtuple(
+    "_ObserverDetails", ["vortexUuid", "observerName"]
+)
 
 
 class _ObserverData:
@@ -109,7 +111,9 @@ class TupleDataObservableHandler:
 
         self._tupleProvidersByTupleName[tupleName] = provider
 
-    def addTupleSelectorUpdateMapper(self, mapper: TupleSelectorUpdateMapperABC):
+    def addTupleSelectorUpdateMapper(
+        self, mapper: TupleSelectorUpdateMapperABC
+    ):
         """Add Tuple Selector Update Mapper
 
         This mapper will be called every time a tuple selector is notified of an update.
@@ -183,13 +187,21 @@ class TupleDataObservableHandler:
             return
 
         # Add support for just getting data, no subscription.
-        if self._subscriptionsEnabled and payloadEnvelope.filt.get("subscribe", True):
+        if self._subscriptionsEnabled and payloadEnvelope.filt.get(
+            "subscribe", True
+        ):
             if tsStr not in self._observerDataByTupleSelector:
-                self._observerDataByTupleSelector[tsStr] = _ObserverData(tupleSelector)
+                self._observerDataByTupleSelector[tsStr] = _ObserverData(
+                    tupleSelector
+                )
 
-            self._observerDataByTupleSelector[tsStr].observers.add(observerDetails)
+            self._observerDataByTupleSelector[tsStr].observers.add(
+                observerDetails
+            )
 
-        vortexMsg = yield self._createVortexMsg(payloadEnvelope.filt, tupleSelector)
+        vortexMsg = yield self._createVortexMsg(
+            payloadEnvelope.filt, tupleSelector
+        )
         try:
             yield sendResponse(vortexMsg)
         except Exception as e:
@@ -201,7 +213,8 @@ class TupleDataObservableHandler:
 
         # Get all tuple selectors
         allTupleSelectors = [
-            data.tupleSelector for data in self._observerDataByTupleSelector.values()
+            data.tupleSelector
+            for data in self._observerDataByTupleSelector.values()
         ]
 
         # Create a dict so we end up with only unique ones
@@ -209,7 +222,9 @@ class TupleDataObservableHandler:
 
         # Run through the mappers
         for mapper in self._tupleSelectorUpdateMappers:
-            mappedSelectors = mapper.mapTupleSelector(tupleSelector, allTupleSelectors)
+            mappedSelectors = mapper.mapTupleSelector(
+                tupleSelector, allTupleSelectors
+            )
             if mappedSelectors:
                 tupleSelectorByStr.update(
                     {ts.toJsonStr(): ts for ts in mappedSelectors}

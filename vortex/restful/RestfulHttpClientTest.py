@@ -53,6 +53,8 @@ class RestfulClientTest(unittest.TestCase):
 
     def _checkPostJSON(self, tuple_):
         self.assertTrue(isinstance(tuple_, ResponseTuple))
-        self.assertEqual(tuple_.data, json.dumps(self.tuple.tupleToRestfulJsonDict()))
+        self.assertEqual(
+            tuple_.data, json.dumps(self.tuple.tupleToRestfulJsonDict())
+        )
         self.assertEqual(tuple_.json.id, self.tuple.id)
         self.assertEqual(tuple_.json.text, self.tuple.text)

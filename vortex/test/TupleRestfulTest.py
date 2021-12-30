@@ -30,7 +30,9 @@ class RestfulTestTuple(Tuple):
 
     __tupleType__ = "synerty.vortex.RestfulTestTuple"
     aInt: int = TupleField()
-    aIntWithValidator: Annotated[int, IntTupleFieldValidator(1, 100)] = TupleField()
+    aIntWithValidator: Annotated[
+        int, IntTupleFieldValidator(1, 100)
+    ] = TupleField()
     aFloat: float = TupleField()
     aString: str = TupleField()
     aBoolTrue: bool = TupleField()
@@ -99,8 +101,10 @@ class TupleRestfulTest(unittest.TestCase):
         # Pass it through the JSON object to JSON string conversion
         jsonDict = json.loads(json.dumps(jsonDict))
         # Reconstruct a new Tuple
-        deserialisedTuple = RestfulTestTuple().restfulJsonDictToTupleWithValidation(
-            jsonDict, RestfulTestTuple
+        deserialisedTuple = (
+            RestfulTestTuple().restfulJsonDictToTupleWithValidation(
+                jsonDict, RestfulTestTuple
+            )
         )
         return deserialisedTuple
 
@@ -116,7 +120,9 @@ class TupleRestfulTest(unittest.TestCase):
         # Create tuple
         origTuple = _makeRestfultTestTuple()
         origTuple.aIntWithValidator = int_
-        self.assertEqual(self._testSerialisation(origTuple).aIntWithValidator, int_)
+        self.assertEqual(
+            self._testSerialisation(origTuple).aIntWithValidator, int_
+        )
 
     def testValidatorPass(self):
         # Create tuple
@@ -125,7 +131,9 @@ class TupleRestfulTest(unittest.TestCase):
         deserialisedTuple = self._testSerialisation(origTuple)
 
         self.assertEqual(TupleHash(origTuple), TupleHash(origTuple))
-        self.assertEqual(TupleHash(deserialisedTuple), TupleHash(deserialisedTuple))
+        self.assertEqual(
+            TupleHash(deserialisedTuple), TupleHash(deserialisedTuple)
+        )
         self.assertEqual(
             TupleHash(origTuple),
             TupleHash(deserialisedTuple),

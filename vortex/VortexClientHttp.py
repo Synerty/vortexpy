@@ -34,7 +34,7 @@ logger = logging.getLogger(name=__name__)
 @implementer(IBodyProducer)
 class _VortexClientPayloadProducer(object):
     def __init__(self, vortexMsgs) -> None:
-        self.vortexMsgs = b''
+        self.vortexMsgs = b""
 
         for vortexMsg in vortexMsgs:
             self.vortexMsgs += vortexMsg + b"."
@@ -63,14 +63,16 @@ class VortexPayloadHttpClientProtocol(VortexPayloadProtocol):
 
     def _nameAndUuidReceived(self, name, uuid):
         if self._vortexClient:
-            self._vortexClient._setNameAndUuid(name=self._serverVortexName,
-                                               uuid=self._serverVortexUuid)
+            self._vortexClient._setNameAndUuid(
+                name=self._serverVortexName, uuid=self._serverVortexUuid
+            )
 
 
 class VortexClientHttp(VortexABC):
-    """ VortexServer Client
+    """VortexServer Client
     Connects to a votex server
     """
+
     RETRY_DELAY = 1.5  # Seconds
 
     # The time it takes after recieving a response from the server to receive the
@@ -102,8 +104,7 @@ class VortexClientHttp(VortexABC):
 
     @property
     def localVortexInfo(self) -> VortexInfo:
-        return VortexInfo(name=self._vortexName,
-                          uuid=self._vortexUuid)
+        return VortexInfo(name=self._vortexName, uuid=self._vortexUuid)
 
     @property
     def remoteVortexInfo(self) -> List[VortexInfo]:
@@ -113,8 +114,9 @@ class VortexClientHttp(VortexABC):
         if not self._serverVortexUuid:
             return []
 
-        return [VortexInfo(name=self._serverVortexName,
-                           uuid=self._serverVortexUuid)]
+        return [
+            VortexInfo(name=self._serverVortexName, uuid=self._serverVortexUuid)
+        ]
 
     @property
     def name(self):
@@ -152,17 +154,19 @@ class VortexClientHttp(VortexABC):
         self.__protocol.transport.loseConnection()
 
     def addReconnectVortexMsg(self, vortexMsg: bytes):
-        """ Add Reconnect Payload
+        """Add Reconnect Payload
         :param vortexMsg: An encoded PayloadEnvelope to send when the connection reconnects
         :return:
         """
         self._reconnectVortexMsgs.append(vortexMsg)
 
-    def sendVortexMsg(self,
-                      vortexMsgs: Union[VortexMsgList, bytes, None] = None,
-                      vortexUuid: Optional[str] = None,
-                      priority: int = DEFAULT_PRIORITY) -> Deferred:
-        """ Send Vortex Msg
+    def sendVortexMsg(
+        self,
+        vortexMsgs: Union[VortexMsgList, bytes, None] = None,
+        vortexUuid: Optional[str] = None,
+        priority: int = DEFAULT_PRIORITY,
+    ) -> Deferred:
+        """Send Vortex Msg
 
         NOTE: Priority ins't supported as there is no buffer for this class.
 
@@ -194,24 +198,36 @@ class VortexClientHttp(VortexABC):
 
         def ebSendAgain(failure):
             self._retrying = True
-            logger.debug("Retrying send of %s messages : %s",
-                         len(vortexMsgs), failure.value)
+            logger.debug(
+                "Retrying send of %s messages : %s",
+                len(vortexMsgs),
+                failure.value,
+            )
 
-            return task.deferLater(reactor, self.RETRY_DELAY,
-                                   self._sendVortexMsgLater, vortexMsgs)
+            return task.deferLater(
+                reactor, self.RETRY_DELAY, self._sendVortexMsgLater, vortexMsgs
+            )
 
         def cbRequest(response):
             if response.code != 200:
-                msg = "Connection to vortex %s:%s failed" % (self._server, self._port)
+                msg = "Connection to vortex %s:%s failed" % (
+                    self._server,
+                    self._port,
+                )
                 logger.error(msg)
                 return Failure(Exception(msg))
 
             elif self._retrying:
-                logger.info("VortexServer client %s:%s reconnected",
-                            self._server, self._port)
+                logger.info(
+                    "VortexServer client %s:%s reconnected",
+                    self._server,
+                    self._port,
+                )
 
             self._retrying = False
-            self.__protocol = VortexPayloadHttpClientProtocol(logger, vortexClient=self)
+            self.__protocol = VortexPayloadHttpClientProtocol(
+                logger, vortexClient=self
+            )
             response.deliverBody(self.__protocol)
             return True
 
@@ -219,35 +235,43 @@ class VortexClientHttp(VortexABC):
 
         agent = CookieAgent(Agent(reactor), self._cookieJar)
 
-        args = {
-            'vortexUuid': self._vortexUuid,
-            'vortexName': self._vortexName
-        }
+        args = {"vortexUuid": self._vortexUuid, "vortexName": self._vortexName}
 
-        uri = ("http://%s:%s/vortex?%s"
-               % (self._server, self._port, urlencode(args))).encode("UTF-8")
+        uri = (
+            "http://%s:%s/vortex?%s"
+            % (self._server, self._port, urlencode(args))
+        ).encode("UTF-8")
 
         d = agent.request(
-            b'POST', uri,
-            Headers({b'User-Agent': [b'Synerty VortexServer Client'],
-                     b'Content-Type': [b'text/plain']}),
-            bodyProducer)
+            b"POST",
+            uri,
+            Headers(
+                {
+                    b"User-Agent": [b"Synerty VortexServer Client"],
+                    b"Content-Type": [b"text/plain"],
+                }
+            ),
+            bodyProducer,
+        )
 
         d.addCallback(cbRequest)
         d.addErrback(ebSendAgain)  # Must be after cbRequest
         return d
 
     def _beat(self):
-        """ Beat, Called by protocol """
+        """Beat, Called by protocol"""
         self._beatTime = datetime.now(pytz.utc)
 
     def _setNameAndUuid(self, name, uuid):
-        """ Set Name And Uuid, Called by protocol """
+        """Set Name And Uuid, Called by protocol"""
         self._serverVortexName = name
         self._serverVortexUuid = uuid
 
     def _checkBeat(self):
-        if not (datetime.now(pytz.utc) - self._beatTime).seconds > self._beatTimeout:
+        if (
+            not (datetime.now(pytz.utc) - self._beatTime).seconds
+            > self._beatTimeout
+        ):
             return
 
         if self._retrying:
@@ -255,8 +279,10 @@ class VortexClientHttp(VortexABC):
 
         self._retrying = True
 
-        logger.info("VortexServer client dead, reconnecting %s:%s"
-                    % (self._server, self._port))
+        logger.info(
+            "VortexServer client dead, reconnecting %s:%s"
+            % (self._server, self._port)
+        )
 
         d = self.sendVortexMsg()
 

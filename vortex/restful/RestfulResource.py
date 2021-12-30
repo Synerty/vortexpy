@@ -113,7 +113,9 @@ class PluginRestfulResource(BasicResource):
         # as callback function whose input is an instance of a Tuple
         self._registeredMethods[urlPrefix] = {
             "handler": handlerFunction,
-            "allowedMethods": set([method.value for method in registeredRequestMethod]),
+            "allowedMethods": set(
+                [method.value for method in registeredRequestMethod]
+            ),
             "tupleClass": TupleClass,
         }
 

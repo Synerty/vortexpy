@@ -43,11 +43,16 @@ def debounceCall(debounceSeconds: float):
                 self._lastCleanup = now
 
                 for key, val in list(self._calls.items()):
-                    if self._cleanupDelta < now - val and key not in self._callsQueued:
+                    if (
+                        self._cleanupDelta < now - val
+                        and key not in self._callsQueued
+                    ):
                         self._calls.pop(key)
 
         def __wrapArgsAndKwargs(self, *args, **kwargs):
-            hashedArgs = _DebounceArgsTuple(args=args, kwargs=kwargs).toJsonDict()
+            hashedArgs = _DebounceArgsTuple(
+                args=args, kwargs=kwargs
+            ).toJsonDict()
             return json.dumps(hashedArgs)
 
         def call(self, funcSelf, *args, **kwargs):
@@ -73,7 +78,9 @@ def debounceCall(debounceSeconds: float):
                 self._calls[hashedArgs] = now
                 return self._f(funcSelf, *args, **kwargs)
 
-            timeToNextCall = timedelta(seconds=debounceSeconds) - timeSinceLastCall
+            timeToNextCall = (
+                timedelta(seconds=debounceSeconds) - timeSinceLastCall
+            )
 
             # If not, schedule this method for call after the debounce
             # but only if there isn't already a call queued

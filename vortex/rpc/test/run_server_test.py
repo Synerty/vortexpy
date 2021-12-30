@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig()
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     VortexFactory.createTcpServer("listenVortexName", 10101)
     reactor.callLater(0, logger.info, "RPCTest server running")
     reactor.callLater(0, myRemoteAddMethod.start)

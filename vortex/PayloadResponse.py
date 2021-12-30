@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class PayloadResponse(Deferred):
-    """ Payload Response
+    """Payload Response
 
     This class is used to catch responses from a sent payload.
     If the remote end is going to send back a payload, with the same filt, this class can
@@ -52,13 +52,16 @@ class PayloadResponse(Deferred):
 
     __SEQ = 1
 
-    def __init__(self, payloadEnvelope: PayloadEnvelope,
-                 destVortexName: Optional[str] = None,
-                 destVortexUuid: Optional[str] = None,
-                 timeout: Optional[float] = None,
-                 resultCheck=True,
-                 logTimeoutError=True) -> None:
-        """ Constructor
+    def __init__(
+        self,
+        payloadEnvelope: PayloadEnvelope,
+        destVortexName: Optional[str] = None,
+        destVortexUuid: Optional[str] = None,
+        timeout: Optional[float] = None,
+        resultCheck=True,
+        logTimeoutError=True,
+    ) -> None:
+        """Constructor
 
         Tag and optionally send a payload.
 
@@ -94,9 +97,11 @@ class PayloadResponse(Deferred):
 
         if destVortexName or destVortexUuid:
             d: Deferred = payloadEnvelope.toVortexMsgDefer()
-            d.addCallback(VortexFactory.sendVortexMsg,
-                          destVortexName=destVortexName,
-                          destVortexUuid=destVortexUuid)
+            d.addCallback(
+                VortexFactory.sendVortexMsg,
+                destVortexName=destVortexName,
+                destVortexUuid=destVortexUuid,
+            )
             d.addErrback(self.errback)
 
         try:
@@ -110,7 +115,7 @@ class PayloadResponse(Deferred):
 
     @classmethod
     def isResponsePayloadEnvelope(cls, payloadEnvelope: PayloadEnvelope):
-        """ Is Response Payload Envelope
+        """Is Response Payload Envelope
 
         The PayloadResponse tags the payloads, so it expects a unique message back.
 
@@ -132,14 +137,18 @@ class PayloadResponse(Deferred):
         self._status = self.TIMED_OUT
         return failure
 
-    def _process(self, payloadEnvelope:PayloadEnvelope, vortexName, **kwargs):
+    def _process(self, payloadEnvelope: PayloadEnvelope, vortexName, **kwargs):
         if self._endpoint:
             self._endpoint.shutdown()
             self._endpoint = None
 
         if self._destVortexName and vortexName != self._destVortexName:
-            logger.debug("Received response from a vortex other than the dest vortex, "
-                         "Expected %s, Received %s", self._destVortexName, vortexName)
+            logger.debug(
+                "Received response from a vortex other than the dest vortex, "
+                "Expected %s, Received %s",
+                self._destVortexName,
+                vortexName,
+            )
             return
 
         if self.called:
@@ -149,7 +158,12 @@ class PayloadResponse(Deferred):
         if self._resultCheck and not payloadEnvelope.result in (None, True):
             self._status = self.FAILED
             self.errback(
-                Failure(Exception(payloadEnvelope.result).with_traceback(self._stack)))
+                Failure(
+                    Exception(payloadEnvelope.result).with_traceback(
+                        self._stack
+                    )
+                )
+            )
 
         else:
             self._status = self.SUCCESS

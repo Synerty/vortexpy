@@ -75,7 +75,10 @@ class GzippedPayloadHttpClient:
         self._meta = binaryPayloadRequestProducer.meta
         self._meta.code = response.code
         self._meta.version = response.version
-        self._meta.headers = {k.decode(): v[0].decode() for k, v in response.headers.getAllRawHeaders()}
+        self._meta.headers = {
+            k.decode(): v[0].decode()
+            for k, v in response.headers.getAllRawHeaders()
+        }
 
         # Get the responseTuple data
         responseProducer = self._cbResponse(response, self._meta)

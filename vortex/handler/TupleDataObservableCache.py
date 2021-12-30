@@ -19,10 +19,11 @@ logger = logging.getLogger(__name__)
 
 
 class _CachedSubscribedData:
-    """ Cached Subscribed Data
+    """Cached Subscribed Data
 
     The client will now cache
     """
+
     TEARDOWN_WAIT = 120  # 2 minutes in seconds
 
     __memoryLoggingRefs = None
@@ -34,19 +35,25 @@ class _CachedSubscribedData:
         cls.__memoryLoggingEnabled = True
 
     @classmethod
-    def memoryLoggingDump(cls, top=10, over=100) -> typing.List[typing.Tuple[str, int, int]]:
+    def memoryLoggingDump(
+        cls, top=10, over=100
+    ) -> typing.List[typing.Tuple[str, int, int]]:
         if not cls.__memoryLoggingRefs:
             return []
 
         # Filter out expired items
-        cls.__memoryLoggingRefs = list(filter(lambda o: o(), cls.__memoryLoggingRefs))
+        cls.__memoryLoggingRefs = list(
+            filter(lambda o: o(), cls.__memoryLoggingRefs)
+        )
 
         cachesByTupleType = defaultdict(list)
         for cacheRef in cls.__memoryLoggingRefs:
             cache = cacheRef()
             if not cache:
                 continue
-            cachesByTupleType[cache.tupleSelector.name].append(len(cache.encodedPayload))
+            cachesByTupleType[cache.tupleSelector.name].append(
+                len(cache.encodedPayload)
+            )
 
         results = []
         for tupleName, lengths in cachesByTupleType.items():
@@ -56,7 +63,9 @@ class _CachedSubscribedData:
 
         return list(filter(lambda x: x[2] >= over, data))[:top]
 
-    def __init__(self, tupleSelector: TupleSelector, cacheEnabled: bool = True) -> None:
+    def __init__(
+        self, tupleSelector: TupleSelector, cacheEnabled: bool = True
+    ) -> None:
         if _CachedSubscribedData.__memoryLoggingEnabled:
             _CachedSubscribedData.__memoryLoggingRefs.append(weakref.ref(self))
 
@@ -80,15 +89,17 @@ class _CachedSubscribedData:
     def markForTearDown(self) -> None:
         if self.tearDownDate is not None:
             return
-        self.tearDownDate = datetime.now(pytz.utc) + timedelta(seconds=self.TEARDOWN_WAIT)
+        self.tearDownDate = datetime.now(pytz.utc) + timedelta(
+            seconds=self.TEARDOWN_WAIT
+        )
 
     def resetTearDown(self) -> None:
         self.tearDownDate = None
 
     def isReadyForTearDown(self) -> bool:
         return (
-                self.tearDownDate is not None
-                and self.tearDownDate <= datetime.now(pytz.utc)
+            self.tearDownDate is not None
+            and self.tearDownDate <= datetime.now(pytz.utc)
         )
 
 
@@ -143,7 +154,9 @@ class TupleDataObservableCache(metaclass=ABCMeta):
             else:
                 cache.markForTearDown()
 
-    def _getCache(self, tupleSelector: TupleSelector) -> Optional[_CachedSubscribedData]:
+    def _getCache(
+        self, tupleSelector: TupleSelector
+    ) -> Optional[_CachedSubscribedData]:
         return self.__cache.get(tupleSelector.toJsonStr())
 
     def _hasTupleSelector(self, tupleSelectorAny: TupleSelector) -> bool:
@@ -158,9 +171,10 @@ class TupleDataObservableCache(metaclass=ABCMeta):
         self.__cache[tsStr] = cache
         return cache
 
-    def _updateCache(self, payloadEnvelope: PayloadEnvelope) -> typing.Tuple[
-        _CachedSubscribedData, bool]:
-        """ Update Cache
+    def _updateCache(
+        self, payloadEnvelope: PayloadEnvelope
+    ) -> typing.Tuple[_CachedSubscribedData, bool]:
+        """Update Cache
 
         Update the cache if it requires it
 

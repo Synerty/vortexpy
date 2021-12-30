@@ -35,7 +35,10 @@ def timeit(method):
         sizeMb = (endMem - startMem) / 1024 / 1024
         sizeMbStr = "{0:,}".format(round(sizeMb, 2))
 
-        print('Time Taken = %s, \t%s, \tSize = %s' % (e - s, method.__name__, sizeMbStr))
+        print(
+            "Time Taken = %s, \t%s, \tSize = %s"
+            % (e - s, method.__name__, sizeMbStr)
+        )
 
     return timed
 
@@ -51,6 +54,7 @@ class X(Tuple):
 
     def __init__(self, i=None, l=None):
         self.i, self.l = i, l
+
 
 @timeit
 def provile_dict_of_nt():

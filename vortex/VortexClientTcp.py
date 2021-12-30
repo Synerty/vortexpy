@@ -50,19 +50,24 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
 
     def _nameAndUuidReceived(self, name, uuid):
         from vortex.VortexFactory import VortexFactory
+
         VortexFactory._notifyOfVortexStatusChange(name, online=True)
 
         self._producer.setRemoteVortexName(self._serverVortexName)
 
         if self._vortexClient:
-            self._vortexClient._setNameAndUuid(name=self._serverVortexName,
-                                               uuid=self._serverVortexUuid)
+            self._vortexClient._setNameAndUuid(
+                name=self._serverVortexName, uuid=self._serverVortexUuid
+            )
 
     def _createResponseSenderCallable(self):
-        def sendResponse(vortexMsgs: Union[VortexMsgList, bytes],
-                         priority: int = DEFAULT_PRIORITY):
-            return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs,
-                                                    priority=priority)
+        def sendResponse(
+            vortexMsgs: Union[VortexMsgList, bytes],
+            priority: int = DEFAULT_PRIORITY,
+        ):
+            return self._vortexClient.sendVortexMsg(
+                vortexMsgs=vortexMsgs, priority=priority
+            )
 
         return sendResponse
 
@@ -71,7 +76,7 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
             return
 
         # Send the heartbeats
-        self._producer.write(b'.', DEFAULT_PRIORITY)
+        self._producer.write(b".", DEFAULT_PRIORITY)
 
     def write(self, payloadVortexStr: bytes, priority: int = DEFAULT_PRIORITY):
         if not twisted.python.threadable.isInIOThread():
@@ -83,7 +88,9 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
         self._producer.write(payloadVortexStr, priority)
 
     def connectionMade(self):
-        self._producer = VortexWritePushProducer(self.transport, lambda: self.close())
+        self._producer = VortexWritePushProducer(
+            self.transport, lambda: self.close()
+        )
 
         # Register the producer if there isn't one already.
         if not self.transport.producer:
@@ -92,14 +99,19 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {
             PayloadEnvelope.vortexUuidKey: self._vortexClient.uuid,
-            PayloadEnvelope.vortexNameKey: self._vortexClient.name
+            PayloadEnvelope.vortexNameKey: self._vortexClient.name,
         }
-        self._producer.write(PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg(),
-                             DEFAULT_PRIORITY)
+        self._producer.write(
+            PayloadEnvelope(filt=connectPayloadFilt).toVortexMsg(),
+            DEFAULT_PRIORITY,
+        )
 
     def connectionLost(self, reason=connectionDone):
         from vortex.VortexFactory import VortexFactory
-        VortexFactory._notifyOfVortexStatusChange(self._serverVortexName, online=False)
+
+        VortexFactory._notifyOfVortexStatusChange(
+            self._serverVortexName, online=False
+        )
 
         if self._sendBeatLoopingCall.running:
             self._sendBeatLoopingCall.stop()
@@ -113,9 +125,10 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
 
 
 class VortexClientTcp(ReconnectingClientFactory, VortexABC):
-    """ VortexServer Client
+    """VortexServer Client
     Connects to a votex server
     """
+
     RETRY_DELAY = 1.5  # Seconds
     HEART_BEAT_TIMEOUT = 30.0  # Seconds
 
@@ -151,7 +164,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
 
     # class EchoClientFactory(ReconnectingClientFactory):
     def startedConnecting(self, connector):
-        logger.debug('Started to connect.')
+        logger.debug("Started to connect.")
 
     def buildProtocol(self, addr):
 
@@ -159,30 +172,30 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
             self.__protocol.close()
             self.__protocol = None
 
-            logger.debug('Connected.')
+            logger.debug("Connected.")
         self.resetDelay()
         self.__protocol = VortexPayloadTcpClientProtocol(self)
         return self.__protocol
 
     def clientConnectionLost(self, connector, reason):
         if not reason.check(ConnectionDone):
-            logger.debug('Lost connection.  Reason: %s', reason)
+            logger.debug("Lost connection.  Reason: %s", reason)
         ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
     def clientConnectionFailed(self, connector, reason):
         if reason.check(ConnectionRefusedError):
             logger.debug("Connection refused (We'll retry)")
         else:
-            logger.debug('Connection failed. Reason: %s', reason)
-        ReconnectingClientFactory.clientConnectionFailed(self, connector,
-                                                         reason)
+            logger.debug("Connection failed. Reason: %s", reason)
+        ReconnectingClientFactory.clientConnectionFailed(
+            self, connector, reason
+        )
 
     #####################################################################################3
 
     @property
     def localVortexInfo(self) -> VortexInfo:
-        return VortexInfo(name=self._vortexName,
-                          uuid=self._vortexUuid)
+        return VortexInfo(name=self._vortexName, uuid=self._vortexUuid)
 
     @property
     def remoteVortexInfo(self) -> List[VortexInfo]:
@@ -192,8 +205,9 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         if not self._serverVortexUuid:
             return []
 
-        return [VortexInfo(name=self._serverVortexName,
-                           uuid=self._serverVortexUuid)]
+        return [
+            VortexInfo(name=self._serverVortexName, uuid=self._serverVortexUuid)
+        ]
 
     @property
     def name(self):
@@ -234,17 +248,19 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         self.__protocol.close()
 
     def addReconnectVortexMsg(self, vortexMsg: bytes):
-        """ Add Reconnect Payload
+        """Add Reconnect Payload
         :param vortexMsg: An encoded PayloadEnvelope to send when the connection reconnects
         :return:
         """
         self._reconnectVortexMsgs.append(vortexMsg)
 
-    def sendVortexMsg(self,
-                      vortexMsgs: Union[VortexMsgList, bytes, None] = None,
-                      vortexUuid: Optional[str] = None,
-                      priority: int = DEFAULT_PRIORITY) -> Deferred:
-        """ Send Vortex Msg
+    def sendVortexMsg(
+        self,
+        vortexMsgs: Union[VortexMsgList, bytes, None] = None,
+        vortexUuid: Optional[str] = None,
+        priority: int = DEFAULT_PRIORITY,
+    ) -> Deferred:
+        """Send Vortex Msg
 
         NOTE: Priority ins't supported as there is no buffer for this class.
 
@@ -274,7 +290,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         assert self._server
         assert vortexMsgs
 
-        self.vortexMsgs = b''
+        self.vortexMsgs = b""
 
         for vortexMsg in vortexMsgs:
             self.__protocol.write(vortexMsg)
@@ -282,23 +298,25 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         return True
 
     def _beat(self):
-        """ Beat, Called by protocol """
+        """Beat, Called by protocol"""
         self._lastBeatReceiveTime = datetime.now(pytz.utc)
 
     def _setNameAndUuid(self, name, uuid):
-        """ Set Name And Uuid, Called by protocol """
+        """Set Name And Uuid, Called by protocol"""
         self._serverVortexName = name
         self._serverVortexUuid = uuid
 
     def _checkBeat(self):
 
         # If we've been asleep, then make note of that (VM suspended)
-        checkTimout = (datetime.now(pytz.utc) - self._lastHeartBeatCheckTime) \
-                          .seconds > self.HEART_BEAT_TIMEOUT
+        checkTimout = (
+            datetime.now(pytz.utc) - self._lastHeartBeatCheckTime
+        ).seconds > self.HEART_BEAT_TIMEOUT
 
         # Has the heart beat expired?
-        beatTimeout = (datetime.now(pytz.utc) - self._lastBeatReceiveTime) \
-                          .seconds > self.HEART_BEAT_TIMEOUT
+        beatTimeout = (
+            datetime.now(pytz.utc) - self._lastBeatReceiveTime
+        ).seconds > self.HEART_BEAT_TIMEOUT
 
         # Mark that we've just checked it
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
@@ -317,8 +335,11 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
 
         self._retrying = True
 
-        logger.info("VortexServer client dead, reconnecting %s:%s",
-                    self._server, self._port)
+        logger.info(
+            "VortexServer client dead, reconnecting %s:%s",
+            self._server,
+            self._port,
+        )
 
         if self.__protocol:
             self.__protocol.close()

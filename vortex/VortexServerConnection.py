@@ -21,17 +21,23 @@ logger = logging.getLogger(name=__name__)
 
 
 class VortexServerConnection(VortexConnectionABC):
-    def __init__(self, vortexServer: VortexServer,
-                 remoteVortexUuid: str,
-                 remoteVortexName: str,
-                 httpSession, transport,
-                 addr) -> None:
-        VortexConnectionABC.__init__(self,
-                                     logger,
-                                     vortexServer,
-                                     remoteVortexUuid=remoteVortexUuid,
-                                     remoteVortexName=remoteVortexName,
-                                     httpSessionUuid=httpSession)
+    def __init__(
+        self,
+        vortexServer: VortexServer,
+        remoteVortexUuid: str,
+        remoteVortexName: str,
+        httpSession,
+        transport,
+        addr,
+    ) -> None:
+        VortexConnectionABC.__init__(
+            self,
+            logger,
+            vortexServer,
+            remoteVortexUuid=remoteVortexUuid,
+            remoteVortexName=remoteVortexName,
+            httpSessionUuid=httpSession,
+        )
 
         self._lastHeartBeatTime = datetime.now(pytz.utc)
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
@@ -49,9 +55,9 @@ class VortexServerConnection(VortexConnectionABC):
         # Register the producer if there isn't one already.
         # The websocket server already has one.
         if not self._transport.producer:
-            self._producer = VortexWritePushProducer(transport,
-                                                     lambda: self.close(),
-                                                     remoteVortexName)
+            self._producer = VortexWritePushProducer(
+                transport, lambda: self.close(), remoteVortexName
+            )
 
             transport.registerProducer(self._producer, True)
 
@@ -65,12 +71,14 @@ class VortexServerConnection(VortexConnectionABC):
                 self._beatLoopingCall.stop()
             return
 
-        beatTimeout = (datetime.now(pytz.utc) - self._lastHeartBeatTime) \
-                          .seconds > HEART_BEAT_TIMEOUT
+        beatTimeout = (
+            datetime.now(pytz.utc) - self._lastHeartBeatTime
+        ).seconds > HEART_BEAT_TIMEOUT
 
         # If we've been asleep, then make note of that (VM suspended)
-        checkTimout = (datetime.now(pytz.utc) - self._lastHeartBeatCheckTime) \
-                          .seconds > HEART_BEAT_TIMEOUT
+        checkTimout = (
+            datetime.now(pytz.utc) - self._lastHeartBeatCheckTime
+        ).seconds > HEART_BEAT_TIMEOUT
 
         # Mark that we've just checked it
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
@@ -85,7 +93,7 @@ class VortexServerConnection(VortexConnectionABC):
             self.close()
             return
 
-        self._write(b'.', DEFAULT_PRIORITY)
+        self._write(b".", DEFAULT_PRIORITY)
 
     @property
     def ip(self):

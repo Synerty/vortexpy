@@ -18,11 +18,14 @@ logger = logging.getLogger(__name__)
 
 
 class TupleDataObserverClient(TupleDataObservableCache):
-    def __init__(self, destVortexName,
-                 observableName,
-                 additionalFilt=None,
-                 observerName="default"):
-        """ Constructor
+    def __init__(
+        self,
+        destVortexName,
+        observableName,
+        additionalFilt=None,
+        observerName="default",
+    ):
+        """Constructor
 
         :param observableName: The name of this observable
         :param additionalFilt: Any additional filter keys that are required
@@ -35,32 +38,33 @@ class TupleDataObserverClient(TupleDataObservableCache):
         self._observableName = observableName
         self._observerName = observerName
 
-        self._sendFilt = dict(name=observableName,
-                              observerName=observerName,
-                              key="tupleDataObservable")
+        self._sendFilt = dict(
+            name=observableName,
+            observerName=observerName,
+            key="tupleDataObservable",
+        )
 
-        self._listenFilt = dict(name=observableName,
-                                key="tupleDataObservable")
+        self._listenFilt = dict(name=observableName, key="tupleDataObservable")
 
         if additionalFilt:
             self._sendFilt.update(additionalFilt)
             self._listenFilt.update(additionalFilt)
 
         self._endpoint = PayloadEndpoint(
-            self._listenFilt, self._receivePayload,
-            acceptOnlyFromVortex=destVortexName
+            self._listenFilt,
+            self._receivePayload,
+            acceptOnlyFromVortex=destVortexName,
         )
 
         # There are no online checks for the vortex
         # isOnlineSub = statusService.isOnline
         # .filter(online= > online == = true)
         # .subscribe(online= > self.vortexOnlineChanged())
-        # 
+        #
         # self.onDestroyEvent.subscribe(() = > isOnlineSub.unsubscribe())
-        VortexFactory \
-            .subscribeToVortexStatusChange(destVortexName) \
-            .filter(lambda online: online is True) \
-            .subscribe(self._vortexOnlineChanged)
+        VortexFactory.subscribeToVortexStatusChange(destVortexName).filter(
+            lambda online: online is True
+        ).subscribe(self._vortexOnlineChanged)
 
         TupleDataObservableCache.start(self)
 
@@ -104,12 +108,17 @@ class TupleDataObserverClient(TupleDataObservableCache):
     def _receivePayload(self, payloadEnvelope: PayloadEnvelope, **kwargs):
         # If this message is for a specific observer, and it's not us, then discard it.
         filtObserverName = payloadEnvelope.filt.get("observerName")
-        if filtObserverName is not None and filtObserverName != self._observerName:
+        if (
+            filtObserverName is not None
+            and filtObserverName != self._observerName
+        ):
             return
 
         # If this message is an error response, then don't process it.
         if payloadEnvelope.result not in (None, True):
-            logger.error("Vortex responded with error : %s" % payloadEnvelope.result)
+            logger.error(
+                "Vortex responded with error : %s" % payloadEnvelope.result
+            )
             logger.error(str(payloadEnvelope.filt))
             return
 
@@ -128,13 +137,17 @@ class TupleDataObserverClient(TupleDataObservableCache):
     def _tellServerWeWantData(self, tupleSelectors: List[TupleSelector]):
         for tupleSelector in tupleSelectors:
             self._sendRequestToServer(
-                PayloadEnvelope({"subscribe": True, "tupleSelector": tupleSelector})
+                PayloadEnvelope(
+                    {"subscribe": True, "tupleSelector": tupleSelector}
+                )
             )
 
     def _sendRequestToServer(self, payload):
         payload.filt.update(self._sendFilt)
-        d = VortexFactory.sendVortexMsg(vortexMsgs=payload.toVortexMsg(),
-                                        destVortexName=self._destVortexName)
+        d = VortexFactory.sendVortexMsg(
+            vortexMsgs=payload.toVortexMsg(),
+            destVortexName=self._destVortexName,
+        )
         d.addErrback(vortexLogFailure, logger, consumeError=True)
 
     def _sendUnsubscribeToServer(self, tupleSelector: TupleSelector):

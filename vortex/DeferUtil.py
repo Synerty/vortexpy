@@ -108,7 +108,9 @@ def vortexInlineCallbacksLogAndConsumeFailure(loggerArg):
     return wrapper
 
 
-def deferToThreadWrapWithLogger(logger, consumeError=False, checkMainThread=True):
+def deferToThreadWrapWithLogger(
+    logger, consumeError=False, checkMainThread=True
+):
     """Defer To Thread Wrap With Logger
 
     This method is a decorator used to send blocking methods to threads easily.
@@ -163,9 +165,13 @@ def isMainThread():
 
 def noMainThread():
     if isMainThread():
-        raise Exception("Blocking operations shouldn't occur in the reactors thread.")
+        raise Exception(
+            "Blocking operations shouldn't occur in the reactors thread."
+        )
 
 
 def yesMainThread():
     if not isMainThread():
-        raise Exception("Async operations must occur in the reactors main thread.")
+        raise Exception(
+            "Async operations must occur in the reactors main thread."
+        )

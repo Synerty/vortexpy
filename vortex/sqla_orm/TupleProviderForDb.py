@@ -8,13 +8,14 @@ from vortex.handler.TupleDataObservableHandler import TuplesProviderABC
 
 logger = logging.getLogger(__name__)
 
+
 class TuplesProviderForDB(TuplesProviderABC):
     def __init__(self, ormSessionCreatorFunc):
         self._ormSessionCreatorFunc = ormSessionCreatorFunc
 
     @deferToThreadWrapWithLogger(logger)
     def makeVortexMsg(self, filt: dict, tupleSelector: TupleSelector) -> bytes:
-        """ Make VortexMsg for DB
+        """Make VortexMsg for DB
 
         Considerations for this method.
 
@@ -25,15 +26,17 @@ class TuplesProviderForDB(TuplesProviderABC):
 
         """
 
-
         ormSession = self._ormSessionCreatorFunc()
         try:
             TupleClass = tupleForTupleName(tupleSelector.name)
             qry = ormSession.query(TupleClass)
             for key, value in tupleSelector.selector.items():
-                qry = qry.filter(getattr(TupleClass, key)==value)
+                qry = qry.filter(getattr(TupleClass, key) == value)
 
-            return Payload(filt=filt, tuples=qry.all()).makePayloadEnvelope().toVortexMsg()
+            return (
+                Payload(filt=filt, tuples=qry.all())
+                .makePayloadEnvelope()
+                .toVortexMsg()
+            )
         finally:
             ormSession.close()
-

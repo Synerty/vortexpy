@@ -22,10 +22,10 @@ logger = logging.getLogger(name="PayloadIO")
 
 
 class PayloadIO(object):
-    '''
+    """
     PayloadIO, Processes payloads received from the vortex and distributes
     them to where they need to go.
-    '''
+    """
 
     # Singleton
     _instance = None
@@ -48,39 +48,59 @@ class PayloadIO(object):
 
     @property
     def endpoints(self):
-        ''' Endpoints property
+        """Endpoints property
 
         @:return a copy of the list of endpoints
-        '''
+        """
         return list(self._endpoints)
 
-    def process(self, payloadEnvelope: PayloadEnvelope,
-                vortexUuid: str, vortexName: str, httpSession,
-                sendResponse: SendVortexMsgResponseCallable):
+    def process(
+        self,
+        payloadEnvelope: PayloadEnvelope,
+        vortexUuid: str,
+        vortexName: str,
+        httpSession,
+        sendResponse: SendVortexMsgResponseCallable,
+    ):
 
         immutableEndpoints = list(self._endpoints)
         for endpoint in immutableEndpoints:
             if not endpoint.check(payloadEnvelope, vortexName):
                 continue
 
-            reactor.callLater(0, self._processLater, endpoint, payloadEnvelope,
-                              vortexUuid, vortexName, httpSession, sendResponse)
+            reactor.callLater(
+                0,
+                self._processLater,
+                endpoint,
+                payloadEnvelope,
+                vortexUuid,
+                vortexName,
+                httpSession,
+                sendResponse,
+            )
 
-    def _processLater(self, endpoint,
-                      payloadEnvelope: PayloadEnvelope,
-                      vortexUuid: str, vortexName: str, httpSession,
-                      sendResponse: SendVortexMsgResponseCallable):
+    def _processLater(
+        self,
+        endpoint,
+        payloadEnvelope: PayloadEnvelope,
+        vortexUuid: str,
+        vortexName: str,
+        httpSession,
+        sendResponse: SendVortexMsgResponseCallable,
+    ):
         startDate = datetime.now(pytz.utc)
 
         def respondToException(failure):
-            """ Respond To Exception
+            """Respond To Exception
             Putting the exception into a failure messes with the stack, hence the
             common function
             """
             try:
                 sendResponse(
-                    PayloadEnvelope(filt=payloadEnvelope.filt, result=str(failure.getTraceback()))
-                    .toVortexMsg()
+                    PayloadEnvelope(
+                        filt=payloadEnvelope.filt,
+                        result=str(failure.getTraceback()),
+                    ).toVortexMsg()
                 )
             except Exception as e:
                 logger.exception(e)
@@ -94,19 +114,26 @@ class PayloadIO(object):
             secondsTaken = (datetime.now(pytz.utc) - startDate).total_seconds()
             if secondsTaken > 0.1 and blocking or secondsTaken > 2.0:
                 func = logger.critical if blocking else logger.debug
-                func("%s Payload endpoint took %s\npayload.filt=%s\n%s",
-                     'BLOCKING ' if blocking else '',
-                     secondsTaken,
-                     payloadEnvelope.filt,
-                     endpoint)
+                func(
+                    "%s Payload endpoint took %s\npayload.filt=%s\n%s",
+                    "BLOCKING " if blocking else "",
+                    secondsTaken,
+                    payloadEnvelope.filt,
+                    endpoint,
+                )
 
         try:
-            d = endpoint.process(payloadEnvelope,
-                                 vortexUuid, vortexName, httpSession, sendResponse)
+            d = endpoint.process(
+                payloadEnvelope,
+                vortexUuid,
+                vortexName,
+                httpSession,
+                sendResponse,
+            )
             if isinstance(d, Deferred):
                 d.addCallback(callback)
                 d.addErrback(respondToException)
-            elif hasattr(d, 'addCallback'):
+            elif hasattr(d, "addCallback"):
                 raise Exception("isinstance FAILED")
             else:
                 callback(True, blocking=True)

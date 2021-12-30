@@ -21,8 +21,11 @@ from vortex.VortexClientTcp import VortexClientTcp
 from vortex.VortexServer import VortexServer
 from vortex.VortexServerHttpResource import VortexServerHttpResource
 from vortex.VortexServerTcp import VortexTcpServerFactory
-from vortex.VortexServerWebsocket import VortexWebsocketServerFactory, \
-    VortexWebSocketUpgradeResource, VortexWrappedWebSocketFactory
+from vortex.VortexServerWebsocket import (
+    VortexWebsocketServerFactory,
+    VortexWebSocketUpgradeResource,
+    VortexWrappedWebSocketFactory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,7 @@ browserVortexName = "browser"
 
 
 class NoVortexException(Exception):
-    """ No Vortex Exception
+    """No Vortex Exception
 
     This is raised when a remote vortex doesn't exist.
 
@@ -67,10 +70,10 @@ class VortexFactory:
             cls.__listeningPorts.pop().stopListening()
             yield deferLater(reactor, 0.05, lambda: None)
 
-
     @classmethod
-    def _getVortexSendRefs(cls, name=None, uuid=None
-                           ) -> List[typing.Tuple[VortexABC, List[str]]]:
+    def _getVortexSendRefs(
+        cls, name=None, uuid=None
+    ) -> List[typing.Tuple[VortexABC, List[str]]]:
         assert name or uuid
 
         results = []
@@ -81,8 +84,9 @@ class VortexFactory:
             # logger.debug("FROM : %s", vortex.localVortexInfo)
             for remoteVortexInfo in vortex.remoteVortexInfo:
                 # logger.debug("        REMOTE : %s", remoteVortexInfo)
-                if ((name is None or remoteVortexInfo.name == name)
-                        and (uuid is None or remoteVortexInfo.uuid == uuid)):
+                if (name is None or remoteVortexInfo.name == name) and (
+                    uuid is None or remoteVortexInfo.uuid == uuid
+                ):
                     uuids.append(remoteVortexInfo.uuid)
 
             if uuids:
@@ -92,7 +96,7 @@ class VortexFactory:
 
     @classmethod
     def _allVortexes(cls):
-        """ All Vortexes
+        """All Vortexes
 
         :return: A list of all the vortexes, both client and server
         """
@@ -106,7 +110,7 @@ class VortexFactory:
 
     @classmethod
     def createServer(cls, name: str, rootResource) -> None:
-        """ Create Server
+        """Create Server
 
         Create a vortex server, VortexServer clients connect to this vortex serer via HTTP(S)
 
@@ -127,7 +131,7 @@ class VortexFactory:
 
     @classmethod
     def createWebsocketServer(cls, name: str, port: int) -> None:
-        """ Create Server
+        """Create Server
 
         Create a vortex server, VortexServer clients connect to this vortex serer via HTTP(S)
 
@@ -141,13 +145,17 @@ class VortexFactory:
 
         vortexServer = VortexServer(name)
         cls.__vortexServersByName[name].append(vortexServer)
-        vortexWebsocketServerFactory = VortexWebsocketServerFactory(vortexServer)
-        port = reactor.listenTCP(port, WebSocketFactory(vortexWebsocketServerFactory))
+        vortexWebsocketServerFactory = VortexWebsocketServerFactory(
+            vortexServer
+        )
+        port = reactor.listenTCP(
+            port, WebSocketFactory(vortexWebsocketServerFactory)
+        )
         cls.__listeningPorts.append(port)
 
     @classmethod
     def createHttpWebsocketServer(cls, name: str, rootResource) -> None:
-        """ Create Server
+        """Create Server
 
         Create a vortex server, VortexServer clients connect to this vortex serer via HTTP(S)
 
@@ -161,15 +169,19 @@ class VortexFactory:
 
         vortexServer = VortexServer(name)
         cls.__vortexServersByName[name].append(vortexServer)
-        vortexWebsocketServerFactory = VortexWebsocketServerFactory(vortexServer)
-        websocketFactory = VortexWrappedWebSocketFactory(vortexWebsocketServerFactory)
+        vortexWebsocketServerFactory = VortexWebsocketServerFactory(
+            vortexServer
+        )
+        websocketFactory = VortexWrappedWebSocketFactory(
+            vortexWebsocketServerFactory
+        )
 
         websocketResource = VortexWebSocketUpgradeResource(websocketFactory)
         rootResource.putChild(b"vortexws", websocketResource)
 
     @classmethod
     def createTcpServer(cls, name: str, port: int) -> None:
-        """ Create Server
+        """Create Server
 
         Create a vortex server, VortexServer clients connect to this vortex serer via HTTP(S)
 
@@ -189,7 +201,7 @@ class VortexFactory:
 
     @classmethod
     def createHttpClient(cls, name: str, host: str, port: int) -> Deferred:
-        """ Create Client
+        """Create Client
 
         Connect to a vortex Server.
 
@@ -200,7 +212,7 @@ class VortexFactory:
         :return: A deferred from the VortexHttpClient.connect method
         """
 
-        logger.info('Connecting to Peek Server HTTP %s:%s', host, port)
+        logger.info("Connecting to Peek Server HTTP %s:%s", host, port)
 
         vortexClient = VortexClientHttp(name)
         cls.__vortexClientsByName[name].append(vortexClient)
@@ -209,7 +221,7 @@ class VortexFactory:
 
     @classmethod
     def createTcpClient(cls, name: str, host: str, port: int) -> Deferred:
-        """ Create Client
+        """Create Client
 
         Connect to a vortex Server.
 
@@ -220,7 +232,7 @@ class VortexFactory:
         :return: A deferred from the VortexTcpClient.connect method
         """
 
-        logger.info('Connecting to Peek Server TCP %s:%s', host, port)
+        logger.info("Connecting to Peek Server TCP %s:%s", host, port)
 
         vortexClient = VortexClientTcp(name)
         cls.__vortexClientsByName[name].append(vortexClient)
@@ -241,7 +253,9 @@ class VortexFactory:
 
         for items in cls.__vortexClientsByName.values():
             vortexes.extend(
-                filter(lambda x: x.localVortexInfo.name == localVortexName, items)
+                filter(
+                    lambda x: x.localVortexInfo.name == localVortexName, items
+                )
             )
 
         return vortexes
@@ -267,11 +281,13 @@ class VortexFactory:
         return list(remoteNames)
 
     @classmethod
-    def sendVortexMsg(cls,
-                      vortexMsgs: Union[VortexMsgList, bytes],
-                      destVortexName: Optional[str] = broadcast,
-                      destVortexUuid: Optional[str] = broadcast) -> Deferred:
-        """ Send VortexMsg
+    def sendVortexMsg(
+        cls,
+        vortexMsgs: Union[VortexMsgList, bytes],
+        destVortexName: Optional[str] = broadcast,
+        destVortexUuid: Optional[str] = broadcast,
+    ) -> Deferred:
+        """Send VortexMsg
 
         Sends a payload to the remote vortex.
 
@@ -291,9 +307,10 @@ class VortexFactory:
 
         vortexAndUuids = cls._getVortexSendRefs(destVortexName, destVortexUuid)
         if not vortexAndUuids:
-            raise NoVortexException("Can not find vortexes to send message to,"
-                                    " name=%s, uuid=%s"
-                                    % (destVortexName, destVortexUuid))
+            raise NoVortexException(
+                "Can not find vortexes to send message to,"
+                " name=%s, uuid=%s" % (destVortexName, destVortexUuid)
+            )
 
         deferreds = []
         for vortex, uuids in vortexAndUuids:
@@ -303,9 +320,12 @@ class VortexFactory:
         return DeferredList(deferreds)
 
     @classmethod
-    def sendVortexMsgLocally(cls, vortexMsgs: Union[VortexMsgList, bytes],
-                             priority: int = DEFAULT_PRIORITY) -> Deferred:
-        """ Send VortexMsg
+    def sendVortexMsgLocally(
+        cls,
+        vortexMsgs: Union[VortexMsgList, bytes],
+        priority: int = DEFAULT_PRIORITY,
+    ) -> Deferred:
+        """Send VortexMsg
 
         Sends a payload to the remote vortex.
 
@@ -320,7 +340,9 @@ class VortexFactory:
         httpSession = "local"
         sendResponse = VortexFactory.sendVortexMsgLocally
 
-        vortexMsgs = [vortexMsgs] if isinstance(vortexMsgs, bytes) else vortexMsgs
+        vortexMsgs = (
+            [vortexMsgs] if isinstance(vortexMsgs, bytes) else vortexMsgs
+        )
 
         def send(payloadEnvelope: PayloadEnvelope):
             try:
@@ -329,7 +351,7 @@ class VortexFactory:
                     vortexUuid=vortexUuid,
                     vortexName=vortexName,
                     httpSession=httpSession,
-                    sendResponse=sendResponse
+                    sendResponse=sendResponse,
                 )
                 return succeed(True)
 
@@ -346,16 +368,16 @@ class VortexFactory:
 
     @classmethod
     def subscribeToVortexStatusChange(cls, vortexName: str) -> Subject:
-        """ Subscribe to Vortex Status Change
-        
+        """Subscribe to Vortex Status Change
+
         Subscribing to the returned observable/subject will provided updates of when the
         vortex goes offline, or online.
-        
+
         .. warning:: This is only implemented for TCP Client vortexes.
-        
+
         :param vortexName: The name of the vortex to subscribe to the status for.
                             This will be the name of the remote vortex.
-        
+
         """
         if not vortexName in cls.__vortexStatusChangeSubjectsByName:
             cls.__vortexStatusChangeSubjectsByName[vortexName] = Subject()
@@ -366,7 +388,9 @@ class VortexFactory:
         if cls.__isShutdown:
             return
 
-        logger.debug("Vortex %s went %s", vortexName, ("online" if online else "offline"))
+        logger.debug(
+            "Vortex %s went %s", vortexName, ("online" if online else "offline")
+        )
 
         if vortexName in cls.__vortexStatusChangeSubjectsByName:
             cls.__vortexStatusChangeSubjectsByName[vortexName].on_next(online)

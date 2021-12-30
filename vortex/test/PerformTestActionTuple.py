@@ -1,4 +1,4 @@
-'''
+"""
  *
  *  Copyright Synerty Pty Ltd 2013
  *
@@ -11,19 +11,20 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
  *
-'''
+"""
 
 from vortex.Tuple import TupleField, Tuple, addTupleType
 
 
 @addTupleType
 class PerformTestActionTuple(Tuple):
-    """ Perform Test Action Tuple
+    """Perform Test Action Tuple
 
     This tuple is used for testing the action code.
 
     """
-    __tupleType__ = 'synerty.vortex.PerformTestActionTuple'
+
+    __tupleType__ = "synerty.vortex.PerformTestActionTuple"
     actionDataInt = TupleField(typingType=int)
     actionDataUnicode = TupleField(typingType=str)
     failProcessing = TupleField(typingType=bool)

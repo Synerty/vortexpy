@@ -11,7 +11,7 @@ from .Tuple import Tuple, TupleField, addTupleType
 
 @addTupleType
 class DataWrapTuple(Tuple):
-    ''' Data Wrap Tuple
+    """Data Wrap Tuple
 
     This tuple wraps a peice of data for use in RapUI.
 
@@ -19,9 +19,9 @@ class DataWrapTuple(Tuple):
       name         What ever you want to use it for
       data         The data
 
-    '''
+    """
 
-    __tupleType__ = 'c.s.r.datawraptuple'
+    __tupleType__ = "c.s.r.datawraptuple"
 
     name = TupleField(None)
     data = TupleField(None)

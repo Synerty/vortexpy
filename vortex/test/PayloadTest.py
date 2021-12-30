@@ -19,7 +19,7 @@ from vortex.test.VortexTcpMemoryLeakPayloadTest import MemoryCheckerTestMixin
 def makeTestPayloadA(tupleDataSize=10 * 1024):
     payload = Payload()
     payload.filt[rapuiClientEcho] = None
-    payload.tuples = ['12345678' * int(tupleDataSize / 8)]
+    payload.tuples = ["12345678" * int(tupleDataSize / 8)]
     return payload
 
 
@@ -34,7 +34,7 @@ class PayloadPyTest(unittest.TestCase, MemoryCheckerTestMixin):
 
     # @profile
     def _makeStr(self, size):
-        _ = ['12345678' * int(size / 8)]
+        _ = ["12345678" * int(size / 8)]
         del _
         gc.collect()
 
@@ -63,7 +63,7 @@ class PayloadPyTest(unittest.TestCase, MemoryCheckerTestMixin):
     def testPayloadToFromEncodedPayload10mb(self):
         # Create Payload
         origPayload = makeTestPayloadA()
-        origPayload.tuples = ['1234567890' * 1024 ** 2]
+        origPayload.tuples = ["1234567890" * 1024 ** 2]
 
         encodedPayload = origPayload.toEncodedPayload()
         payload = Payload().fromEncodedPayload(encodedPayload)
@@ -83,8 +83,11 @@ class PayloadPyTest(unittest.TestCase, MemoryCheckerTestMixin):
         self.assertEqual(TupleHash(payload), TupleHash(payload))
         self.assertEqual(TupleHash(origPayload), TupleHash(origPayload))
 
-        self.assertEqual(TupleHash(origPayload), TupleHash(payload),
-                         'Payload serialise -> deserialize error')
+        self.assertEqual(
+            TupleHash(origPayload),
+            TupleHash(payload),
+            "Payload serialise -> deserialize error",
+        )
 
     def testPayloadToFromJson(self):
         # Create Payload
@@ -100,8 +103,11 @@ class PayloadPyTest(unittest.TestCase, MemoryCheckerTestMixin):
         self.assertEqual(TupleHash(payload), TupleHash(payload))
         self.assertEqual(TupleHash(origPayload), TupleHash(origPayload))
 
-        self.assertEqual(TupleHash(origPayload), TupleHash(payload),
-                         'Payload serialise -> deserialise error')
+        self.assertEqual(
+            TupleHash(origPayload),
+            TupleHash(payload),
+            "Payload serialise -> deserialise error",
+        )
 
     def testPayloadJsonPerformanceSingle(self):
         origPayload = makeTestPayloadA()

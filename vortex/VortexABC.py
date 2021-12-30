@@ -5,11 +5,13 @@ from twisted.internet.defer import Deferred
 
 from vortex.PayloadEnvelope import VortexMsgList
 
-SendVortexMsgResponseCallable = Callable[[Union[VortexMsgList, bytes], int], Deferred]
+SendVortexMsgResponseCallable = Callable[
+    [Union[VortexMsgList, bytes], int], Deferred
+]
 
 
 class VortexInfo:
-    """ Vortex Info
+    """Vortex Info
 
     This class stores details about the end of a vortex.
     """
@@ -33,10 +35,12 @@ class VortexABC(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def sendVortexMsg(self,
-                      vortexMsgs: Union[VortexMsgList, bytes],
-                      vortexUuid: Optional[str] = None):
-        """ Send Vortex Msg
+    def sendVortexMsg(
+        self,
+        vortexMsgs: Union[VortexMsgList, bytes],
+        vortexUuid: Optional[str] = None,
+    ):
+        """Send Vortex Msg
 
         Sends the vortex message to any conencted clients with vortexUuid.
         Or broadcast it to all connected vortex clients if it's None

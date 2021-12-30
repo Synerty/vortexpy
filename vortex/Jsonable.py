@@ -23,22 +23,23 @@ from .SerialiseUtil import *
 ###############################################################################
 
 # Globally mess with the json dump separators for more compact json
-JSONEncoder.item_separator = ','
-JSONEncoder.key_separator = ':'
+JSONEncoder.item_separator = ","
+JSONEncoder.key_separator = ":"
 
 
 class Jsonable(object):
-    ''' Xmlable
+    """Xmlable
     Inherit from this class if you want to serialise to XML.
-    '''
+    """
+
     __fieldNames__: List[str] = None
     __rapuiSerialiseType__ = T_GENERIC_CLASS
 
     __rawJonableFields__: List[str] = None
 
-    JSON_CLASS_TYPE = '_ct'
-    JSON_CLASS = '_c'
-    JSON_TUPLE_TYPE = '_c'
+    JSON_CLASS_TYPE = "_ct"
+    JSON_CLASS = "_c"
+    JSON_TUPLE_TYPE = "_c"
     JSON_FIELD_TYPE = "_ft"
     JSON_FIELD_DATA = "_fd"
 
@@ -51,29 +52,33 @@ class Jsonable(object):
         cls.__memoryLoggingEnabled = True
 
     @classmethod
-    def memoryLoggingDump(cls, top=10, over=100) -> List[typing.Tuple[str, int]]:
+    def memoryLoggingDump(
+        cls, top=10, over=100
+    ) -> List[typing.Tuple[str, int]]:
         if not Jsonable.__memoryLoggingRefs:
             return []
 
-        data = sorted(Jsonable.__memoryLoggingRefs.items(),
-                      key=lambda x: x[1],
-                      reverse=True)
+        data = sorted(
+            Jsonable.__memoryLoggingRefs.items(),
+            key=lambda x: x[1],
+            reverse=True,
+        )
 
         return list(filter(lambda x: x[1] >= over, data))[:top]
 
     def __memLoggingKey(self):
-        if getattr(self, '__rapuiSerialiseType__') == T_RAPUI_TUPLE:
-            key = 'Tuple: ' + getattr(self, '__tupleType__')
+        if getattr(self, "__rapuiSerialiseType__") == T_RAPUI_TUPLE:
+            key = "Tuple: " + getattr(self, "__tupleType__")
 
-        elif getattr(self, '__rapuiSerialiseType__') == T_RAPUI_PAYLOAD:
-            assert hasattr(self, 'filt'), 'Payload is missing filt'
-            if 'key' in self.filt:
-                key = 'Payload: key=' + self.filt['key']
+        elif getattr(self, "__rapuiSerialiseType__") == T_RAPUI_PAYLOAD:
+            assert hasattr(self, "filt"), "Payload is missing filt"
+            if "key" in self.filt:
+                key = "Payload: key=" + self.filt["key"]
             else:
-                key = 'Payload: ' + str(self.filt)
+                key = "Payload: " + str(self.filt)
 
         else:
-            key = 'Jsonable: ' + getattr(self, '__rapuiSerialiseType__')
+            key = "Jsonable: " + getattr(self, "__rapuiSerialiseType__")
 
         return key
 
@@ -91,18 +96,20 @@ class Jsonable(object):
         return name in self.__rawJonableFields__
 
     def toJsonField(self, value, jsonDict=None, name=None):
-        ''' To Json Field
-
-        '''
+        """To Json Field"""
         from .Tuple import TupleField
+
         if isinstance(value, TupleField):
-            value = None if value.defaultValue == None else copy(value.defaultValue)
+            value = (
+                None if value.defaultValue == None else copy(value.defaultValue)
+            )
 
         try:
             valueType = V_NULL if value is None else toRapuiType(value)
         except KeyError as e:
-            raise KeyError("%s field name is %s, type is %s",
-                           e, name, value.__class__)
+            raise KeyError(
+                "%s field name is %s, type is %s", e, name, value.__class__
+            )
 
         # Payloads and Tuples
         if self.__isRawJsonableField(name):
@@ -137,18 +144,27 @@ class Jsonable(object):
 
         # Non standard values need a dict to store their value type attributes
         # Create a sub dict that contains the value and type
-        if (valueType not in (T_FLOAT, T_STR, V_NULL, T_BOOL, T_LIST, T_DICT)
-                and not isinstance(value, Jsonable)):
+        if valueType not in (
+            T_FLOAT,
+            T_STR,
+            V_NULL,
+            T_BOOL,
+            T_LIST,
+            T_DICT,
+        ) and not isinstance(value, Jsonable):
             convertedValue = {
                 Jsonable.JSON_FIELD_TYPE: valueType,
-                Jsonable.JSON_FIELD_DATA: convertedValue
+                Jsonable.JSON_FIELD_DATA: convertedValue,
             }
 
         if name and jsonDict is not None:
             # Now assign the value and it's data type if applicable
             if not toRapuiType(name) in (T_STR, T_INT, T_FLOAT):
-                raise Exception("name=%s, type=%s, is not an allowed dict key",
-                                name, toRapuiType(name))
+                raise Exception(
+                    "name=%s, type=%s, is not an allowed dict key",
+                    name,
+                    toRapuiType(name),
+                )
 
             jsonDict[name] = convertedValue
 
@@ -157,7 +173,9 @@ class Jsonable(object):
     # -----------------------------------------------------------------------------
     def fromJsonField(self, value, valueType=None):
         # Single Value
-        if valueType == V_NULL or value is None:  # V_NULL will never be set in toJsonField
+        if (
+            valueType == V_NULL or value is None
+        ):  # V_NULL will never be set in toJsonField
             return None
 
         if valueType == T_INT:
@@ -175,20 +193,25 @@ class Jsonable(object):
 
         # Non standard values need a dict to store their value type attributes, decode these
         if isinstance(value, dict) and Jsonable.JSON_FIELD_TYPE in value:
-            return self.fromJsonField(value[Jsonable.JSON_FIELD_DATA],
-                                      value[Jsonable.JSON_FIELD_TYPE])
+            return self.fromJsonField(
+                value[Jsonable.JSON_FIELD_DATA], value[Jsonable.JSON_FIELD_TYPE]
+            )
 
         # Tuple
         if valueType == T_RAPUI_TUPLE:
             tupleType = value[Jsonable.JSON_TUPLE_TYPE]
 
             from .Tuple import TUPLE_TYPES_BY_NAME
+
             if not tupleType in TUPLE_TYPES_BY_NAME:
-                raise Exception("Tuple type |%s| not registered within this program.",
-                                tupleType)
+                raise Exception(
+                    "Tuple type |%s| not registered within this program.",
+                    tupleType,
+                )
 
             try:
                 from .Tuple import TUPLE_TYPES_BY_NAME
+
                 return TUPLE_TYPES_BY_NAME[tupleType]().fromJsonDict(value)
 
             except Exception as e:
@@ -198,10 +221,12 @@ class Jsonable(object):
         # Handle the case of payloads within payloads
         if valueType == T_RAPUI_PAYLOAD:
             from .Payload import Payload
+
             return Payload().fromJsonDict(value)
 
         if valueType == T_RAPUI_PAYLOAD_ENVELOPE:
             from .PayloadEnvelope import PayloadEnvelope
+
             return PayloadEnvelope().fromJsonDict(value)
 
         if valueType == T_GENERIC_CLASS:
@@ -241,7 +266,7 @@ class Jsonable(object):
 
         jsonDict = {Jsonable.JSON_CLASS_TYPE: self.__rapuiSerialiseType__}
 
-        if hasattr(self, 'tupleName'):
+        if hasattr(self, "tupleName"):
             jsonDict[Jsonable.JSON_TUPLE_TYPE] = self.tupleName()
 
         else:
@@ -254,9 +279,9 @@ class Jsonable(object):
         return jsonDict
 
     def fromJsonDict(self, jsonDict):
-        ''' From Xml
+        """From Xml
         Returns and instance of this object populated with data from the json dict
-        '''
+        """
 
         # Use the fromJsonField code to convert all the values
         for name, value in list(jsonDict.items()):

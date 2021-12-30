@@ -22,7 +22,7 @@ from .Jsonable import Jsonable
 
 logger = logging.getLogger(__name__)
 
-PayloadEnvelopeList = List['PayloadEnvelope']
+PayloadEnvelopeList = List["PayloadEnvelope"]
 VortexMsgList = List[bytes]
 
 
@@ -31,22 +31,24 @@ class NoPayloadException(Exception):
 
 
 class PayloadEnvelope(Jsonable):
-    ''' Payload
+    """Payload
     This object represents a hierarchy of data transferred between client and server
-    '''
-    __fieldNames__ = ['filt', 'encodedPayload', 'result', 'date']
+    """
+
+    __fieldNames__ = ["filt", "encodedPayload", "result", "date"]
     __rapuiSerialiseType__ = T_RAPUI_PAYLOAD_ENVELOPE
 
-    vortexUuidKey = '__vortexUuid__'
-    vortexNameKey = '__vortexName__'
+    vortexUuidKey = "__vortexUuid__"
+    vortexNameKey = "__vortexName__"
 
-    def __init__(self, filt: Optional[Dict] = None,
-                 encodedPayload: Optional[bytes] = None,
-                 result=None,
-                 date: Optional[datetime] = None) -> None:
-        """ Constructor
-
-        """
+    def __init__(
+        self,
+        filt: Optional[Dict] = None,
+        encodedPayload: Optional[bytes] = None,
+        result=None,
+        date: Optional[datetime] = None,
+    ) -> None:
+        """Constructor"""
         self.filt: Dict = {} if filt is None else filt
         self.encodedPayload: bytes = encodedPayload
         self.result = result
@@ -59,17 +61,26 @@ class PayloadEnvelope(Jsonable):
     # PayloadEnvelope Methods
 
     def isEmpty(self):
-        return ((not self.filt
-                 or (self.vortexNameKey in self.filt
-                     and self.vortexUuidKey in self.filt
-                     and len(self.filt) == 2))
-                and not self.encodedPayload
-                and not self.result)
+        return (
+            (
+                not self.filt
+                or (
+                    self.vortexNameKey in self.filt
+                    and self.vortexUuidKey in self.filt
+                    and len(self.filt) == 2
+                )
+            )
+            and not self.encodedPayload
+            and not self.result
+        )
 
     def decodePayload(self) -> Payload:
         if not self.encodedPayload:
             if self.result:
-                logger.debug("encodedPayload is None, but maybe there was an error: %s", self.result)
+                logger.debug(
+                    "encodedPayload is None, but maybe there was an error: %s",
+                    self.result,
+                )
             raise NoPayloadException()
 
         noMainThread()
@@ -84,7 +95,7 @@ class PayloadEnvelope(Jsonable):
     def _fromJson(self, jsonStr):
         jsonDict = ujson.loads(jsonStr)
 
-        assert (jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__)
+        assert jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__
         return self.fromJsonDict(jsonDict)
 
     def _toJson(self) -> str:
