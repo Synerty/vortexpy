@@ -490,7 +490,11 @@ class _TupleToPlainJsonMixin:
             # elif isinstance(value, WKBElement):
             #     return convertFromWkbElement(value)
 
-            if isinstance(value, str) and re.match(value, ISO8601_REGEXP):
+            if (
+                isinstance(value, str)
+                and "\n" not in value
+                and re.match(value, ISO8601_REGEXP)
+            ):
                 return strptime(value, ISO8601)
 
             return value
@@ -608,7 +612,11 @@ class _TupleToPlainJsonMixin:
             if value in (None, ""):
                 return value
 
-            if isinstance(value, str) and re.match(value, ISO8601_REGEXP):
+            if (
+                isinstance(value, str)
+                and "\n" not in value
+                and re.match(value, ISO8601_REGEXP)
+            ):
                 return strptime(value, ISO8601)
 
             if isinstance(value, list):
