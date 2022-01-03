@@ -780,7 +780,7 @@ class Tuple(Jsonable, _TupleToPlainJsonMixin, _TupleToSqlaJsonMixin):
         # Handle setting any polymorphic field types
         for arg in self.__tupleArgs__:
             if isinstance(arg, PolymorphicTupleTypeFieldArg):
-                setattr(self, arg.fieldName, self.__tupleType__())
+                setattr(self, arg.fieldName, self.__tupleType__)
 
     @classmethod
     def tupleFieldNames(cls) -> List[str]:
