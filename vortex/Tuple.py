@@ -727,6 +727,9 @@ class Tuple(Jsonable, _TupleToPlainJsonMixin, _TupleToSqlaJsonMixin):
     __rapuiSerialiseType__ = T_RAPUI_TUPLE
 
     def __init__(self, **kwargs):
+        if self.__fieldNames__ is None:
+            raise Exception("This tuple is missing the @addTupleType decorator")
+
         Jsonable.__init__(self)
 
         # If we're using slots, then don't use tuple fields (there arn't any anyway)
