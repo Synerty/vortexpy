@@ -6,7 +6,11 @@
  * Website : http://www.synerty.com
  * Support : support@synerty.com
 """
+import base64
 import logging
+from typing import Any
+from typing import Union
+
 import ujson
 import zlib
 from base64 import b64encode, b64decode
@@ -35,7 +39,7 @@ class PayloadEnvelope(Jsonable):
     This object represents a hierarchy of data transferred between client and server
     """
 
-    __fieldNames__ = ["filt", "encodedPayload", "result", "date"]
+    __fieldNames__ = ["filt", "data", "result", "date"]
     __rapuiSerialiseType__ = T_RAPUI_PAYLOAD_ENVELOPE
 
     vortexUuidKey = "__vortexUuid__"
@@ -44,13 +48,19 @@ class PayloadEnvelope(Jsonable):
     def __init__(
         self,
         filt: Optional[Dict] = None,
-        encodedPayload: Optional[bytes] = None,
+        encodedPayload: Optional[str] = None,
         result=None,
         date: Optional[datetime] = None,
+        data: Optional[Any] = None,
     ) -> None:
+        Jsonable.__init__(self)
         """Constructor"""
+        assert not (
+            data and encodedPayload
+        ), "You can not pass encodedData and encodedPayload"
+
         self.filt: Dict = {} if filt is None else filt
-        self.encodedPayload: bytes = encodedPayload
+        self.data: Union[Any, str, None] = data if data else encodedPayload
         self.result = result
         self.date: datetime = date if date else datetime.now(pytz.utc)
 
@@ -59,6 +69,22 @@ class PayloadEnvelope(Jsonable):
 
     # -------------------------------------------
     # PayloadEnvelope Methods
+
+    @property
+    def encodedPayload(self) -> Optional[str]:
+        assert (
+            self.data is None
+            or isinstance(self.data, str)
+            or isinstance(self.data, bytes)
+        ), "Encoded payload is not None, bytes or string"
+        return self.data
+
+    @encodedPayload.setter
+    def encodedPayload(self, val: Optional[str]):
+        assert val is None or isinstance(
+            val, str
+        ), "Encoded payload is not None or a string"
+        self.data = val
 
     def isEmpty(self):
         return (
@@ -73,6 +99,9 @@ class PayloadEnvelope(Jsonable):
             and not self.encodedPayload
             and not self.result
         )
+
+    # -------------------------------------------
+    # Decode Helper Methods
 
     def decodePayload(self) -> Payload:
         if not self.encodedPayload:
@@ -103,17 +132,28 @@ class PayloadEnvelope(Jsonable):
 
     # -------------------------------------------
     # VortexServer Message Methods
-    def toVortexMsg(self) -> bytes:
-        return b64encode(self._toJson().encode())
+    def toVortexMsg(self, base64Encode=True) -> bytes:
+        jsonStr = self._toJson().encode()
+        if base64Encode:
+            return b64encode(jsonStr)
+        return jsonStr
 
     @deferToThreadWrapWithLogger(logger)
-    def toVortexMsgDefer(self) -> bytes:
-        return self.toVortexMsg()
+    def toVortexMsgDefer(self, base64Encode=True) -> bytes:
+        return self.toVortexMsg(base64Encode=base64Encode)
 
-    def fromVortexMsg(self, vortexMsg: bytes) -> "PayloadEnvelope":
+    def fromVortexMsg(
+        self,
+        vortexMsg: bytes,
+    ) -> "PayloadEnvelope":
         jsonStr = b64decode(vortexMsg).decode()
         return self._fromJson(jsonStr)
 
     @deferToThreadWrapWithLogger(logger)
     def fromVortexMsgDefer(self, vortexMsg: bytes) -> "PayloadEnvelope":
         return self.fromVortexMsg(vortexMsg)
+
+    @classmethod
+    @deferToThreadWrapWithLogger(logger)
+    def base64EncodeDefer(cls, vortexMsg) -> bytes:
+        return base64.b64encode(vortexMsg)
