@@ -7,4 +7,4 @@
  * Support : support@synerty.com
 """
 
-__version__ = '2.6.0'
+__version__ = '3.0.0'
