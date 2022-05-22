@@ -217,6 +217,10 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
     def uuid(self):
         return self._vortexUuid
 
+    @property
+    def requiresBase64Encoding(self) -> bool:
+        return True
+
     def connect(self, server, port):
         self._server = server
         self._port = port
@@ -289,6 +293,13 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
         yield None
         assert self._server
         assert vortexMsgs
+
+        # This transport requires base64 encoding
+        for index, vortexMsg in enumerate(vortexMsgs):
+            if vortexMsg.startswith(b"{"):
+                vortexMsgs[index] = yield PayloadEnvelope.base64EncodeDefer(
+                    vortexMsg
+                )
 
         self.vortexMsgs = b""
 

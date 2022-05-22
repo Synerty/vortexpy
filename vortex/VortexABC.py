@@ -34,6 +34,11 @@ class VortexABC(metaclass=ABCMeta):
     def remoteVortexInfo(self) -> List[VortexInfo]:
         pass
 
+    @property
+    @abstractmethod
+    def requiresBase64Encoding(self) -> bool:
+        pass
+
     @abstractmethod
     def sendVortexMsg(
         self,

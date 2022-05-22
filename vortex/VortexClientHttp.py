@@ -196,6 +196,13 @@ class VortexClientHttp(VortexABC):
         assert self._server
         assert vortexMsgs
 
+        # This transport requires base64 encoding
+        for index, vortexMsg in enumerate(vortexMsgs):
+            if vortexMsg.startswith(b"{"):
+                vortexMsgs[index] = yield PayloadEnvelope.base64EncodeDefer(
+                    vortexMsg
+                )
+
         def ebSendAgain(failure):
             self._retrying = True
             logger.debug(

@@ -18,12 +18,12 @@ from twisted.web.server import Session
 from zope.interface import Interface, Attribute
 from zope.interface.declarations import implementer
 
-from vortex.DeferUtil import vortexLogFailure, isMainThread
-from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
-from vortex.PayloadFilterKeys import rapuiServerEcho
-from vortex.PayloadIO import PayloadIO
-from vortex.PayloadPriority import DEFAULT_PRIORITY
-from vortex.VortexABC import VortexABC, VortexInfo
+from .DeferUtil import vortexLogFailure, isMainThread
+from .PayloadEnvelope import VortexMsgList, PayloadEnvelope
+from .PayloadFilterKeys import rapuiServerEcho
+from .PayloadIO import PayloadIO
+from .PayloadPriority import DEFAULT_PRIORITY
+from .VortexABC import VortexABC, VortexInfo
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +40,10 @@ class VortexServer(VortexABC):
     The static instance of the controller
     """
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, requiresBase64Encoding=True) -> None:
         # Simple initialisations up the top
         self._name = name
+        self._requiresBase64Encoding = requiresBase64Encoding
         self._uuid = str(uuid.uuid1())
         self._shutdown = False
 
@@ -57,6 +58,10 @@ class VortexServer(VortexABC):
 
     def uuid(self):
         return self._uuid
+
+    @property
+    def requiresBase64Encoding(self):
+        return self._requiresBase64Encoding
 
     @property
     def localVortexInfo(self) -> VortexInfo:
@@ -256,7 +261,15 @@ class VortexServer(VortexABC):
 
             return
 
-        from vortex.VortexServerConnection import VortexServerConnection
+        from .VortexServerConnection import VortexServerConnection
+
+        # If any transports require base64 encoding, then encode them all
+        if self.requiresBase64Encoding:
+            for index, vortexMsg in enumerate(vortexMsgs):
+                if vortexMsg.startswith(b"{"):
+                    vortexMsgs[index] = yield PayloadEnvelope.base64EncodeDefer(
+                        vortexMsg
+                    )
 
         conns: List[VortexServerConnection] = []
         if vortexUuid is None:

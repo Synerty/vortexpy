@@ -143,7 +143,7 @@ class VortexFactory:
         :return: None
         """
 
-        vortexServer = VortexServer(name)
+        vortexServer = VortexServer(name, requiresBase64Encoding=False)
         cls.__vortexServersByName[name].append(vortexServer)
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(
             vortexServer
@@ -281,6 +281,7 @@ class VortexFactory:
         return list(remoteNames)
 
     @classmethod
+    @inlineCallbacks
     def sendVortexMsg(
         cls,
         vortexMsgs: Union[VortexMsgList, bytes],
@@ -312,12 +313,31 @@ class VortexFactory:
                 " name=%s, uuid=%s" % (destVortexName, destVortexUuid)
             )
 
+        if not isinstance(vortexMsgs, list):
+            vortexMsgs = [vortexMsgs]
+
+        base64VortexMsgs = vortexMsgs[:]
+
+        # If any transports require base64 encoding, then encode them all
+        if [v for v in vortexAndUuids if v[0].requiresBase64Encoding]:
+            for index, vortexMsg in enumerate(base64VortexMsgs):
+                if vortexMsg.startswith(b"{"):
+                    base64VortexMsgs[
+                        index
+                    ] = yield PayloadEnvelope.base64EncodeDefer(vortexMsg)
+
         deferreds = []
         for vortex, uuids in vortexAndUuids:
             for uuid in uuids:
-                deferreds.append(vortex.sendVortexMsg(vortexMsgs, uuid))
+                if vortex.requiresBase64Encoding:
+                    deferreds.append(
+                        vortex.sendVortexMsg(base64VortexMsgs, uuid)
+                    )
+                else:
+                    deferreds.append(vortex.sendVortexMsg(vortexMsgs, uuid))
 
-        return DeferredList(deferreds)
+        results = yield DeferredList(deferreds)
+        return results
 
     @classmethod
     def sendVortexMsgLocally(
