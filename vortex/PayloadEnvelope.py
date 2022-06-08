@@ -72,6 +72,7 @@ class PayloadEnvelope(Jsonable):
 
     @property
     def encodedPayload(self) -> Optional[str]:
+        # self.data could be from VortexJS/Typescript where we allow `str` data
         assert (
             self.data is None
             or isinstance(self.data, str)
@@ -81,8 +82,10 @@ class PayloadEnvelope(Jsonable):
 
     @encodedPayload.setter
     def encodedPayload(self, val: Optional[str]):
+        # This value should only be set from users of VortexPy and
+        # Payload.toEncodedPayload so we only allow bytes or None
         assert val is None or isinstance(
-            val, str
+            val, bytes
         ), "Encoded payload is not None or a string"
         self.data = val
 

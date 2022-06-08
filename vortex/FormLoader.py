@@ -16,24 +16,12 @@ from vortex.Tuple import Tuple
 from vortex.TupleSelector import TupleSelector
 
 
-# TODO: Get rid of this, *maybe*?
-class FormLoaderTupleABC(Tuple):
-    """Form Loader Tuple ABC
-
-    This class marks the inheriting class as a Tuple to be used as data with
-    the `TupleFormLoader`
-    """
-
-    pass
-
-
-class TupleFormLoaderDelegateABC(abc.ABC):
-    """Tuple Form Loader Delegate ABC
+class TupleDataLoaderDelegateABC(abc.ABC):
+    """Tuple Data Loader Delegate ABC
 
     ABC for delegate classes to handle the reading and writing for each forms'
     data. Handlers must be register in
-    (`FormLoaderTupleABC`, `TupleFormLoaderDelegateABC`) pairs with the
-    `TupleFormLoader`
+    (`Tuple`, `TupleDataLoaderDelegateABC`) pairs with the `TupleDataLoader`
 
     """
 
@@ -45,13 +33,15 @@ class TupleFormLoaderDelegateABC(abc.ABC):
 
     @abstractmethod
     @inlineCallbacks
-    def readData(
-            self, selector: Dict[str, Any]
-    ) -> Union[Deferred, FormLoaderTupleABC]:
+    def loadData(self, selector: TupleSelector) -> Union[Deferred, Tuple]:
         pass
 
     @abstractmethod
     @inlineCallbacks
-    def writeData(self, data: FormLoaderTupleABC,
-                  selector: TupleSelector) -> Deferred:
+    def storeData(self, data: Tuple, selector: TupleSelector) -> Deferred:
+        pass
+
+    @abstractmethod
+    @inlineCallbacks
+    def deleteData(self, selector: TupleSelector) -> Deferred:
         pass
