@@ -4,7 +4,7 @@ import shutil
 from setuptools import setup, find_packages
 
 package_name = "vortexpy"
-package_version = '3.0.0'
+package_version = "3.0.0"
 
 egg_info = "%s.egg-info" % package_name
 if os.path.isdir(egg_info):
@@ -25,7 +25,7 @@ requirements = [
     "rx < 3.0.0",
     "ddt >=1.4.1",
     # Test requirements
-    "psutil",
+    "psutil==5.9.0",
 ]
 
 setup(
@@ -39,7 +39,8 @@ setup(
     author_email="contact@synerty.com",
     url="https://github.com/Synerty/vortexpy",
     download_url=(
-        "https://github.com/Synerty/%s/tarball/%s" % (package_name, package_version)
+        "https://github.com/Synerty/%s/tarball/%s"
+        % (package_name, package_version)
     ),
     keywords=["vortex", "observable", "http", "compressed", "synerty"],
     classifiers=[

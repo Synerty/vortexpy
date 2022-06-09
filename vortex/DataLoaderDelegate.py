@@ -32,16 +32,13 @@ class TupleDataLoaderDelegateABC(abc.ABC):
         pass
 
     @abstractmethod
-    @inlineCallbacks
     def loadData(self, selector: TupleSelector) -> Union[Deferred, Tuple]:
         pass
 
     @abstractmethod
-    @inlineCallbacks
     def storeData(self, data: Tuple, selector: TupleSelector) -> Deferred:
         pass
 
     @abstractmethod
-    @inlineCallbacks
     def deleteData(self, selector: TupleSelector) -> Deferred:
         pass
