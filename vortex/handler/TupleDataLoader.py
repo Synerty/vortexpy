@@ -12,7 +12,7 @@ from typing import Type, Dict, Union
 from twisted.internet.defer import Deferred, inlineCallbacks
 
 from vortex.DeferUtil import callMethodLater
-from vortex.FormLoader import TupleDataLoaderDelegateABC
+from vortex.DataLoaderDelegate import TupleDataLoaderDelegateABC
 from vortex.Payload import Payload
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.Tuple import TupleField, addTupleType, Tuple
@@ -39,7 +39,7 @@ class _DataLoaderDelegateState:
 
 
 STORE_ACTION = "store"
-CHANGE_MADE_ACTION = "change_made"
+EDIT_UPDATE_ACTION = "edit_update"
 LOAD_ACTION = "load"
 DELETE_ACTION = "delete"
 
@@ -283,7 +283,7 @@ class TupleDataLoader(TupleActionProcessorDelegateABC, TuplesProviderABC):
                 self._lockingUuidByTs.pop(tupleAction.selector)
                 self.__notifyOfTupleUpdate(lockingTs)
 
-        elif tupleAction.action == CHANGE_MADE_ACTION:
+        elif tupleAction.action == EDIT_UPDATE_ACTION:
             entry.liveValueByTs[tupleAction.selector] = tupleAction.data
 
         self.__notifyOfTupleUpdate(tupleAction.selector)

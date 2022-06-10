@@ -32,16 +32,38 @@ class TupleDataLoaderDelegateABC(abc.ABC):
         pass
 
     @abstractmethod
-    @inlineCallbacks
     def loadData(self, selector: TupleSelector) -> Union[Deferred, Tuple]:
+        """Load Data
+
+        The `loadData` method is called when data needs to be loaded from a
+        storage medium. The query is represented by a `TupleSelector` value
+        `selector`.
+
+        :param selector: The `TupleSelector` for which to load data
+        :return: The `Tuple` or a `Deferred` which eventually results in a `Tuple`
+        """
         pass
 
     @abstractmethod
-    @inlineCallbacks
     def storeData(self, data: Tuple, selector: TupleSelector) -> Deferred:
+        """Store Data
+
+        Store the data into the storage medium. The `data` is the `Tuple` which
+        needs to be written
+
+        :param data: Tuple to write and store
+        :param selector: Previous selector used
+        :return: Deferred
+        """
         pass
 
     @abstractmethod
-    @inlineCallbacks
     def deleteData(self, selector: TupleSelector) -> Deferred:
+        """Delete Data
+
+        Delete the data referenced by the `selector`
+
+        :param selector: `TupleSelector` for data to be deleted
+        :return: Deferred
+        """
         pass
