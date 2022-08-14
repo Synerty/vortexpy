@@ -4,7 +4,7 @@ import shutil
 from setuptools import setup, find_packages
 
 package_name = "vortexpy"
-package_version = '3.2.0'
+package_version = "3.2.0"
 
 egg_info = "%s.egg-info" % package_name
 if os.path.isdir(egg_info):
@@ -27,7 +27,7 @@ requirements = [
     "ddt >=1.4.1",
     # Test requirements
     "psutil==5.9.0",
-    "txhttputil>=1.1.4,<1.2.0",
+    "txhttputil>=1.2.0,<1.3.0",
 ]
 
 setup(
