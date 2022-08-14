@@ -1,14 +1,21 @@
 import logging
 import typing
 from collections import defaultdict
+from twisted.internet._sslverify import TLSVersion
 from typing import Union, List, Optional, Dict
 
+import pem
+from OpenSSL import SSL
 from rx.subjects import Subject
-from twisted.internet import reactor
+from twisted.internet import reactor, ssl
 from twisted.internet.defer import Deferred, DeferredList, succeed
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
+from txhttputil.util.SslUtil import (
+    parseTrustRootFromBundle,
+    parsePrivateCertificateFromBundle,
+)
 from txwebsocket.txws import WebSocketFactory
 
 from vortex.DeferUtil import yesMainThread
@@ -18,6 +25,7 @@ from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC
 from vortex.VortexClientHttp import VortexClientHttp
 from vortex.VortexClientTcp import VortexClientTcp
+from vortex.VortexClientWebsocketFactory import VortexClientWebsocketFactory
 from vortex.VortexServer import VortexServer
 from vortex.VortexServerHttpResource import VortexServerHttpResource
 from vortex.VortexServerTcp import VortexTcpServerFactory
@@ -130,7 +138,15 @@ class VortexFactory:
         rootResource.putChild(b"vortex", vortexResource)
 
     @classmethod
-    def createWebsocketServer(cls, name: str, port: int) -> None:
+    def createWebsocketServer(
+        cls,
+        name: str,
+        port: int,
+        ssl: Optional[bool] = False,
+        sslEnableMutualTLS: Optional[bool] = False,
+        sslBundleFilePath: Optional[str] = None,
+        sslMutualTLSCertificateAuthorityBundleFilePath: Optional[str] = None,
+    ) -> None:
         """Create Server
 
         Create a vortex server, VortexServer clients connect to this vortex serer via HTTP(S)
@@ -140,6 +156,16 @@ class VortexFactory:
 
         :param name: The name of the local vortex.
         :param port: The tcp port to listen on
+        :param ssl: switch ssl on or off for HTTP
+        :param sslEnableMutualTLS: switch on or off mTLS
+        :param sslBundleFilePath: a filepath to a PEM file that contains
+                            a private key, a certificate and a CA certificate
+                            to identify the tls server itself
+        :param sslMutualTLSCertificateAuthorityBundleFilePath: a filepath to a
+                            PEM file that contains all CA certificates which are
+                            used for mutualTLS to verify the identities of the
+                            tls clients
+
         :return: None
         """
 
@@ -148,9 +174,24 @@ class VortexFactory:
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(
             vortexServer
         )
-        port = reactor.listenTCP(
-            port, WebSocketFactory(vortexWebsocketServerFactory)
-        )
+        site = WebSocketFactory(vortexWebsocketServerFactory)
+        if ssl:
+            trustedCertificateAuthorities = None
+            if sslEnableMutualTLS:
+                trustedCertificateAuthorities = parseTrustRootFromBundle(
+                    sslMutualTLSCertificateAuthorityBundleFilePath
+                )
+
+            sslContextFactory = pem.twisted.certificateOptionsFromFiles(
+                sslBundleFilePath,
+                trustRoot=trustedCertificateAuthorities,
+                raiseMinimumTo=TLSVersion.TLSv1_2,
+                # TODO: pass in diffie-hellman param
+                acceptableProtocols=[b"http/1.1"],
+            )
+            port = reactor.listenSSL(port, site, sslContextFactory)
+        else:
+            port = reactor.listenTCP(port, site)
         cls.__listeningPorts.append(port)
 
     @classmethod
@@ -218,6 +259,59 @@ class VortexFactory:
         cls.__vortexClientsByName[name].append(vortexClient)
 
         return vortexClient.connect(host, port)
+
+    @classmethod
+    def createWebsocketClient(
+        cls,
+        name: str,
+        host: str,
+        port: str,
+        url: str,
+        sslEnableMutualTLS: bool = False,
+        sslClientCertificateBundleFilePath: str = None,
+        sslMutualTLSCertificateAuthorityBundleFilePath: str = None,
+    ) -> Deferred:
+        """Create websocket client
+
+        Connect to a vortex websocket server
+        :param name: The name of the local vortex
+        :param host: The hostname of the remote vortex
+        :param port: The port of the remote vortex
+        :param url: The websocket url that this client tries to connect to
+        :param sslEnableMutualTLS: switch on or off mTLS
+        :param sslClientCertificateBundleFilePath: a PEM bundle file that
+                    contains a pair of key and certificate for this web client
+        :param sslMutualTLSCertificateAuthorityBundleFilePath：CA bundle file path
+                                            for TLS client authentication
+
+        :return: A deferred from the autobahn.twisted.connectWS method
+        """
+        logger.info("Connecting to Peek Websocket Server %s:%s", host, port)
+        vortexWebsocketClientFactory = VortexClientWebsocketFactory(
+            name, url=url
+        )
+        cls.__vortexClientsByName[name].append(vortexWebsocketClientFactory)
+
+        if vortexWebsocketClientFactory.isSecure and sslEnableMutualTLS:
+            sslContextFactory = ssl.optionsForClientTLS(
+                host,
+                clientCertificate=parsePrivateCertificateFromBundle(
+                    sslClientCertificateBundleFilePath
+                ),
+                trustRoot=parseTrustRootFromBundle(
+                    sslMutualTLSCertificateAuthorityBundleFilePath
+                ),
+                acceptableProtocols=[b"http/1.1"],
+            )
+        else:
+            # use default for http or normal https
+            sslContextFactory = ssl.ClientContextFactory()
+            # raise minimum version to tls 1.2
+            sslContextFactory.method = SSL.TLSv1_2_METHOD
+
+        return vortexWebsocketClientFactory.connect(
+            host, port, sslContextFactory
+        )
 
     @classmethod
     def createTcpClient(cls, name: str, host: str, port: int) -> Deferred:
