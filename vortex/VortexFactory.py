@@ -25,7 +25,7 @@ from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC
 from vortex.VortexClientHttp import VortexClientHttp
 from vortex.VortexClientTcp import VortexClientTcp
-from vortex.VortexClientWebsocketFactory import VortexClientWebsocketFactory
+from vortex.VortexClientWebsocket import VortexClientWebsocketFactory
 from vortex.VortexServer import VortexServer
 from vortex.VortexServerHttpResource import VortexServerHttpResource
 from vortex.VortexServerTcp import VortexTcpServerFactory
