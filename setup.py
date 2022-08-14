@@ -27,6 +27,7 @@ requirements = [
     "ddt >=1.4.1",
     # Test requirements
     "psutil==5.9.0",
+    "txhttputil>=1.1.4,<1.2.0",
 ]
 
 setup(
