@@ -10,12 +10,14 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Union, Optional, List
+from urllib.parse import urlencode, urlparse, urlunparse
 
 import pytz
 import twisted
 from autobahn.twisted.websocket import (
     WebSocketClientProtocol,
     WebSocketClientFactory,
+    connectWS,
 )
 from twisted.internet import reactor
 from twisted.internet import task
@@ -67,8 +69,8 @@ class VortexPayloadWebsocketClientProtocol(
 
     def _createResponseSenderCallable(self):
         def sendResponse(
-                vortexMsgs: Union[VortexMsgList, bytes],
-                priority: int = DEFAULT_PRIORITY,
+            vortexMsgs: Union[VortexMsgList, bytes],
+            priority: int = DEFAULT_PRIORITY,
         ):
             return self._vortexClient.sendVortexMsg(
                 vortexMsgs=vortexMsgs, priority=priority
@@ -90,7 +92,7 @@ class VortexPayloadWebsocketClientProtocol(
             raise e
 
         assert not self._closed
-        self.sendMessage(payloadVortexStr)
+        self.sendMessage(payloadVortexStr + b".")
 
     def onConnect(self, response):
         logger.info(f"Connected to {response.peer}")
@@ -126,11 +128,25 @@ class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
 
     INFO_PAYLOAD_TIMEOUT = 5  # Seconds
 
-    def __init__(self, name: str):
-        WebSocketClientFactory.__init__(self)
+    def __init__(self, name: str, *args, **kwargs):
 
         self._vortexName = name
         self._vortexUuid = str(uuid.uuid1())
+
+        if "url" in kwargs:
+            params = dict(
+                vortexName=self._vortexName, vortexUuid=self._vortexUuid
+            )
+
+            url_parts = list(urlparse(kwargs["url"]))
+            query = dict(url_parts[4])
+            query.update(params)
+
+            url_parts[4] = urlencode(query)
+            url = urlunparse(url_parts)
+            kwargs["url"] = url
+
+        WebSocketClientFactory.__init__(self, *args, **kwargs)
 
         self._server = None
         self._port = None
@@ -199,7 +215,7 @@ class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
         logger.debug("Trying to reconnect")
         connector.connect()
 
-    def connect(self, server, port):
+    def connect(self, server, port, sslContextFactory):
         self._server = server
         self._port = port
 
@@ -208,7 +224,7 @@ class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
         d.addErrback(vortexLogFailure, logger, consumeError=True)
         deferred = Deferred()
 
-        reactor.connectTCP(self._server, self._port, self)
+        connectWS(self, sslContextFactory)
 
         def checkUuid():
             if self._serverVortexName:
@@ -237,10 +253,10 @@ class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
         self._reconnectVortexMsgs.append(vortexMsg)
 
     def sendVortexMsg(
-            self,
-            vortexMsgs: Union[VortexMsgList, bytes, None] = None,
-            vortexUuid: Optional[str] = None,
-            priority: int = DEFAULT_PRIORITY,
+        self,
+        vortexMsgs: Union[VortexMsgList, bytes, None] = None,
+        vortexUuid: Optional[str] = None,
+        priority: int = DEFAULT_PRIORITY,
     ) -> Deferred:
         """Send Vortex Msg
 
@@ -290,14 +306,13 @@ class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
     def _checkBeat(self):
         # If we've been asleep, then make note of that (VM suspended)
         checkTimout = (
-                              datetime.now(
-                                  pytz.utc) - self._lastHeartBeatCheckTime
-                      ).seconds > self.HEART_BEAT_TIMEOUT
+            datetime.now(pytz.utc) - self._lastHeartBeatCheckTime
+        ).seconds > self.HEART_BEAT_TIMEOUT
 
         # Has the heart beat expired?
         beatTimeout = (
-                              datetime.now(pytz.utc) - self._lastBeatReceiveTime
-                      ).seconds > self.HEART_BEAT_TIMEOUT
+            datetime.now(pytz.utc) - self._lastBeatReceiveTime
+        ).seconds > self.HEART_BEAT_TIMEOUT
 
         # Mark that we've just checked it
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
