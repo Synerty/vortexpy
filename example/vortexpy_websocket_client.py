@@ -1,5 +1,5 @@
 from vortex.PayloadFilterKeys import rapuiServerEcho
-from vortex.VortexClientWebsocket import VortexClientWebsocketFactory
+from vortex.VortexClientWebsocketFactory import VortexClientWebsocketFactory
 from vortex.PayloadEnvelope import PayloadEnvelope
 
 if __name__ == "__main__":

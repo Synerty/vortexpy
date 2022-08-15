@@ -23,7 +23,6 @@ from twisted.internet import reactor
 from twisted.internet import task
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.internet.error import ConnectionDone
-from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.internet.protocol import connectionDone
 
 from vortex.DeferUtil import isMainThread, vortexLogFailure
@@ -123,9 +122,7 @@ class VortexPayloadWebsocketClientProtocol(
         self._closed = False
 
 
-class VortexClientWebsocketFactory(
-    ReconnectingClientFactory, WebSocketClientFactory, VortexABC
-):
+class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
     RETRY_DELAY = 1.5  # Seconds
     HEART_BEAT_TIMEOUT = 30.0  # Seconds
 
@@ -207,26 +204,16 @@ class VortexClientWebsocketFactory(
         self.__protocol.factory = self
         return self.__protocol
 
-    # ----------
-    # Factory implementation
-    def startedConnecting(self, connector):
-        logger.debug("%s Started to connect.", self.name)
-
     def clientConnectionLost(self, connector, reason):
-        ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
-        if isinstance(reason.value, ConnectionDone):
-            logger.debug("Connection closed cleanly, reconnecting")
-
-        else:
-            logger.info(
-                "%s Connection closed, reason : %s", self.name, reason.value
-            )
+        if not reason.check(ConnectionDone):
+            logger.debug("Lost connection.  Reason: %s", reason)
+            logger.debug("Trying to reconnect")
+            connector.connect()
 
     def clientConnectionFailed(self, connector, reason):
-        ReconnectingClientFactory.clientConnectionFailed(
-            self, connector, reason
-        )
-        logger.info("%s Connection failed,  Reason: %s", self.name, reason)
+        logger.debug("Connection failed. Reason: %s", reason)
+        logger.debug("Trying to reconnect")
+        connector.connect()
 
     def connect(self, server, port, sslContextFactory):
         self._server = server
