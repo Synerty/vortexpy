@@ -23,7 +23,7 @@ from twisted.internet import reactor
 from twisted.internet import task
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.internet.error import ConnectionDone
-from twisted.internet.protocol import connectionDone
+from twisted.internet.protocol import connectionDone, ReconnectingClientFactory
 
 from vortex.DeferUtil import isMainThread, vortexLogFailure
 from vortex.PayloadEnvelope import PayloadEnvelope, VortexMsgList
@@ -113,22 +113,23 @@ class VortexPayloadWebsocketClientProtocol(
 
         if self._sendBeatLoopingCall.running:
             self._sendBeatLoopingCall.stop()
-        self._closed = False
+        self._closed = True
 
     def close(self):
         self.transport.loseConnection()
         if self._sendBeatLoopingCall.running:
             self._sendBeatLoopingCall.stop()
-        self._closed = False
+        self._closed = True
 
 
-class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
-    RETRY_DELAY = 1.5  # Seconds
+class VortexClientWebsocketFactory(
+    WebSocketClientFactory, ReconnectingClientFactory, VortexABC
+):
     HEART_BEAT_TIMEOUT = 30.0  # Seconds
 
-    INFO_PAYLOAD_TIMEOUT = 5  # Seconds
-
     def __init__(self, name: str, *args, **kwargs):
+
+        ReconnectingClientFactory.__init__(self)
 
         self._vortexName = name
         self._vortexUuid = str(uuid.uuid1())
@@ -200,24 +201,29 @@ class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
             self.__protocol.close()
             self.__protocol = None
 
+        # Reset the times in the ReconnectingClientFactory
+        self.resetDelay()
         self.__protocol = VortexPayloadWebsocketClientProtocol(self)
         self.__protocol.factory = self
         return self.__protocol
 
     def clientConnectionLost(self, connector, reason):
+        logger.info("Lost connection.  Reason: %s", reason)
         if not reason.check(ConnectionDone):
-            logger.debug("Lost connection.  Reason: %s", reason)
-            logger.debug("Trying to reconnect")
-            connector.connect()
+            logger.info("Trying to reconnect")
+            ReconnectingClientFactory.clientConnectionLost(
+                self, connector, reason
+            )
 
     def clientConnectionFailed(self, connector, reason):
-        logger.debug("Connection failed. Reason: %s", reason)
-        logger.debug("Trying to reconnect")
-        connector.connect()
+        logger.info("Connection failed. Reason: %s", reason)
+        logger.info("Trying to reconnect")
+        ReconnectingClientFactory.clientConnectionFailed(connector, reason)
 
     def connect(self, server, port, sslContextFactory):
         self._server = server
         self._port = port
+        self._sslContextFactory = sslContextFactory
 
         self._beat()
         d = self._beatLoopingCall.start(5.0, now=False)
@@ -241,6 +247,7 @@ class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
             self._beatLoopingCall.stop()
             self._beatLoopingCall = None
 
+        # Stop the ReconnectingClientFactory from trying to reconnect
         self.stopTrying()
         self.__protocol.close()
 
@@ -336,6 +343,7 @@ class VortexClientWebsocketFactory(WebSocketClientFactory, VortexABC):
             self._server,
             self._port,
         )
+        # TODO: Should we reconnect here?
 
         if self.__protocol:
             self.__protocol.close()
