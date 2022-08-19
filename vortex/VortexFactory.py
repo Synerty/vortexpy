@@ -1,10 +1,9 @@
 import logging
 import typing
 from collections import defaultdict
-from twisted.internet._sslverify import TLSVersion
+from twisted.internet._sslverify import trustRootFromCertificates
 from typing import Union, List, Optional, Dict
 
-import pem
 from OpenSSL import SSL
 from rx.subjects import Subject
 from twisted.internet import reactor, ssl
@@ -12,9 +11,13 @@ from twisted.internet.defer import Deferred, DeferredList, succeed
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
+from txhttputil.util.PemUtil import (
+    parsePemBundleForServer,
+    parsePemBundleForClient,
+)
 from txhttputil.util.SslUtil import (
     parseTrustRootFromBundle,
-    parsePrivateCertificateFromBundle,
+    buildCertificateOptionsForTwisted,
 )
 from txwebsocket.txws import WebSocketFactory
 
@@ -181,13 +184,13 @@ class VortexFactory:
                 trustedCertificateAuthorities = parseTrustRootFromBundle(
                     sslMutualTLSCertificateAuthorityBundleFilePath
                 )
+                trustedCertificateAuthorities = trustRootFromCertificates(
+                    trustedCertificateAuthorities
+                )
 
-            sslContextFactory = pem.twisted.certificateOptionsFromFiles(
-                sslBundleFilePath,
-                trustRoot=trustedCertificateAuthorities,
-                raiseMinimumTo=TLSVersion.TLSv1_2,
-                # TODO: pass in diffie-hellman param
-                acceptableProtocols=[b"http/1.1"],
+            privateKeyWithFullChain = parsePemBundleForServer(sslBundleFilePath)
+            sslContextFactory = buildCertificateOptionsForTwisted(
+                privateKeyWithFullChain, trustRoot=trustedCertificateAuthorities
             )
             port = reactor.listenSSL(port, site, sslContextFactory)
         else:
@@ -293,15 +296,18 @@ class VortexFactory:
         cls.__vortexClientsByName[name].append(vortexWebsocketClientFactory)
 
         if vortexWebsocketClientFactory.isSecure and sslEnableMutualTLS:
-            sslContextFactory = ssl.optionsForClientTLS(
-                host,
-                clientCertificate=parsePrivateCertificateFromBundle(
-                    sslClientCertificateBundleFilePath
-                ),
-                trustRoot=parseTrustRootFromBundle(
-                    sslMutualTLSCertificateAuthorityBundleFilePath
-                ),
-                acceptableProtocols=[b"http/1.1"],
+            trustedCertificateAuthorities = parseTrustRootFromBundle(
+                sslMutualTLSCertificateAuthorityBundleFilePath
+            )
+            trustedCertificateAuthorities = trustRootFromCertificates(
+                trustedCertificateAuthorities
+            )
+
+            privateKeyWithFullChain = parsePemBundleForClient(
+                sslClientCertificateBundleFilePath
+            )
+            sslContextFactory = buildCertificateOptionsForTwisted(
+                privateKeyWithFullChain, trustRoot=trustedCertificateAuthorities
             )
         else:
             # use default for http or normal https
