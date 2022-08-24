@@ -14,6 +14,7 @@ from twisted.python.failure import Failure
 from txhttputil.util.PemUtil import (
     parsePemBundleForServer,
     parsePemBundleForClient,
+    parsePemBundleForTrustedPeers,
 )
 from txhttputil.util.SslUtil import (
     parseTrustRootFromBundle,
@@ -273,6 +274,7 @@ class VortexFactory:
         sslEnableMutualTLS: bool = False,
         sslClientCertificateBundleFilePath: str = None,
         sslMutualTLSCertificateAuthorityBundleFilePath: str = None,
+        sslMutualTLSTrustedPeerCertificateBundleFilePath: str = None,
     ) -> Deferred:
         """Create websocket client
 
@@ -287,6 +289,10 @@ class VortexFactory:
         :param sslMutualTLSCertificateAuthorityBundleFilePath：CA bundle file path
                                             for TLS client authentication
 
+        :param sslMutualTLSTrustedPeerCertificateBundleFilePath: a PEM bundle
+                    file that contains certificates of all trusted peers. Each
+                    certificate means a PEM with no intermediate CAs and/or
+                    root CAs.
         :return: A deferred from the autobahn.twisted.connectWS method
         """
         logger.info("Connecting to Peek Websocket Server %s:%s", host, port)
@@ -306,8 +312,17 @@ class VortexFactory:
             privateKeyWithFullChain = parsePemBundleForClient(
                 sslClientCertificateBundleFilePath
             )
+
+            trustedPeerCertificates = None
+            if sslMutualTLSTrustedPeerCertificateBundleFilePath is not None:
+                trustedPeerCertificates = parsePemBundleForTrustedPeers(
+                    sslMutualTLSTrustedPeerCertificateBundleFilePath
+                )
+
             sslContextFactory = buildCertificateOptionsForTwisted(
-                privateKeyWithFullChain, trustRoot=trustedCertificateAuthorities
+                privateKeyWithFullChain,
+                trustRoot=trustedCertificateAuthorities,
+                trustedPeerCertificates=trustedPeerCertificates,
             )
         else:
             # use default for http or normal https
