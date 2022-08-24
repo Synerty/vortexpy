@@ -146,7 +146,7 @@ class VortexFactory:
         cls,
         name: str,
         port: int,
-        ssl: Optional[bool] = False,
+        enableSsl: Optional[bool] = False,
         sslEnableMutualTLS: Optional[bool] = False,
         sslBundleFilePath: Optional[str] = None,
         sslMutualTLSCertificateAuthorityBundleFilePath: Optional[str] = None,
@@ -160,7 +160,7 @@ class VortexFactory:
 
         :param name: The name of the local vortex.
         :param port: The tcp port to listen on
-        :param ssl: switch ssl on or off for HTTP
+        :param enableSsl: switch ssl on or off for HTTP
         :param sslEnableMutualTLS: switch on or off mTLS
         :param sslBundleFilePath: a filepath to a PEM file that contains
                             a private key, a certificate and a CA certificate
@@ -179,7 +179,7 @@ class VortexFactory:
             vortexServer
         )
         site = WebSocketFactory(vortexWebsocketServerFactory)
-        if ssl:
+        if enableSsl:
             trustedCertificateAuthorities = None
             if sslEnableMutualTLS:
                 trustedCertificateAuthorities = parseTrustRootFromBundle(
