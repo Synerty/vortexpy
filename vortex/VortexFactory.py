@@ -199,6 +199,22 @@ class VortexFactory:
         cls.__listeningPorts.append(port)
 
     @classmethod
+    def createHttpWebsocketResource(
+        cls, name: str
+    ) -> VortexWebSocketUpgradeResource:
+        vortexServer = VortexServer(name)
+        cls.__vortexServersByName[name].append(vortexServer)
+
+        vortexWebsocketServerFactory = VortexWebsocketServerFactory(
+            vortexServer
+        )
+        websocketFactory = VortexWrappedWebSocketFactory(
+            vortexWebsocketServerFactory
+        )
+
+        return VortexWebSocketUpgradeResource(websocketFactory)
+
+    @classmethod
     def createHttpWebsocketServer(cls, name: str, rootResource) -> None:
         """Create Server
 
