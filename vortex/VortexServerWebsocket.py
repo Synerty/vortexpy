@@ -94,12 +94,8 @@ class VortexWebsocketServerProtocol(Protocol):
             self._conn.beatReceived()
             return
 
-        self._receiveBuffer += data
-
-        if self._receiveBuffer.endswith(b"."):
-            d = self._processVortexMsg(self._receiveBuffer)
-            d.addErrback(vortexLogFailure, logger, consumeError=True)
-            self._receiveBuffer = b""
+        d = self._processVortexMsg(data)
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
 
     def connectionLost(self, reason=connectionDone):
         if self._conn:

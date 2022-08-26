@@ -50,8 +50,8 @@ class VortexPayloadWebsocketClientProtocol(
         d = self._sendBeatLoopingCall.start(HEART_BEAT_PERIOD, now=False)
         d.addErrback(lambda f: logger.exception(f.value))
 
-    def onMessage(self, payload, isBinary):
-        VortexPayloadProtocol.dataReceived(self, payload)
+    def onMessage(self, msg, isBinary):
+        VortexPayloadProtocol.vortexMsgReceived(self, msg)
 
     def _beat(self):
         if self._vortexClient:
@@ -69,8 +69,8 @@ class VortexPayloadWebsocketClientProtocol(
 
     def _createResponseSenderCallable(self):
         def sendResponse(
-            vortexMsgs: Union[VortexMsgList, bytes],
-            priority: int = DEFAULT_PRIORITY,
+                vortexMsgs: Union[VortexMsgList, bytes],
+                priority: int = DEFAULT_PRIORITY,
         ):
             return self._vortexClient.sendVortexMsg(
                 vortexMsgs=vortexMsgs, priority=priority
@@ -92,7 +92,7 @@ class VortexPayloadWebsocketClientProtocol(
             raise e
 
         assert not self._closed
-        self.sendMessage(payloadVortexStr + b".")
+        self.sendMessage(payloadVortexStr)
 
     def onConnect(self, response):
         logger.info(f"Connected to {response.peer}")
@@ -220,6 +220,7 @@ class VortexClientWebsocketFactory(
         logger.info("Trying to reconnect")
         ReconnectingClientFactory.clientConnectionFailed(connector, reason)
 
+    @inlineCallbacks
     def connect(self, server, port, sslContextFactory):
         self._server = server
         self._port = port
@@ -230,7 +231,7 @@ class VortexClientWebsocketFactory(
         d.addErrback(vortexLogFailure, logger, consumeError=True)
         deferred = Deferred()
 
-        connectWS(self, sslContextFactory)
+        yield connectWS(self, sslContextFactory)
 
         def checkUuid():
             if self._serverVortexName:
@@ -240,7 +241,7 @@ class VortexClientWebsocketFactory(
 
         checkUuid()
 
-        return deferred
+        return (yield deferred)
 
     def close(self):
         if self._beatLoopingCall and self._beatLoopingCall.running:
@@ -260,10 +261,10 @@ class VortexClientWebsocketFactory(
         self._reconnectVortexMsgs.append(vortexMsg)
 
     def sendVortexMsg(
-        self,
-        vortexMsgs: Union[VortexMsgList, bytes, None] = None,
-        vortexUuid: Optional[str] = None,
-        priority: int = DEFAULT_PRIORITY,
+            self,
+            vortexMsgs: Union[VortexMsgList, bytes, None] = None,
+            vortexUuid: Optional[str] = None,
+            priority: int = DEFAULT_PRIORITY,
     ) -> Deferred:
         """Send Vortex Msg
 
@@ -313,13 +314,14 @@ class VortexClientWebsocketFactory(
     def _checkBeat(self):
         # If we've been asleep, then make note of that (VM suspended)
         checkTimout = (
-            datetime.now(pytz.utc) - self._lastHeartBeatCheckTime
-        ).seconds > self.HEART_BEAT_TIMEOUT
+                              datetime.now(
+                                  pytz.utc) - self._lastHeartBeatCheckTime
+                      ).seconds > self.HEART_BEAT_TIMEOUT
 
         # Has the heart beat expired?
         beatTimeout = (
-            datetime.now(pytz.utc) - self._lastBeatReceiveTime
-        ).seconds > self.HEART_BEAT_TIMEOUT
+                              datetime.now(pytz.utc) - self._lastBeatReceiveTime
+                      ).seconds > self.HEART_BEAT_TIMEOUT
 
         # Mark that we've just checked it
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)
