@@ -57,6 +57,17 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
             return self._vortexClient.sendVortexMsg(vortexMsgs=vortexMsgs)
         """
 
+    def vortexMsgReceived(self, vortexMsg):
+        self._data += vortexMsg
+        self._beat()
+        if vortexMsg == b".":
+            return
+
+        self._vortexMsgsQueue.append(vortexMsg)
+
+        if self._vortexMsgsQueue and not self._processVortexMsgs.running:
+            reactor.callLater(0, self._processVortexMsgs)
+
     def dataReceived(self, bytesIn):
         if bytesIn.startswith(b"<"):
             raise Exception("Not Logged In")
@@ -100,7 +111,7 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
 
         for nextChunk in getNextChunkIter():
             vortexMsg = self._data[:nextChunk]
-            self._data = self._data[nextChunk + 1 :]
+            self._data = self._data[nextChunk + 1:]
 
             # If we get two heartbeats in a row, this will be false
             if len(vortexMsg):
@@ -114,11 +125,6 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
     def _processVortexMsgs(self):
         while self._vortexMsgsQueue:
             vortexMsg = self._vortexMsgsQueue.popleft()
-
-            if b"." in vortexMsg:
-                raise Exception(
-                    "Something went wrong, there is a '.' in the msg"
-                )
 
             try:
                 payloadEnvelope = yield PayloadEnvelope().fromVortexMsgDefer(
