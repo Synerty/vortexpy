@@ -50,7 +50,7 @@ class VortexPayloadWebsocketClientProtocol(
         d = self._sendBeatLoopingCall.start(HEART_BEAT_PERIOD, now=False)
         d.addErrback(lambda f: logger.exception(f.value))
 
-    def onMessage(self, msg, isBinary):
+    def onMessage(self, message, isBinary):
         VortexPayloadProtocol.vortexMsgReceived(self, msg)
 
     def _beat(self):
