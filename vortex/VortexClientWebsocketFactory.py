@@ -51,7 +51,7 @@ class VortexPayloadWebsocketClientProtocol(
         d.addErrback(lambda f: logger.exception(f.value))
 
     def onMessage(self, message, isBinary):
-        VortexPayloadProtocol.vortexMsgReceived(self, msg)
+        VortexPayloadProtocol.vortexMsgReceived(self, message)
 
     def _beat(self):
         if self._vortexClient:
@@ -69,8 +69,8 @@ class VortexPayloadWebsocketClientProtocol(
 
     def _createResponseSenderCallable(self):
         def sendResponse(
-                vortexMsgs: Union[VortexMsgList, bytes],
-                priority: int = DEFAULT_PRIORITY,
+            vortexMsgs: Union[VortexMsgList, bytes],
+            priority: int = DEFAULT_PRIORITY,
         ):
             return self._vortexClient.sendVortexMsg(
                 vortexMsgs=vortexMsgs, priority=priority
@@ -218,7 +218,9 @@ class VortexClientWebsocketFactory(
     def clientConnectionFailed(self, connector, reason):
         logger.info("Connection failed. Reason: %s", reason)
         logger.info("Trying to reconnect")
-        ReconnectingClientFactory.clientConnectionFailed(connector, reason)
+        ReconnectingClientFactory.clientConnectionFailed(
+            self, connector, reason
+        )
 
     @inlineCallbacks
     def connect(self, server, port, sslContextFactory):
@@ -261,10 +263,10 @@ class VortexClientWebsocketFactory(
         self._reconnectVortexMsgs.append(vortexMsg)
 
     def sendVortexMsg(
-            self,
-            vortexMsgs: Union[VortexMsgList, bytes, None] = None,
-            vortexUuid: Optional[str] = None,
-            priority: int = DEFAULT_PRIORITY,
+        self,
+        vortexMsgs: Union[VortexMsgList, bytes, None] = None,
+        vortexUuid: Optional[str] = None,
+        priority: int = DEFAULT_PRIORITY,
     ) -> Deferred:
         """Send Vortex Msg
 
@@ -314,14 +316,13 @@ class VortexClientWebsocketFactory(
     def _checkBeat(self):
         # If we've been asleep, then make note of that (VM suspended)
         checkTimout = (
-                              datetime.now(
-                                  pytz.utc) - self._lastHeartBeatCheckTime
-                      ).seconds > self.HEART_BEAT_TIMEOUT
+            datetime.now(pytz.utc) - self._lastHeartBeatCheckTime
+        ).seconds > self.HEART_BEAT_TIMEOUT
 
         # Has the heart beat expired?
         beatTimeout = (
-                              datetime.now(pytz.utc) - self._lastBeatReceiveTime
-                      ).seconds > self.HEART_BEAT_TIMEOUT
+            datetime.now(pytz.utc) - self._lastBeatReceiveTime
+        ).seconds > self.HEART_BEAT_TIMEOUT
 
         # Mark that we've just checked it
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)

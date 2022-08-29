@@ -1,6 +1,7 @@
 import logging
 from copy import copy
 
+from twisted.internet import reactor
 from twisted.internet.defer import TimeoutError, inlineCallbacks
 from twisted.python.failure import Failure
 
@@ -300,7 +301,16 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
         # Send the vortex messages
         for vortexUuid in observingUuids:
-            d = VortexFactory.sendVortexMsg(
-                vortexMsgs=vortexMsg, destVortexUuid=vortexUuid
+            reactor.callLater(
+                0,
+                self._sendVortexMsgInReactor,
+                vortexMsgs=vortexMsg,
+                destVortexUuid=vortexUuid,
             )
-            d.addErrback(vortexLogFailure, logger, consumeError=True)
+
+    def _sendVortexMsgInReactor(self, vortexMsg, vortexUuid):
+        # Send the vortex messages
+        d = VortexFactory.sendVortexMsg(
+            vortexMsgs=vortexMsg, destVortexUuid=vortexUuid
+        )
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
