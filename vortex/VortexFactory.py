@@ -1,10 +1,9 @@
 import logging
 import typing
 from collections import defaultdict
-from twisted.internet._sslverify import TLSVersion
+from twisted.internet._sslverify import trustRootFromCertificates
 from typing import Union, List, Optional, Dict
 
-import pem
 from OpenSSL import SSL
 from rx.subjects import Subject
 from twisted.internet import reactor, ssl
@@ -12,9 +11,14 @@ from twisted.internet.defer import Deferred, DeferredList, succeed
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
+from txhttputil.util.PemUtil import (
+    parsePemBundleForServer,
+    parsePemBundleForClient,
+    parsePemBundleForTrustedPeers,
+)
 from txhttputil.util.SslUtil import (
     parseTrustRootFromBundle,
-    parsePrivateCertificateFromBundle,
+    buildCertificateOptionsForTwisted,
 )
 from txwebsocket.txws import WebSocketFactory
 
@@ -142,7 +146,7 @@ class VortexFactory:
         cls,
         name: str,
         port: int,
-        ssl: Optional[bool] = False,
+        enableSsl: Optional[bool] = False,
         sslEnableMutualTLS: Optional[bool] = False,
         sslBundleFilePath: Optional[str] = None,
         sslMutualTLSCertificateAuthorityBundleFilePath: Optional[str] = None,
@@ -156,7 +160,7 @@ class VortexFactory:
 
         :param name: The name of the local vortex.
         :param port: The tcp port to listen on
-        :param ssl: switch ssl on or off for HTTP
+        :param enableSsl: switch ssl on or off for HTTP
         :param sslEnableMutualTLS: switch on or off mTLS
         :param sslBundleFilePath: a filepath to a PEM file that contains
                             a private key, a certificate and a CA certificate
@@ -175,24 +179,40 @@ class VortexFactory:
             vortexServer
         )
         site = WebSocketFactory(vortexWebsocketServerFactory)
-        if ssl:
+        if enableSsl:
             trustedCertificateAuthorities = None
             if sslEnableMutualTLS:
                 trustedCertificateAuthorities = parseTrustRootFromBundle(
                     sslMutualTLSCertificateAuthorityBundleFilePath
                 )
+                trustedCertificateAuthorities = trustRootFromCertificates(
+                    trustedCertificateAuthorities
+                )
 
-            sslContextFactory = pem.twisted.certificateOptionsFromFiles(
-                sslBundleFilePath,
-                trustRoot=trustedCertificateAuthorities,
-                raiseMinimumTo=TLSVersion.TLSv1_2,
-                # TODO: pass in diffie-hellman param
-                acceptableProtocols=[b"http/1.1"],
+            privateKeyWithFullChain = parsePemBundleForServer(sslBundleFilePath)
+            sslContextFactory = buildCertificateOptionsForTwisted(
+                privateKeyWithFullChain, trustRoot=trustedCertificateAuthorities
             )
             port = reactor.listenSSL(port, site, sslContextFactory)
         else:
             port = reactor.listenTCP(port, site)
         cls.__listeningPorts.append(port)
+
+    @classmethod
+    def createHttpWebsocketResource(
+        cls, name: str
+    ) -> VortexWebSocketUpgradeResource:
+        vortexServer = VortexServer(name)
+        cls.__vortexServersByName[name].append(vortexServer)
+
+        vortexWebsocketServerFactory = VortexWebsocketServerFactory(
+            vortexServer
+        )
+        websocketFactory = VortexWrappedWebSocketFactory(
+            vortexWebsocketServerFactory
+        )
+
+        return VortexWebSocketUpgradeResource(websocketFactory)
 
     @classmethod
     def createHttpWebsocketServer(cls, name: str, rootResource) -> None:
@@ -270,6 +290,7 @@ class VortexFactory:
         sslEnableMutualTLS: bool = False,
         sslClientCertificateBundleFilePath: str = None,
         sslMutualTLSCertificateAuthorityBundleFilePath: str = None,
+        sslMutualTLSTrustedPeerCertificateBundleFilePath: str = None,
     ) -> Deferred:
         """Create websocket client
 
@@ -284,6 +305,10 @@ class VortexFactory:
         :param sslMutualTLSCertificateAuthorityBundleFilePath：CA bundle file path
                                             for TLS client authentication
 
+        :param sslMutualTLSTrustedPeerCertificateBundleFilePath: a PEM bundle
+                    file that contains certificates of all trusted peers. Each
+                    certificate means a PEM with no intermediate CAs and/or
+                    root CAs.
         :return: A deferred from the autobahn.twisted.connectWS method
         """
         logger.info("Connecting to Peek Websocket Server %s:%s", host, port)
@@ -293,15 +318,27 @@ class VortexFactory:
         cls.__vortexClientsByName[name].append(vortexWebsocketClientFactory)
 
         if vortexWebsocketClientFactory.isSecure and sslEnableMutualTLS:
-            sslContextFactory = ssl.optionsForClientTLS(
-                host,
-                clientCertificate=parsePrivateCertificateFromBundle(
-                    sslClientCertificateBundleFilePath
-                ),
-                trustRoot=parseTrustRootFromBundle(
-                    sslMutualTLSCertificateAuthorityBundleFilePath
-                ),
-                acceptableProtocols=[b"http/1.1"],
+            trustedCertificateAuthorities = parseTrustRootFromBundle(
+                sslMutualTLSCertificateAuthorityBundleFilePath
+            )
+            trustedCertificateAuthorities = trustRootFromCertificates(
+                trustedCertificateAuthorities
+            )
+
+            privateKeyWithFullChain = parsePemBundleForClient(
+                sslClientCertificateBundleFilePath
+            )
+
+            trustedPeerCertificates = None
+            if sslMutualTLSTrustedPeerCertificateBundleFilePath is not None:
+                trustedPeerCertificates = parsePemBundleForTrustedPeers(
+                    sslMutualTLSTrustedPeerCertificateBundleFilePath
+                )
+
+            sslContextFactory = buildCertificateOptionsForTwisted(
+                privateKeyWithFullChain,
+                trustRoot=trustedCertificateAuthorities,
+                trustedPeerCertificates=trustedPeerCertificates,
             )
         else:
             # use default for http or normal https
