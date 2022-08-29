@@ -126,6 +126,7 @@ class VortexClientWebsocketFactory(
     WebSocketClientFactory, ReconnectingClientFactory, VortexABC
 ):
     HEART_BEAT_TIMEOUT = 30.0  # Seconds
+    maxDelay = 1.0
 
     def __init__(self, name: str, *args, **kwargs):
 
