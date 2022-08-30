@@ -304,7 +304,7 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
             reactor.callLater(
                 0,
                 self._sendVortexMsgInReactor,
-                vortexMsgs=vortexMsg,
+                vortexMsg=vortexMsg,
                 destVortexUuid=vortexUuid,
             )
 

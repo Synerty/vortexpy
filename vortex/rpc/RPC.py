@@ -231,9 +231,31 @@ class _VortexRPC:
         yield sendResponseCallable(vortexMsg, RPC_PRIORITY)
 
     @inlineCallbacks
+    def callForVortexUuid(self, vortexUuid: str, *args, **kwargs):
+        yesMainThread()
+        return (
+            yield self.__callForVortexName(None, vortexUuid, *args, **kwargs)
+        )
+
+    @inlineCallbacks
     def __call__(self, *args, **kwargs):
         """Call"""
         yesMainThread()
+        return (
+            yield self.__callForVortexName(
+                self.__listeningVortexName, None, *args, **kwargs
+            )
+        )
+
+    @inlineCallbacks
+    def __callForVortexName(
+        self,
+        vortexName: Optional[str] = None,
+        vortexUuid: Optional[str] = None,
+        *args,
+        **kwargs
+    ):
+        assert vortexName or vortexUuid
 
         try:
             # FAKE Exception so we can raise a better stack trace later
@@ -255,7 +277,8 @@ class _VortexRPC:
             timeout=self.__timeoutSeconds,
             resultCheck=False,
             logTimeoutError=False,
-            destVortexName=self.__listeningVortexName,
+            destVortexName=vortexName,
+            destVortexUuid=vortexUuid,
         )
 
         # Delete the payload, we don't need to keep it in memory while we

@@ -94,6 +94,9 @@ class VortexWebsocketServerProtocol(Protocol):
             self._conn.beatReceived()
             return
 
+        if len(data) > 1 and data[-1] == b".":
+            data = data[:-1]
+
         d = self._processVortexMsg(data)
         d.addErrback(vortexLogFailure, logger, consumeError=True)
 
