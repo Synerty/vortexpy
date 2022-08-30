@@ -412,6 +412,22 @@ class VortexFactory:
         return list(remoteNames)
 
     @classmethod
+    def getRemoteVortexInfoByIp(cls, ip: str) -> str:
+        # Ignore the port if any
+        ip = ip.split(":")[0]
+
+        targetUuids = []
+        for servers in cls.__vortexServersByName.values():
+            for server in servers:
+                for uuid, conn in server.connections.items():
+                    if conn.ip == ip:
+                        targetUuids.append(uuid)
+
+        if len(targetUuids) > 1:
+            raise Exception("Multiple agents found running on the same server")
+        return targetUuids[0]
+
+    @classmethod
     @inlineCallbacks
     def sendVortexMsg(
         cls,

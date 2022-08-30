@@ -80,6 +80,10 @@ class VortexServer(VortexABC):
 
         return vortexInfos
 
+    @property
+    def connections(self) -> Dict[str, Any]:
+        return self._connectionByVortexUuid
+
     def isShutdown(self):
         return self._shutdown
 
