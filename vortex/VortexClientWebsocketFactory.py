@@ -209,7 +209,7 @@ class VortexClientWebsocketFactory(
         return self.__protocol
 
     def clientConnectionLost(self, connector, reason):
-        logger.info("Lost connection.  Reason: %s", reason)
+        logger.info("Lost connection.  Reason: %s", reason.value)
         if not reason.check(ConnectionDone):
             logger.info("Trying to reconnect")
             ReconnectingClientFactory.clientConnectionLost(
@@ -217,7 +217,7 @@ class VortexClientWebsocketFactory(
             )
 
     def clientConnectionFailed(self, connector, reason):
-        logger.info("Connection failed. Reason: %s", reason)
+        logger.info("Connection failed. Reason: %s", reason.value)
         logger.info("Trying to reconnect")
         ReconnectingClientFactory.clientConnectionFailed(
             self, connector, reason
@@ -253,7 +253,8 @@ class VortexClientWebsocketFactory(
 
         # Stop the ReconnectingClientFactory from trying to reconnect
         self.stopTrying()
-        self.__protocol.close()
+        if self.__protocol:
+            self.__protocol.close()
 
     def addReconnectVortexMsg(self, vortexMsg: bytes):
         """Add Reconnect Payload
