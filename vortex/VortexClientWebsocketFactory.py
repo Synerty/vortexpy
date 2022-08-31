@@ -253,7 +253,8 @@ class VortexClientWebsocketFactory(
 
         # Stop the ReconnectingClientFactory from trying to reconnect
         self.stopTrying()
-        self.__protocol.close()
+        if self.__protocol:
+            self.__protocol.close()
 
     def addReconnectVortexMsg(self, vortexMsg: bytes):
         """Add Reconnect Payload
