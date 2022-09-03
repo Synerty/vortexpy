@@ -58,7 +58,13 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
         """
 
     def vortexMsgReceived(self, vortexMsg):
-        self._data += vortexMsg
+        """Vortex Msg Received
+
+        For protocols where framing is used, we don't need to process messages
+        with dots on the end, for those protocols, call this method to process
+        the whole message.
+        """
+        self._data = b""
         self._beat()
         if vortexMsg == b".":
             return
@@ -69,6 +75,12 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
             reactor.callLater(0, self._processVortexMsgs)
 
     def dataReceived(self, bytesIn):
+        """Data Received
+
+        This method is used for protocols that don't have framing. We use a
+        '.' to delineate messages.
+
+        """
         if bytesIn.startswith(b"<"):
             raise Exception("Not Logged In")
 
@@ -111,7 +123,7 @@ class VortexPayloadProtocol(Protocol, metaclass=ABCMeta):
 
         for nextChunk in getNextChunkIter():
             vortexMsg = self._data[:nextChunk]
-            self._data = self._data[nextChunk + 1:]
+            self._data = self._data[nextChunk + 1 :]
 
             # If we get two heartbeats in a row, this will be false
             if len(vortexMsg):
