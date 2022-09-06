@@ -150,6 +150,7 @@ class VortexFactory:
         sslEnableMutualTLS: Optional[bool] = False,
         sslBundleFilePath: Optional[str] = None,
         sslMutualTLSCertificateAuthorityBundleFilePath: Optional[str] = None,
+        sslMutualTLSTrustedPeerCertificateBundleFilePath: Optional[str] = None,
     ) -> None:
         """Create Server
 
@@ -169,9 +170,26 @@ class VortexFactory:
                             PEM file that contains all CA certificates which are
                             used for mutualTLS to verify the identities of the
                             tls clients
-
+        :param sslMutualTLSTrustedPeerCertificateBundleFilePath: a filepath that
+                            loads all trusted peer certificates for mTLS when
+                            `sslEnableMutualTLS` is enabled
         :return: None
         """
+        logger.info(
+            "Setting up Websocket Server '%s' at port %s, "
+            "with ssl '%s'"
+            "with client PEM bundle from '%s', "
+            "with mTLS '%s', "
+            "with mTLS CA bundle from '%s', "
+            "with mTLS trusted peer bundle from '%s'",
+            name,
+            port,
+            f"{'on' if enableSsl else 'off'}",
+            sslBundleFilePath,
+            f"{'on' if sslEnableMutualTLS else 'off'}",
+            sslMutualTLSCertificateAuthorityBundleFilePath,
+            sslMutualTLSTrustedPeerCertificateBundleFilePath,
+        )
 
         vortexServer = VortexServer(name, requiresBase64Encoding=False)
         cls.__vortexServersByName[name].append(vortexServer)
@@ -190,8 +208,17 @@ class VortexFactory:
                 )
 
             privateKeyWithFullChain = parsePemBundleForServer(sslBundleFilePath)
+
+            trustedPeerCertificates = None
+            if sslMutualTLSTrustedPeerCertificateBundleFilePath is not None:
+                trustedPeerCertificates = parsePemBundleForTrustedPeers(
+                    sslMutualTLSTrustedPeerCertificateBundleFilePath
+                )
+
             sslContextFactory = buildCertificateOptionsForTwisted(
-                privateKeyWithFullChain, trustRoot=trustedCertificateAuthorities
+                privateKeyWithFullChain,
+                trustRoot=trustedCertificateAuthorities,
+                trustedPeerCertificates=trustedPeerCertificates,
             )
             port = reactor.listenSSL(port, site, sslContextFactory)
         else:
@@ -311,7 +338,19 @@ class VortexFactory:
                     root CAs.
         :return: A deferred from the autobahn.twisted.connectWS method
         """
-        logger.info("Connecting to Peek Websocket Server %s:%s", host, port)
+        logger.info(
+            "Connecting to Peek Websocket Server %s:%s, "
+            "with client PEM bundle from '%s', "
+            "with mTLS '%s', "
+            "with mTLS CA bundle from '%s', "
+            "with mTLS trusted peer bundle from '%s' ",
+            host,
+            port,
+            sslClientCertificateBundleFilePath,
+            f"{'on' if sslEnableMutualTLS else 'off'}",
+            sslMutualTLSCertificateAuthorityBundleFilePath,
+            sslMutualTLSTrustedPeerCertificateBundleFilePath,
+        )
         vortexWebsocketClientFactory = VortexClientWebsocketFactory(
             name, url=url
         )
