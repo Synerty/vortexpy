@@ -308,9 +308,9 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
                 destVortexUuid=vortexUuid,
             )
 
-    def _sendVortexMsgInReactor(self, vortexMsg, vortexUuid):
+    def _sendVortexMsgInReactor(self, vortexMsg, destVortexUuid):
         # Send the vortex messages
         d = VortexFactory.sendVortexMsg(
-            vortexMsgs=vortexMsg, destVortexUuid=vortexUuid
+            vortexMsgs=vortexMsg, destVortexUuid=destVortexUuid
         )
         d.addErrback(vortexLogFailure, logger, consumeError=True)
