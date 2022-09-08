@@ -210,11 +210,8 @@ class VortexClientWebsocketFactory(
 
     def clientConnectionLost(self, connector, reason):
         logger.info("Lost connection.  Reason: %s", reason.value)
-        if not reason.check(ConnectionDone):
-            logger.info("Trying to reconnect")
-            ReconnectingClientFactory.clientConnectionLost(
-                self, connector, reason
-            )
+        logger.info("Trying to reconnect")
+        ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
     def clientConnectionFailed(self, connector, reason):
         logger.info("Connection failed. Reason: %s", reason.value)
