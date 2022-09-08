@@ -90,6 +90,7 @@ class VortexServerConnection(VortexConnectionABC):
         # If we havn't heard from the client, then close the connection
         if beatTimeout:
             self._beatLoopingCall.stop()
+            self._timedOut = True
             self.close()
             return
 

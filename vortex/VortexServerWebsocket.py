@@ -162,7 +162,7 @@ class VortexWebSocketUpgradeResource(resource.Resource):
         httpSession = request.getSession()
 
         websocketProtocol = self._websocketFactory.buildProtocol(
-            request.client.host, httpSession
+            request.client, httpSession
         )
         websocketProtocol.makeConnection(request.channel.transport)
         websocketProtocol.initFromRequest(request)

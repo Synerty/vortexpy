@@ -9,6 +9,9 @@
 
 import logging
 from abc import ABCMeta, abstractmethod
+from datetime import datetime
+
+import pytz
 
 from .PayloadPriority import DEFAULT_PRIORITY
 from .VortexServer import VortexServer
@@ -30,7 +33,21 @@ class VortexConnectionABC(metaclass=ABCMeta):
         self._remoteVortexUuid = remoteVortexUuid
         self._remoteVortexName = remoteVortexName
         self._closed = False
+        self._timedOut = False
         self._httpSessionUuid = httpSessionUuid
+        self._connectDateTime = datetime.now(pytz.UTC)
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @property
+    def timedOut(self) -> bool:
+        return self._timedOut
+
+    @property
+    def connectDateTime(self) -> datetime:
+        return self._connectDateTime
 
     @property
     def httpSessionUuid(self):

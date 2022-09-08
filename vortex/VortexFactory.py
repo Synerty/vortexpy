@@ -451,20 +451,42 @@ class VortexFactory:
         return list(remoteNames)
 
     @classmethod
-    def getRemoteVortexInfoByIp(cls, ip: str) -> str:
+    def getRemoteVortexInfoByIp(cls, ip: str, vortexName=None) -> str:
         # Ignore the port if any
         ip = ip.split(":")[0]
 
-        targetUuids = []
+        from vortex.VortexConnectionABC import VortexConnectionABC
+
+        targetConns: list[VortexConnectionABC] = []
         for servers in cls.__vortexServersByName.values():
             for server in servers:
-                for uuid, conn in server.connections.items():
-                    if conn.ip == ip:
-                        targetUuids.append(uuid)
+                for conn in server.connections.values():
+                    if (
+                        not conn.closed
+                        and not conn.timedOut
+                        and conn.ip == ip
+                        and (
+                            conn.remoteVortexName == vortexName
+                            or vortexName is None
+                        )
+                    ):
+                        targetConns.append(conn)
 
-        if len(targetUuids) > 1:
-            raise Exception("Multiple agents found running on the same server")
-        return targetUuids[0]
+        if len(targetConns) > 1:
+            logger.warning(
+                "Multiple vortexes found for ip=%s, name=%s,"
+                " choosing latest connection",
+                ip,
+                vortexName,
+            )
+            targetConns.sort(key=lambda c: c.connectDateTime)
+            # As of Python3.6, dict are ordered, so the newest is the last.
+            return targetConns[-1].remoteVortexUuid
+
+        if not targetConns:
+            raise NoVortexException(f"Can not find vortex with IP {ip}")
+
+        return targetConns[0].remoteVortexUuid
 
     @classmethod
     @inlineCallbacks

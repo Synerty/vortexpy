@@ -234,7 +234,9 @@ class _VortexRPC:
     def callForVortexUuid(self, vortexUuid: str, *args, **kwargs):
         yesMainThread()
         return (
-            yield self.__callForVortexName(None, vortexUuid, *args, **kwargs)
+            yield self.__callForVortex(
+                (args, kwargs), vortexUuid=vortexUuid, **kwargs
+            )
         )
 
     @inlineCallbacks
@@ -242,19 +244,19 @@ class _VortexRPC:
         """Call"""
         yesMainThread()
         return (
-            yield self.__callForVortexName(
-                self.__listeningVortexName, None, *args, **kwargs
+            yield self.__callForVortex(
+                (args, kwargs), vortexName=self.__listeningVortexName
             )
         )
 
     @inlineCallbacks
-    def __callForVortexName(
+    def __callForVortex(
         self,
+        argsKwArgs,
         vortexName: Optional[str] = None,
         vortexUuid: Optional[str] = None,
-        *args,
-        **kwargs
     ):
+        (args, kwargs) = argsKwArgs
         assert vortexName or vortexUuid
 
         try:
