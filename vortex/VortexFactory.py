@@ -27,6 +27,7 @@ from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
 from vortex.PayloadIO import PayloadIO
 from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC
+from vortex.VortexABC import VortexInfo
 from vortex.VortexClientHttp import VortexClientHttp
 from vortex.VortexClientTcp import VortexClientTcp
 from vortex.VortexClientWebsocketFactory import VortexClientWebsocketFactory
@@ -410,6 +411,10 @@ class VortexFactory:
         return vortexClient.connect(host, port)
 
     @classmethod
+    def addCustomServerVortex(cls, vortex: VortexABC):
+        cls.__vortexServersByName[vortex.localVortexInfo.name].append(vortex)
+
+    @classmethod
     def isVortexNameLocal(cls, vortexName: str) -> bool:
         for vortex in cls._allVortexes():
             if vortex.localVortexInfo.name == vortexName:
@@ -429,6 +434,16 @@ class VortexFactory:
             )
 
         return vortexes
+
+    @classmethod
+    def getRemoteClientVortexInfos(cls) -> List[VortexInfo]:
+        clientVortexInfos = []
+
+        for vortexes in cls.__vortexServersByName.values():
+            for vortex in vortexes:
+                clientVortexInfos.extend(vortex.remoteVortexInfo)
+
+        return clientVortexInfos
 
     @classmethod
     def getRemoteVortexUuids(cls) -> List[str]:

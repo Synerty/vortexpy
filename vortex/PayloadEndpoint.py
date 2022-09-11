@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # ]
 
 
-class PayloadEndpoint(object):
+class PayloadEndpoint:
     """
     The payload endpoint is responsible for matching payloads filters against
     filters defined in the endpoint. If the end point filters are within the
@@ -48,6 +48,7 @@ class PayloadEndpoint(object):
         filt: Dict,
         callable_,
         acceptOnlyFromVortex: Optional[Union[str, tuple]] = None,
+        ignoreFromVortex: Optional[Union[str, tuple]] = None,
     ) -> None:
         """
         :param filt: The filter to match against payloads
@@ -59,13 +60,11 @@ class PayloadEndpoint(object):
         if isinstance(self._acceptOnlyFromVortex, str):
             self._acceptOnlyFromVortex = (self._acceptOnlyFromVortex,)
 
-        if not "key" in filt:
-            e = Exception(
-                "There is no 'key' in the payload filt"
-                ", There must be one for routing"
-            )
-            logger.exception(e)
-            raise e
+        self._ignoreFromVortex = ignoreFromVortex
+        if isinstance(self._ignoreFromVortex, str):
+            self._ignoreFromVortex = (self._ignoreFromVortex,)
+
+        self._keyCheck(filt)
 
         self._wref: Callable[[], Optional[Callable]] = None
         if isinstance(callable_, types.FunctionType):
@@ -110,11 +109,24 @@ class PayloadEndpoint(object):
         self._filt = filt
         PayloadIO().add(self)
 
+    def _keyCheck(self, filt):
+        if not "key" in filt:
+            e = Exception(
+                "There is no 'key' in the payload filt"
+                ", There must be one for routing"
+            )
+            logger.exception(e)
+            raise e
+
     @property
     def filt(self):
         return copy(self._filt)
 
     def check(self, payloadEnvelope: PayloadEnvelope, vortexName: str) -> bool:
+
+        # Filter for the backend vortexes.
+        if self._ignoreFromVortex and vortexName in self._ignoreFromVortex:
+            return False
 
         # Filter for the backend vortexes.
         if (
