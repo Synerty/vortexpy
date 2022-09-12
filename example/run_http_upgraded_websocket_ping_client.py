@@ -5,34 +5,15 @@ import pytz
 from twisted.internet import task
 from twisted.internet.defer import inlineCallbacks
 
+from example.setup_example_logging import setupExampleLogging
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse
 from vortex.VortexClientWebsocketFactory import VortexClientWebsocketFactory
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-console = logging.StreamHandler()
-logger.addHandler(console)
 
 
-class MyFormatter(logging.Formatter):
-    converter = datetime.fromtimestamp
-
-    def formatTime(self, record, datefmt=None):
-        ct = self.converter(record.created)
-        if datefmt:
-            s = ct.strftime(datefmt)
-        else:
-            t = ct.strftime("%Y-%m-%d %H:%M:%S")
-            s = "%s,%03d" % (t, record.msecs)
-        return s
-
-
-formatter = MyFormatter(
-    fmt="%(asctime)s %(message)s", datefmt="%Y-%m-%d,%H:%M:%S.%f"
-)
-console.setFormatter(formatter)
+setupExampleLogging()
 
 if __name__ == "__main__":
     import sys
