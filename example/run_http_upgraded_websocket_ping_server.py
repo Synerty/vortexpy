@@ -1,13 +1,11 @@
 import logging
 import os
-from datetime import datetime
 
 from twisted.web import server
+from txwebsocket.txws import WebSocketUpgradeHTTPChannel
 
 from example.setup_example_logging import setupExampleLogging
 from txhttputil.site.FileUnderlayResource import FileUnderlayResource
-from txwebsocket.txws import WebSocketUpgradeHTTPChannel
-
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.VortexABC import SendVortexMsgResponseCallable

@@ -38,7 +38,7 @@ logger = logging.getLogger(name=__name__)
 class VortexPayloadWebsocketClientProtocol(
     WebSocketClientProtocol, VortexPayloadProtocol
 ):
-    def __init__(self, vortexClient=None):
+    def __init__(self, vortexClient: "VortexClientWebsocketFactory"):
         WebSocketClientProtocol.__init__(self)
         VortexPayloadProtocol.__init__(self, logger)
         self._vortexClient = vortexClient

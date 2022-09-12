@@ -1,4 +1,5 @@
 import logging
+import sys
 from datetime import datetime
 
 
@@ -24,3 +25,9 @@ def setupExampleLogging():
         fmt="%(asctime)s %(message)s", datefmt="%Y-%m-%d,%H:%M:%S.%f"
     )
     console.setFormatter(formatter)
+
+    # Start the twisted logging
+
+    from twisted.python import log
+
+    log.startLogging(sys.stdout)
