@@ -2,8 +2,11 @@ import logging
 import sys
 from datetime import datetime
 
+from twisted.internet import defer
+
 
 def setupExampleLogging():
+    defer.setDebugging(True)
     logging.root.setLevel(logging.DEBUG)
 
     console = logging.StreamHandler()
