@@ -9,6 +9,7 @@ from twisted.internet.defer import inlineCallbacks
 from example.setup_example_logging import setupExampleLogging
 from vortex.DeferUtil import vortexLogFailure
 from vortex.VortexClientWebsocketFactory import VortexClientWebsocketFactory
+from vortex.VortexFactory import VortexFactory
 from vortex.rpc.test.RPCTest import myRemoteAddMethod
 from vortex.rpc.test.RPCTest import myRemoteExceptionMethod
 
@@ -20,14 +21,14 @@ setupExampleLogging()
 @inlineCallbacks
 def connect():
     # BEGIN WEBSOCKET HTTP UPGRADED CLIENT CONNECT
-    factory = VortexClientWebsocketFactory(
-        "sendVortexName", url="ws://127.0.0.1:10101/vortexws"
-    )
-    yield factory.connect("127.0.0.1", 10101, ssl.ClientContextFactory())
-    # END WEBSOCKET HTTP UPGRADED CLIENT CONNECT
 
-    reactor.callLater(2, callRpcException)
-    reactor.callLater(5, callRpc)
+    yield VortexFactory.createWebsocketClient(
+        name="sendVortexName",
+        host="127.0.0.1",
+        port=10101,
+        url="ws://127.0.0.1:10101/vortexws",
+    )
+    # END WEBSOCKET HTTP UPGRADED CLIENT CONNECT
 
 
 def callRpcException():
@@ -54,4 +55,6 @@ def callRpc():
 if __name__ == "__main__":
     reactor.callLater(0, logger.info, "RPCTest client running")
     reactor.callLater(0, connect)
+    reactor.callLater(25, callRpcException)
+    reactor.callLater(28, callRpc)
     reactor.run()

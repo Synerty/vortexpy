@@ -5,13 +5,15 @@ from twisted.internet import reactor
 from twisted.web import server
 from txwebsocket.txws import WebSocketUpgradeHTTPChannel
 
+from example.setup_example_logging import setupExampleLogging
 from txhttputil.site.FileUnderlayResource import FileUnderlayResource
 from vortex.VortexFactory import VortexFactory
 from vortex.rpc.test.RPCTest import myRemoteAddMethod
 from vortex.rpc.test.RPCTest import myRemoteExceptionMethod
 
 logger = logging.getLogger(__name__)
-logging.basicConfig()
+
+setupExampleLogging()
 
 if __name__ == "__main__":
     # BEGIN WEBSOCKET HTTP UPGRADED CLIENT CONNECT
