@@ -43,6 +43,9 @@ class VortexPayloadWebsocketClientProtocol(
         VortexPayloadProtocol.__init__(self, logger)
         self._vortexClient = vortexClient
 
+        self._vortexClientConnectionMade()
+
+    def _vortexClientConnectionMade(self):
         self._closed = False
 
         # Start our heart beat
@@ -96,6 +99,8 @@ class VortexPayloadWebsocketClientProtocol(
 
     def onConnect(self, response):
         logger.info(f"Connected to {response.peer}")
+
+        self._vortexClientConnectionMade()
 
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {
