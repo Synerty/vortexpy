@@ -8,8 +8,9 @@
 """
 import logging
 import uuid
+from collections import deque, namedtuple
 from datetime import datetime
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Deque
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import pytz
@@ -22,10 +23,9 @@ from autobahn.twisted.websocket import (
 from twisted.internet import reactor
 from twisted.internet import task
 from twisted.internet.defer import Deferred, inlineCallbacks
-from twisted.internet.error import ConnectionDone
 from twisted.internet.protocol import connectionDone, ReconnectingClientFactory
 
-from vortex.DeferUtil import isMainThread, vortexLogFailure
+from vortex.DeferUtil import isMainThread, vortexLogFailure, nonConcurrentMethod
 from vortex.PayloadEnvelope import PayloadEnvelope, VortexMsgList
 from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
@@ -33,6 +33,8 @@ from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServer import HEART_BEAT_PERIOD
 
 logger = logging.getLogger(name=__name__)
+
+VortexMsgToSend = namedtuple("VortexMsgToSend", ["deferred", "vortexMsgs"])
 
 
 class VortexPayloadWebsocketClientProtocol(
@@ -126,6 +128,10 @@ class VortexPayloadWebsocketClientProtocol(
             self._sendBeatLoopingCall.stop()
         self._closed = True
 
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
 
 class VortexClientWebsocketFactory(
     WebSocketClientFactory, ReconnectingClientFactory, VortexABC
@@ -171,6 +177,10 @@ class VortexClientWebsocketFactory(
 
         self._reconnectVortexMsgs = [PayloadEnvelope().toVortexMsg()]
 
+        # Buffer messages while the reconnecting factory is reconnecting
+        # but only in that state, if the vortex times out, we errback alll these
+        self._pendingMessages: Deque[VortexMsgToSend] = deque()
+
         self.__protocol = None
 
     @property
@@ -209,18 +219,21 @@ class VortexClientWebsocketFactory(
 
         # Reset the times in the ReconnectingClientFactory
         self.resetDelay()
+
+        self._errbackAllQueuedMessages("The vortex is not yet connected")
+
         self.__protocol = VortexPayloadWebsocketClientProtocol(self)
         self.__protocol.factory = self
         return self.__protocol
 
     def clientConnectionLost(self, connector, reason):
-        logger.info("Lost connection.  Reason: %s", reason.value)
-        logger.info("Trying to reconnect")
+        logger.debug("Lost connection, Reason: %s", reason.value)
+        logger.info("Lost connection, Trying to reconnect.")
         ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
     def clientConnectionFailed(self, connector, reason):
-        logger.info("Connection failed. Reason: %s", reason.value)
-        logger.info("Trying to reconnect")
+        logger.debug("Connection failed. Reason: %s", reason.value)
+        logger.info("Connection failed, Trying to reconnect.")
         ReconnectingClientFactory.clientConnectionFailed(
             self, connector, reason
         )
@@ -277,6 +290,10 @@ class VortexClientWebsocketFactory(
         NOTE: Priority ins't supported as there is no buffer for this class.
 
         """
+        if not self.__protocol:
+            from vortex.VortexFactory import NoVortexException
+
+            raise NoVortexException("The vortex is not yet connected")
 
         if vortexMsgs is None:
             vortexMsgs = self._reconnectVortexMsgs
@@ -284,29 +301,37 @@ class VortexClientWebsocketFactory(
         if not isinstance(vortexMsgs, list):
             vortexMsgs = [vortexMsgs]
 
-        if isMainThread():
-            return self._sendVortexMsgLater(vortexMsgs)
+        d = Deferred()
+        self._pendingMessages.append(
+            VortexMsgToSend(deferred=d, vortexMsgs=vortexMsgs)
+        )
 
-        return task.deferLater(reactor, 0, self._sendVortexMsgLater, vortexMsgs)
+        # This will send any pending messages the next time a message can
+        # actually be send
+        reactor.callLater(0, self._sendVortexMsgFromQueue)
+        return d
+
+    def _errbackAllQueuedMessages(self, message: str):
+        from vortex.VortexFactory import NoVortexException
+
+        # Fail all the messages in the queue
+        while self._pendingMessages:
+            item = self._pendingMessages.popleft()
+            item.deferred.errback(NoVortexException(message))
 
     @inlineCallbacks
-    def _sendVortexMsgLater(self, vortexMsgs: VortexMsgList):
+    @nonConcurrentMethod
+    def _sendVortexMsgFromQueue(self):
         assert self._server
-        assert vortexMsgs
 
-        # This transport requires base64 encoding
-        for index, vortexMsg in enumerate(vortexMsgs):
-            if vortexMsg.startswith(b"{"):
-                vortexMsgs[index] = yield PayloadEnvelope.base64EncodeDefer(
-                    vortexMsg
-                )
+        while self._pendingMessages:
+            item = self._pendingMessages.popleft()
 
-        self.vortexMsgs = b""
+            for vortexMsg in item.vortexMsgs:
+                self.__protocol.write(vortexMsg)
 
-        for vortexMsg in vortexMsgs:
-            self.__protocol.write(vortexMsg)
-
-        return True
+            item.deferred.callback(True)
+            yield None
 
     def _beat(self):
         """Beat, Called by protocol"""
@@ -350,7 +375,9 @@ class VortexClientWebsocketFactory(
             self._server,
             self._port,
         )
-        # TODO: Should we reconnect here?
+
+        self._errbackAllQueuedMessages("The vortex connection has timed out")
 
         if self.__protocol:
             self.__protocol.close()
+            self.__protocol = None

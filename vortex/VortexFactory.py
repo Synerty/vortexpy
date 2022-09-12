@@ -313,7 +313,7 @@ class VortexFactory:
         cls,
         name: str,
         host: str,
-        port: str,
+        port: int,
         url: str,
         sslEnableMutualTLS: bool = False,
         sslClientCertificateBundleFilePath: str = None,
