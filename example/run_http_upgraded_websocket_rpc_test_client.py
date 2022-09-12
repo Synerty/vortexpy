@@ -1,9 +1,8 @@
 import logging
-import ssl
 from datetime import datetime
 
 import pytz
-from twisted.internet import reactor
+from twisted.internet import reactor, ssl
 from twisted.internet import task
 from twisted.internet.defer import inlineCallbacks
 
@@ -20,7 +19,6 @@ setupExampleLogging()
 
 @inlineCallbacks
 def connect():
-
     # BEGIN WEBSOCKET HTTP UPGRADED CLIENT CONNECT
     factory = VortexClientWebsocketFactory(
         "sendVortexName", url="ws://127.0.0.1:10101/vortexws"
