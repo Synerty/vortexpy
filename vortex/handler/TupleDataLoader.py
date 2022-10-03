@@ -253,8 +253,9 @@ class TupleDataLoader(TupleActionProcessorDelegateABC, TuplesProviderABC):
             ):
                 raise Exception("Data is locked")
 
+        data = None
         if tupleAction.action == STORE_ACTION:
-            yield entry.delegate.storeData(
+            data = yield entry.delegate.storeData(
                 tupleAction.data, tupleAction.selector.selector
             )
             entry.liveValueByTs[tupleAction.selector] = None
@@ -287,6 +288,8 @@ class TupleDataLoader(TupleActionProcessorDelegateABC, TuplesProviderABC):
             entry.liveValueByTs[tupleAction.selector] = tupleAction.data
 
         self.__notifyOfTupleUpdate(tupleAction.selector)
+
+        return data
 
     @callMethodLater
     def __notifyOfTupleUpdate(self, ts: TupleSelector):
