@@ -16,6 +16,7 @@ from twisted.internet.interfaces import IPushProducer
 from zope.interface import implementer
 
 from vortex.DeferUtil import nonConcurrentMethod
+from vortex.PayloadPriority import DEFAULT_PRIORITY
 
 logger = logging.getLogger(name=__name__)
 
@@ -32,13 +33,14 @@ def _format_size(size):
 
 
 @implementer(IPushProducer)
-class VortexWritePushProducer(object):
+class VortexWritePushProducer:
     WARNING_DATA_LENGTH = 50 * 1024 * 1024
     ERROR_DATA_LENGTH = 500 * 1024 * 1024
     WRITE_CHUNK_SIZE = 128 * 1024
 
     __memoryLoggingRefs = None
     __memoryLoggingEnabled = False
+    _DEBUG_LOGGING = False
 
     @classmethod
     def setupMemoryLogging(cls) -> None:
@@ -85,7 +87,15 @@ class VortexWritePushProducer(object):
         stopProducingCallback: Callable,
         remoteVortexName: str = "Pending",
         writeWholeFrames=False,
+        terminateFrameWithDot=True,
+        splitFrames=False,
     ):
+        """
+
+        :param splitFrames: Split frames that come in if they are larger than 128kb.
+        This allows better use of ram, as keeping a 1mb to ?mb bytes object around
+        is bad for memory management and memory fragmentation.
+        """
         if VortexWritePushProducer.__memoryLoggingEnabled:
             VortexWritePushProducer.__memoryLoggingRefs.append(
                 weakref.ref(self)
@@ -95,6 +105,8 @@ class VortexWritePushProducer(object):
         self._stopProducingCallback = stopProducingCallback
         self._remoteVortexName = remoteVortexName
         self._writeWholeFrames = writeWholeFrames
+        self._terminateFrameWithDot = terminateFrameWithDot
+        self._splitFrames = splitFrames
 
         self._paused = False
         self._pausedDeferred = None
@@ -153,9 +165,11 @@ class VortexWritePushProducer(object):
 
                 if self._writeWholeFrames:
                     self._transport.write(data)
-                    self._transport.write(b".")
+                    if self._terminateFrameWithDot:
+                        self._transport.write(b".")
 
                 else:
+                    # Use a memoryview for fast slicing.
                     self._currentlyWritingData = data
                     self._currentlyWritingDataOffset = 0
                     self._startWritingFrame()
@@ -169,16 +183,26 @@ class VortexWritePushProducer(object):
             return
         self._writingFrameInProgress = True
 
-        offset = self._currentlyWritingDataOffset
         data = self._currentlyWritingData
+        offset = self._currentlyWritingDataOffset
         while not self._paused and offset < len(data):
+            if self._DEBUG_LOGGING:
+                logger.debug(
+                    "%s: Producer _startWritingFrame called,"
+                    " wrote %s to %s of %s",
+                    self._remoteVortexName,
+                    offset,
+                    min(offset + self.WRITE_CHUNK_SIZE, len(data)),
+                    len(data),
+                )
             self._transport.write(data[offset : offset + self.WRITE_CHUNK_SIZE])
             offset += self.WRITE_CHUNK_SIZE
 
         if len(data) <= offset:
             self._currentlyWritingDataOffset = 0
             self._currentlyWritingData = None
-            self._transport.write(b".")
+            if self._terminateFrameWithDot:
+                self._transport.write(b".")
 
         else:
             self._currentlyWritingDataOffset = offset
@@ -193,8 +217,12 @@ class VortexWritePushProducer(object):
         the time being, and to stop until C{resumeProducing()} is called.
         """
         self._paused = True
-        # logger.debug("%s: Producer paused, data len = %s",
-        #              self._remoteVortexName, self._queuedDataLen)
+        if self._DEBUG_LOGGING:
+            logger.debug(
+                "%s: Producer paused, data len = %s",
+                self._remoteVortexName,
+                self._queuedDataLen,
+            )
 
     def resumeProducing(self):
         """
@@ -204,8 +232,12 @@ class VortexWritePushProducer(object):
         more data for its consumer.
         """
         self._paused = False
-        # logger.debug("%s: Producer resumed, data len = %s",
-        #              self._remoteVortexName, self._queuedDataLen)
+        if self._DEBUG_LOGGING:
+            logger.debug(
+                "%s: Producer resumed, data len = %s",
+                self._remoteVortexName,
+                self._queuedDataLen,
+            )
         self._startWriting()
 
     def stopProducing(self):
@@ -215,10 +247,36 @@ class VortexWritePushProducer(object):
         This tells a producer that its consumer has died, so it must stop
         producing data for good.
         """
-        self._stopProducingCallback()
+        if self._stopProducingCallback:
+            self._stopProducingCallback()
+            self._stopProducingCallback = None
 
-    def write(self, data, priority: int):
+    def write(self, data: bytes, priority: int = DEFAULT_PRIORITY):
         assert not self._closed
+
+        # Since write actually queues data and does not write, we will split
+        # the data if required so we are storing smaller memory objects.
+        if self._splitFrames and self.WRITE_CHUNK_SIZE < len(data):
+            for offset in range(0, len(data), self.WRITE_CHUNK_SIZE):
+
+                if self._DEBUG_LOGGING:
+                    logger.debug(
+                        "%s: Producer write, splitting frames,"
+                        " split %s to %s of %s",
+                        self._remoteVortexName,
+                        offset,
+                        min(offset + self.WRITE_CHUNK_SIZE, len(data)),
+                        len(data),
+                    )
+                self.write(data[offset : offset + self.WRITE_CHUNK_SIZE])
+            return
+
+        if self._DEBUG_LOGGING:
+            logger.debug(
+                "%s: Producer write called, data len = %s",
+                self._remoteVortexName,
+                len(data),
+            )
 
         preLen = self._queuedDataLen
         self._queuedDataLen += len(data)
@@ -244,3 +302,7 @@ class VortexWritePushProducer(object):
 
     def close(self):
         self._closed = True
+        self._queuedDataLen = 0
+        self._queueByPriority = defaultdict(deque)
+        self._currentlyWritingData = None
+        self._currentlyWritingDataOffset = 0
