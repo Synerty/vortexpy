@@ -4,7 +4,7 @@ import shutil
 from setuptools import setup, find_packages
 
 package_name = "vortexpy"
-package_version = '3.2.7'
+package_version = "3.2.7"
 
 egg_info = "%s.egg-info" % package_name
 if os.path.isdir(egg_info):
@@ -13,7 +13,7 @@ if os.path.isdir(egg_info):
 requirements = [
     "SQLAlchemy >= 1.0.14",  # Database abstraction layer
     "GeoAlchemy2",  # Geospatial addons to SQLAlchemy
-    "txwebsocket>=1.0.1",
+    "txwebsocket>=1.1.0",
     "autobahn[twisted]",
     # txWS requires these, if we try to offline install the packages, txWS setup_requires
     # causes issues
