@@ -40,6 +40,8 @@ class VortexServer(VortexABC):
     The static instance of the controller
     """
 
+    _DEBUG_LOGGING = False
+
     def __init__(self, name: str, requiresBase64Encoding=True) -> None:
         # Simple initialisations up the top
         self._name = name
@@ -110,7 +112,8 @@ class VortexServer(VortexABC):
         return "%s:%s" % (connection.ip, connection.port)
 
     def connectionOpened(self, httpSession, vortexConnection):
-        # print "VortexServer - connectionOpened"
+        if self._DEBUG_LOGGING:
+            logger.debug("VortexServer - connectionOpened")
 
         vortexUuid = vortexConnection.remoteVortexUuid
         assert vortexUuid
@@ -135,7 +138,8 @@ class VortexServer(VortexABC):
         self._connectionByVortexUuid[vortexUuid] = vortexConnection
 
     def connectionClosed(self, conn):
-        # print "VortexServer - connectionClosed"
+        if self._DEBUG_LOGGING:
+            logger.debug("VortexServer - connectionClosed")
 
         vortexUuid = conn.remoteVortexUuid
 

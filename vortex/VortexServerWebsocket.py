@@ -101,8 +101,13 @@ class VortexWebsocketServerProtocol(Protocol):
         d.addErrback(vortexLogFailure, logger, consumeError=True)
 
     def connectionLost(self, reason=connectionDone):
+        if self._DEBUG_LOGGING:
+            logger.debug(
+                "VortexWebsocketServerProtocol.connectionLost reason=%s", reason
+            )
         if self._conn:
             self._conn.transportClosed()
+            self._vortex.connectionClosed(self._conn)
 
     @inlineCallbacks
     def _processVortexMsg(self, vortexMsg: bytes):
@@ -167,5 +172,16 @@ class VortexWebSocketUpgradeResource(resource.Resource):
         websocketProtocol.makeConnection(request.channel.transport)
         websocketProtocol.initFromRequest(request)
         request.channel.upgradeToWebsocket(websocketProtocol)
+
+
+        def closedError(failure):
+            # logger.error("Got closedError %s" % failure)
+            websocketProtocol.connectionLost(failure.value)
+
+        def closedOk(data):
+            pass
+            # logger.debug("Got closedOk %s" % data)
+
+        request.notifyFinish().addCallbacks(closedOk, closedError)
 
         return NOT_DONE_YET
