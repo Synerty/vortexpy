@@ -130,7 +130,7 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
     """
 
     RETRY_DELAY = 1.5  # Seconds
-    HEART_BEAT_TIMEOUT = 30.0  # Seconds
+    HEART_BEAT_TIMEOUT = HEART_BEAT_PERIOD
 
     # The time it takes after recieving a response from the server to receive the
     INFO_PAYLOAD_TIMEOUT = 5  # Seconds

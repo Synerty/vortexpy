@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 VortexServer
 """
 
-HEART_BEAT_PERIOD = 5.0
-HEART_BEAT_TIMEOUT = 35.0
+HEART_BEAT_PERIOD = 10.0
+HEART_BEAT_TIMEOUT = 180.0
 
 
 class VortexServer(VortexABC):
