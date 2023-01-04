@@ -27,6 +27,8 @@ class TupleActionProcessorProxy:
     to a server backend.
     """
 
+    _DEBUG_LOGGING = False
+
     def __init__(
         self,
         tupleActionProcessorName,
@@ -143,9 +145,13 @@ class TupleActionProcessorProxy:
 
         pr.addCallback(reply)
 
-        pr.addCallback(
-            lambda _: logger.debug("Received action response from server")
-        )
+        if self._DEBUG_LOGGING:
+            pr.addCallback(
+                lambda _: logger.debug(
+                    "Received action response from server for %s",
+                    payloadEnvelope.filt,
+                )
+            )
         pr.addErrback(self.__handlePrFailure, payloadEnvelope, sendResponse)
 
         vortexMsg = yield payloadEnvelope.toVortexMsgDefer()

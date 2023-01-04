@@ -313,4 +313,12 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
         d = VortexFactory.sendVortexMsg(
             vortexMsgs=vortexMsg, destVortexUuid=destVortexUuid
         )
-        d.addErrback(vortexLogFailure, logger, consumeError=True)
+        d.addErrback(self._sendErrback)
+
+    def _sendErrback(self, failure):
+
+        if failure.check(NoVortexException):
+            self._logger.debug(str(failure.value))
+            return
+
+        vortexLogFailure(failure, self._logger)
