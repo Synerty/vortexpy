@@ -7,25 +7,32 @@
  * Support : support@synerty.com
 """
 import logging
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
 
 from twisted.internet.defer import inlineCallbacks
-from twisted.internet.protocol import Protocol, connectionDone, Factory
+from twisted.internet.protocol import Factory
+from twisted.internet.protocol import Protocol
+from twisted.internet.protocol import connectionDone
 from twisted.protocols.policies import WrappingFactory
 from twisted.web import resource
 from twisted.web.server import NOT_DONE_YET
-from txwebsocket.txws import WebSocketProtocol
 
+from txwebsocket.txws import WebSocketProtocol
 from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.VortexServerConnection import VortexServerConnection
 from .PayloadPriority import DEFAULT_PRIORITY
 from .VortexServer import VortexServer
+from .VortexWritePushProducer import VortexWritePushProducer
 
 logger = logging.getLogger(name=__name__)
 
 
 class VortexWebsocketServerProtocol(Protocol):
+
+    _DEBUG_LOGGING = False
+
     def __init__(self, vortex: VortexServer, addr, httpSession=None) -> None:
         self._vortex = vortex
         self._addr = addr
@@ -68,6 +75,15 @@ class VortexWebsocketServerProtocol(Protocol):
             self._addr,
         )
 
+        # noinspection PyProtectedMember
+        assert isinstance(self.transport, WebSocketProtocol) and isinstance(
+            self.transport._producerForWrite, VortexWritePushProducer
+        ), "The Websocket transport is not how we expected it."
+
+        self.transport._producerForWrite.setRemoteVortexName(
+            f"{self._remoteVortexName}({self._remoteVortexUuid})"
+        )
+
         # Send a heart beat down the new connection, tell it who we are.
         connectPayloadFilt = {}
         connectPayloadFilt[PayloadEnvelope.vortexUuidKey] = self._vortex.uuid()
@@ -80,7 +96,6 @@ class VortexWebsocketServerProtocol(Protocol):
         self._vortex.connectionOpened(self._httpSession, self._conn)
 
     def dataReceived(self, data):
-
         if not self._conn:
             self.__initConnection()
 
@@ -173,6 +188,24 @@ class VortexWebSocketUpgradeResource(resource.Resource):
         websocketProtocol.initFromRequest(request)
         request.channel.upgradeToWebsocket(websocketProtocol)
 
+        def unregister():
+            request.channel.unregisterProducer()
+            websocketProtocol.unregisterProducer()
+
+        producer = VortexWritePushProducer(
+            request.channel.transport,
+            stopProducingCallback=lambda: unregister(),
+            # The websocket frames this before this producer gets it
+            writeWholeFrames=False,
+            terminateFrameWithDot=False,
+            splitFrames=True,
+        )
+        producer.WARNING_DATA_LENGTH = 10 * 1024 * 1024
+        producer.ERROR_DATA_LENGTH = 50 * 1024 * 1024
+
+        unregister()
+        request.channel.registerProducer(producer, streaming=True)
+        websocketProtocol.registerProducer(producer, streaming=True)
 
         def closedError(failure):
             # logger.error("Got closedError %s" % failure)

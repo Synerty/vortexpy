@@ -121,5 +121,7 @@ class VortexServerConnection(VortexConnectionABC):
         self._transport.loseConnection()
 
     def transportClosed(self):
-        self._producer.close()
+        if self._producer and hasattr(self._producer, "close"):
+            self._producer.close()
+        self._producer = None
         VortexConnectionABC.close(self)

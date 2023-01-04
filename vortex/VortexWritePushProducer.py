@@ -300,6 +300,19 @@ class VortexWritePushProducer:
 
         self._startWriting()
 
+    def writeSequence(
+        self, data: typing.Iterable[bytes], priority: int = DEFAULT_PRIORITY
+    ) -> None:
+
+        if self._DEBUG_LOGGING:
+            logger.debug(
+                "%s: Producer writeSequence called",
+                self._remoteVortexName,
+            )
+
+        for seq in data:
+            self.write(seq, priority=priority)
+
     def close(self):
         self._closed = True
         self._queuedDataLen = 0
