@@ -25,6 +25,7 @@ from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServer import HEART_BEAT_PERIOD
+from vortex.VortexUtil import logLargeMessages
 from vortex.VortexWritePushProducer import VortexWritePushProducer
 
 logger = logging.getLogger(name=__name__)
@@ -275,6 +276,8 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
 
         if not isinstance(vortexMsgs, list):
             vortexMsgs = [vortexMsgs]
+
+        logLargeMessages(logger, vortexMsgs, self._serverVortexUuid)
 
         # Check if the vortexUuid matches the destination uuid
         #

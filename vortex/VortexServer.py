@@ -24,6 +24,7 @@ from .PayloadFilterKeys import rapuiServerEcho
 from .PayloadIO import PayloadIO
 from .PayloadPriority import DEFAULT_PRIORITY
 from .VortexABC import VortexABC, VortexInfo
+from .VortexUtil import logLargeMessages
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +215,8 @@ class VortexServer(VortexABC):
         """
         if vortexMsgs is None:
             vortexMsgs = [PayloadEnvelope().toVortexMsg()]
+
+        logLargeMessages(logger, vortexMsgs, vortexUuid)
 
         if isMainThread():
             return self._sendVortexMsgLater(

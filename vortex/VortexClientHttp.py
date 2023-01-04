@@ -27,6 +27,7 @@ from vortex.PayloadEnvelope import PayloadEnvelope, VortexMsgList
 from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
+from vortex.VortexUtil import logLargeMessages
 
 logger = logging.getLogger(name=__name__)
 
@@ -177,6 +178,8 @@ class VortexClientHttp(VortexABC):
 
         if not isinstance(vortexMsgs, list):
             vortexMsgs = [vortexMsgs]
+
+        logLargeMessages(logger, vortexMsgs, self._serverVortexUuid)
 
         # Check if the vortexUuid matches the destination uuid
         #

@@ -31,6 +31,7 @@ from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServer import HEART_BEAT_PERIOD
+from vortex.VortexUtil import logLargeMessages
 
 logger = logging.getLogger(name=__name__)
 
@@ -300,6 +301,8 @@ class VortexClientWebsocketFactory(
 
         if not isinstance(vortexMsgs, list):
             vortexMsgs = [vortexMsgs]
+
+        logLargeMessages(logger, vortexMsgs, self._serverVortexUuid)
 
         d = Deferred()
         self._pendingMessages.append(

@@ -3,10 +3,12 @@ from datetime import datetime
 from datetime import timedelta
 from typing import Dict
 from typing import Set
+from typing import Union
 
 import pytz
 from twisted.internet import reactor
 
+from vortex.PayloadEnvelope import VortexMsgList
 from vortex.Tuple import TupleField, Tuple, addTupleType
 
 
@@ -105,3 +107,26 @@ def debounceCall(debounceSeconds: float):
         return wrapInner
 
     return wrap
+
+
+def logLargeMessages(
+    logger, vortexMsgs: Union[VortexMsgList, bytes], destVortexUuid: str
+):
+    def logIt(vortexMsg):
+        # Log anything larger than 128kb
+        length = len(vortexMsg)
+        if length < 512 * 1024:
+            return
+
+        logger.debug(
+            "Sending vortexMsg of size %s to vortex %s",
+            "{:,}kB".format(int(length / 1024)),
+            destVortexUuid,
+        )
+
+    if isinstance(vortexMsgs, bytes):
+        logIt(vortexMsgs)
+
+    else:
+        for msg in vortexMsgs:
+            logIt(msg)
