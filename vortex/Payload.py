@@ -35,6 +35,7 @@ class Payload(Jsonable):
 
     def __init__(self, filt: Optional[Dict] = None, tuples=None) -> None:
         """Constructor"""
+        super().__init__()
         self.filt = {} if filt is None else filt
         self.tuples = [] if tuples is None else tuples
         self.date = datetime.now(pytz.utc)
@@ -95,20 +96,20 @@ class Payload(Jsonable):
 
     # -------------------------------------------
     # VortexServer Message Methods
-    def toEncodedPayload(self, compressionLevel: int = 9) -> bytes:
+    def toEncodedPayload(self, compressionLevel: int = 9) -> str:
         jsonStr = self._toJson()
         return b64encode(
             zlib.compress(jsonStr.encode("UTF-8"), compressionLevel)
-        )
+        ).decode()
 
     @deferToThreadWrapWithLogger(logger)
-    def toEncodedPayloadDefer(self, compressionLevel: int = 9) -> bytes:
+    def toEncodedPayloadDefer(self, compressionLevel: int = 9) -> str:
         return self.toEncodedPayload(compressionLevel=compressionLevel)
 
-    def fromEncodedPayload(self, encodedPayload: bytes):
-        jsonStr = zlib.decompress(b64decode(encodedPayload)).decode()
+    def fromEncodedPayload(self, encodedPayload: str):
+        jsonStr = zlib.decompress(b64decode(encodedPayload))
         return self._fromJson(jsonStr)
 
     @deferToThreadWrapWithLogger(logger)
-    def fromEncodedPayloadDefer(self, encodedPayload: bytes):
+    def fromEncodedPayloadDefer(self, encodedPayload: str):
         return self.fromEncodedPayload(encodedPayload)

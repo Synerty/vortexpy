@@ -1,29 +1,32 @@
 import logging
 import typing
 from collections import defaultdict
-from twisted.internet._sslverify import trustRootFromCertificates
-from typing import Union, List, Optional, Dict
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 
 from OpenSSL import SSL
 from rx.subjects import Subject
-from twisted.internet import reactor, ssl
-from twisted.internet.defer import Deferred, DeferredList, succeed
+from twisted.internet import reactor
+from twisted.internet import ssl
+from twisted.internet._sslverify import trustRootFromCertificates
+from twisted.internet.defer import Deferred
+from twisted.internet.defer import DeferredList
 from twisted.internet.defer import inlineCallbacks
+from twisted.internet.defer import succeed
 from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
-from txhttputil.util.PemUtil import (
-    parsePemBundleForServer,
-    parsePemBundleForClient,
-    parsePemBundleForTrustedPeers,
-)
-from txhttputil.util.SslUtil import (
-    parseTrustRootFromBundle,
-    buildCertificateOptionsForTwisted,
-)
-from txwebsocket.txws import WebSocketFactory
 
+from txhttputil.util.PemUtil import parsePemBundleForClient
+from txhttputil.util.PemUtil import parsePemBundleForServer
+from txhttputil.util.PemUtil import parsePemBundleForTrustedPeers
+from txhttputil.util.SslUtil import buildCertificateOptionsForTwisted
+from txhttputil.util.SslUtil import parseTrustRootFromBundle
+from txwebsocket.txws import WebSocketFactory
 from vortex.DeferUtil import yesMainThread
-from vortex.PayloadEnvelope import VortexMsgList, PayloadEnvelope
+from vortex.PayloadEnvelope import PayloadEnvelope
+from vortex.PayloadEnvelope import VortexMsgList
 from vortex.PayloadIO import PayloadIO
 from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC
@@ -34,11 +37,9 @@ from vortex.VortexClientWebsocketFactory import VortexClientWebsocketFactory
 from vortex.VortexServer import VortexServer
 from vortex.VortexServerHttpResource import VortexServerHttpResource
 from vortex.VortexServerTcp import VortexTcpServerFactory
-from vortex.VortexServerWebsocket import (
-    VortexWebsocketServerFactory,
-    VortexWebSocketUpgradeResource,
-    VortexWrappedWebSocketFactory,
-)
+from vortex.VortexServerWebsocket import VortexWebSocketUpgradeResource
+from vortex.VortexServerWebsocket import VortexWebsocketServerFactory
+from vortex.VortexServerWebsocket import VortexWrappedWebSocketFactory
 
 logger = logging.getLogger(__name__)
 
@@ -222,15 +223,17 @@ class VortexFactory:
                 trustedPeerCertificates=trustedPeerCertificates,
             )
             port = reactor.listenSSL(port, site, sslContextFactory)
+
         else:
             port = reactor.listenTCP(port, site)
+
         cls.__listeningPorts.append(port)
 
     @classmethod
     def createHttpWebsocketResource(
         cls, name: str
     ) -> VortexWebSocketUpgradeResource:
-        vortexServer = VortexServer(name)
+        vortexServer = VortexServer(name, requiresBase64Encoding=False)
         cls.__vortexServersByName[name].append(vortexServer)
 
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(
@@ -256,7 +259,7 @@ class VortexFactory:
         :return: None
         """
 
-        vortexServer = VortexServer(name)
+        vortexServer = VortexServer(name, requiresBase64Encoding=False)
         cls.__vortexServersByName[name].append(vortexServer)
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(
             vortexServer
@@ -552,12 +555,12 @@ class VortexFactory:
         deferreds = []
         for vortex, uuids in vortexAndUuids:
             for uuid in uuids:
-                if vortex.requiresBase64Encoding:
-                    deferreds.append(
-                        vortex.sendVortexMsg(base64VortexMsgs, uuid)
-                    )
-                else:
-                    deferreds.append(vortex.sendVortexMsg(vortexMsgs, uuid))
+                msgToUse = (
+                    base64VortexMsgs
+                    if vortex.requiresBase64Encoding
+                    else vortexMsgs
+                )
+                deferreds.append(vortex.sendVortexMsg(msgToUse, uuid))
 
         results = yield DeferredList(deferreds)
         return results

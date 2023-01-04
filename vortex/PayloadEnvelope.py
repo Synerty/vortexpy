@@ -46,17 +46,17 @@ class PayloadEnvelope(Jsonable):
     vortexNameKey = "__vortexName__"
 
     def __init__(
-            self,
-            filt: Optional[Dict] = None,
-            encodedPayload: Optional[str] = None,
-            result=None,
-            date: Optional[datetime] = None,
-            data: Optional[Any] = None,
+        self,
+        filt: Optional[Dict] = None,
+        encodedPayload: Optional[str] = None,
+        result=None,
+        date: Optional[datetime] = None,
+        data: Optional[Any] = None,
     ) -> None:
         Jsonable.__init__(self)
         """Constructor"""
         assert not (
-                data and encodedPayload
+            data and encodedPayload
         ), "You can not pass encodedData and encodedPayload"
 
         self.filt: Dict = {} if filt is None else filt
@@ -73,34 +73,32 @@ class PayloadEnvelope(Jsonable):
     @property
     def encodedPayload(self) -> Optional[str]:
         # self.data could be from VortexJS/Typescript where we allow `str` data
-        assert (
-                self.data is None
-                or isinstance(self.data, str)
-                or isinstance(self.data, bytes)
-        ), "Encoded payload is not None, bytes or string"
+        assert self.data is None or isinstance(
+            self.data, str
+        ), "Encoded payload is not None or a string"
         return self.data
 
     @encodedPayload.setter
     def encodedPayload(self, val: Optional[str]):
         # This value should only be set from users of VortexPy and
-        # Payload.toEncodedPayload so we only allow bytes or None
+        # Payload.toEncodedPayload so we only allow str or None
         assert val is None or isinstance(
-            val, bytes
+            val, str
         ), "Encoded payload is not None or a string"
         self.data = val
 
     def isEmpty(self):
         return (
-                (
-                        not self.filt
-                        or (
-                                self.vortexNameKey in self.filt
-                                and self.vortexUuidKey in self.filt
-                                and len(self.filt) == 2
-                        )
+            (
+                not self.filt
+                or (
+                    self.vortexNameKey in self.filt
+                    and self.vortexUuidKey in self.filt
+                    and len(self.filt) == 2
                 )
-                and not self.encodedPayload
-                and not self.result
+            )
+            and not self.encodedPayload
+            and not self.result
         )
 
     # -------------------------------------------
@@ -146,8 +144,8 @@ class PayloadEnvelope(Jsonable):
         return self.toVortexMsg(base64Encode=base64Encode)
 
     def fromVortexMsg(
-            self,
-            vortexMsg: bytes,
+        self,
+        vortexMsg: bytes,
     ) -> "PayloadEnvelope":
         if vortexMsg.startswith(b"{"):
             jsonStr = vortexMsg.decode()
