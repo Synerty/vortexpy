@@ -1,7 +1,10 @@
 import logging
 from copy import copy
+from datetime import datetime
 
+import pytz
 from twisted.internet import reactor
+from twisted.internet.defer import DeferredSemaphore
 from twisted.internet.defer import TimeoutError, inlineCallbacks
 from twisted.python.failure import Failure
 
@@ -11,6 +14,7 @@ from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse
 from vortex.TupleSelector import TupleSelector
 from vortex.VortexABC import SendVortexMsgResponseCallable
+from vortex.VortexFactory import NoVortexException
 from vortex.VortexFactory import VortexFactory
 from vortex.handler.TupleDataObservableCache import TupleDataObservableCache
 from vortex.handler.TupleDataObservableHandler import (
@@ -23,6 +27,11 @@ logger = logging.getLogger(__name__)
 
 class TupleDataObservableProxyHandler(TupleDataObservableCache):
     __CHECK_PERIOD = 30  # seconds
+
+    # To avoid saturating the CPU, we will prepare only 10 responses at a time.
+    # Once the responses are prepared,
+    #  they will be queued in the VortexPushProducer
+    _prepareResponsesSemaphore = DeferredSemaphore(10)
 
     def __init__(
         self,
@@ -61,7 +70,9 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
         self._localObservableHandler.shutdown()
 
         # Finally, Setup our endpoint
-        self._endpoint = PayloadEndpoint(self._filt, self._process)
+        self._endpoint = PayloadEndpoint(
+            self._filt, self._processBeforeSemaphore
+        )
 
         TupleDataObservableCache.start(self)
 
@@ -101,6 +112,30 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
     ## ----- Implement proxy from here on in
 
+    def _processBeforeSemaphore(self, *args, **kwargs):
+        self._prepareResponsesSemaphore.run(
+            self._processAfterSemaphore, datetime.now(pytz.utc), *args, **kwargs
+        )
+
+    def _processAfterSemaphore(self, queuedTime: datetime, *args, **kwargs):
+        deltaTime = datetime.now(pytz.utc) - queuedTime
+
+        def logIt(logFunc):
+            logFunc(
+                "_process call was queued for %s, queue size " "%s",
+                deltaTime,
+                len(self._prepareResponsesSemaphore.waiting),
+            )
+
+        if 15.0 < deltaTime.total_seconds():
+            logIt(logger.warning)
+
+        elif 5.0 < deltaTime.total_seconds():
+            logIt(logger.warning)
+
+        d = self._process(*args, **kwargs)
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
+
     @inlineCallbacks
     def _process(
         self,
@@ -110,6 +145,9 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
         sendResponse: SendVortexMsgResponseCallable,
         **kwargs
     ):
+        if not VortexFactory.isVortexUuidOnline(vortexUuid):
+            return
+
         if vortexName == self._proxyToVortexName:
             yield self._processUpdateFromBackend(payloadEnvelope)
 

@@ -92,19 +92,25 @@ class VortexFactory:
 
         results = []
 
-        # logger.debug("-" * 80)
-        for vortex in cls._allVortexes():
-            uuids: List[str] = []
-            # logger.debug("FROM : %s", vortex.localVortexInfo)
-            for remoteVortexInfo in vortex.remoteVortexInfo:
-                # logger.debug("        REMOTE : %s", remoteVortexInfo)
-                if (name is None or remoteVortexInfo.name == name) and (
-                    uuid is None or remoteVortexInfo.uuid == uuid
-                ):
-                    uuids.append(remoteVortexInfo.uuid)
+        def iterVortexes(vortexes):
+            for vortex in vortexes:
+                uuids: List[str] = []
+                # logger.debug("FROM : %s", vortex.localVortexInfo)
+                for remoteVortexInfo in vortex.remoteVortexInfo:
+                    # logger.debug("        REMOTE : %s", remoteVortexInfo)
+                    if (name is None or remoteVortexInfo.name == name) and (
+                        uuid is None or remoteVortexInfo.uuid == uuid
+                    ):
+                        uuids.append(remoteVortexInfo.uuid)
 
-            if uuids:
-                results.append((vortex, uuids))
+                if uuids:
+                    results.append((vortex, uuids))
+
+        for vortexList in cls.__vortexServersByName.values():
+            iterVortexes(vortexList)
+
+        for vortexList in cls.__vortexClientsByName.values():
+            iterVortexes(vortexList)
 
         return results
 
@@ -424,6 +430,10 @@ class VortexFactory:
                 return True
 
         return False
+
+    @classmethod
+    def isVortexUuidOnline(cls, vortexUuid: str) -> bool:
+        return bool(cls._getVortexSendRefs(uuid=vortexUuid))
 
     @classmethod
     def getLocalVortexClients(cls, localVortexName: str) -> List[VortexABC]:

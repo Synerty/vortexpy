@@ -1,9 +1,12 @@
 import logging
 from abc import abstractmethod, ABCMeta
 from collections import namedtuple
+from datetime import datetime
 from typing import Union, Optional, List
 
+import pytz
 from twisted.internet import reactor
+from twisted.internet.defer import DeferredSemaphore
 from twisted.internet.defer import fail, Deferred, succeed, inlineCallbacks
 from twisted.python import failure
 
@@ -61,6 +64,11 @@ class _ObserverData:
 
 
 class TupleDataObservableHandler:
+    # To avoid saturating the CPU, we will prepare only 10 responses at a time.
+    # Once the responses are prepared,
+    #  they will be queued in the VortexPushProducer
+    _prepareResponsesSemaphore = DeferredSemaphore(10)
+
     def __init__(
         self,
         observableName,
@@ -87,7 +95,9 @@ class TupleDataObservableHandler:
             self._filt.update(additionalFilt)
 
         self._endpoint = PayloadEndpoint(
-            self._filt, self._process, acceptOnlyFromVortex=acceptOnlyFromVortex
+            self._filt,
+            self._processBeforeSemaphore,
+            acceptOnlyFromVortex=acceptOnlyFromVortex,
         )
 
         self._observerDataByTupleSelector = {}
@@ -155,6 +165,30 @@ class TupleDataObservableHandler:
             raise Exception(msg)
         return vortexMsg
 
+    def _processBeforeSemaphore(self, *args, **kwargs):
+        self._prepareResponsesSemaphore.run(
+            self._processAfterSemaphore, datetime.now(pytz.utc), *args, **kwargs
+        )
+
+    def _processAfterSemaphore(self, queuedTime: datetime, *args, **kwargs):
+        deltaTime = datetime.now(pytz.utc) - queuedTime
+
+        def logIt(logFunc):
+            logFunc(
+                "_process call was queued for %s, queue size " "%s",
+                deltaTime,
+                len(self._prepareResponsesSemaphore.waiting),
+            )
+
+        if 15.0 < deltaTime.total_seconds():
+            logIt(logger.warning)
+
+        elif 5.0 < deltaTime.total_seconds():
+            logIt(logger.warning)
+
+        d = self._process(*args, **kwargs)
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
+
     @inlineCallbacks
     def _process(
         self,
@@ -163,6 +197,9 @@ class TupleDataObservableHandler:
         sendResponse: SendVortexMsgResponseCallable,
         **kwargs,
     ):
+        if not VortexFactory.isVortexUuidOnline(vortexUuid):
+            return
+
         tupleSelector = payloadEnvelope.filt["tupleSelector"]
         tsStr = tupleSelector.toJsonStr()
 

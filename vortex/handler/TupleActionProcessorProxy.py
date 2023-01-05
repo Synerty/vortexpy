@@ -1,7 +1,10 @@
 import logging
 from copy import copy
+from datetime import datetime
 from typing import Optional, Union
 
+import pytz
+from twisted.internet.defer import DeferredSemaphore
 from twisted.internet.defer import TimeoutError, inlineCallbacks, Deferred
 from twisted.python.failure import Failure
 
@@ -26,6 +29,11 @@ class TupleActionProcessorProxy:
     to pass through one services into another. EG, from a client facing python service
     to a server backend.
     """
+
+    # To avoid saturating the CPU, we will prepare only 10 responses at a time.
+    # Once the responses are prepared,
+    #  they will be queued in the VortexPushProducer
+    _prepareResponsesSemaphore = DeferredSemaphore(10)
 
     _DEBUG_LOGGING = False
 
@@ -56,7 +64,9 @@ class TupleActionProcessorProxy:
             self._filt.update(additionalFilt)
 
         self._endpoint = PayloadEndpoint(
-            self._filt, self._process, acceptOnlyFromVortex=acceptOnlyFromVortex
+            self._filt,
+            self._processBeforeSemaphore,
+            acceptOnlyFromVortex=acceptOnlyFromVortex,
         )
 
     def shutdown(self):
@@ -73,17 +83,44 @@ class TupleActionProcessorProxy:
         """
         self._delegateProcessor.setDelegate(tupleName, processor)
 
+    def _processBeforeSemaphore(self, *args, **kwargs):
+        self._prepareResponsesSemaphore.run(
+            self._processAfterSemaphore, datetime.now(pytz.utc), *args, **kwargs
+        )
+
+    def _processAfterSemaphore(self, queuedTime: datetime, *args, **kwargs):
+        deltaTime = datetime.now(pytz.utc) - queuedTime
+
+        def logIt(logFunc):
+            logFunc(
+                "_process call was queued for %s, queue size " "%s",
+                deltaTime,
+                len(self._prepareResponsesSemaphore.waiting),
+            )
+
+        if 15.0 < deltaTime.total_seconds():
+            logIt(logger.warning)
+
+        elif 5.0 < deltaTime.total_seconds():
+            logIt(logger.warning)
+
+        d = self._process(*args, **kwargs)
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
+
     @inlineCallbacks
     def _process(
         self,
         payloadEnvelope: PayloadEnvelope,
         vortexName: str,
+        vortexUuid: str,
         sendResponse: SendVortexMsgResponseCallable,
         **kwargs
     ) -> None:
-
         # Ignore responses from the backend, these are handled by PayloadResponse
         if vortexName == self._proxyToVortexName:
+            return
+
+        if not VortexFactory.isVortexUuidOnline(vortexUuid):
             return
 
         # Shortcut the logic, so that we don't decode the payload unless we need to.

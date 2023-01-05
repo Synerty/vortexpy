@@ -1,9 +1,12 @@
 import logging
 from abc import abstractmethod, ABCMeta
+from datetime import datetime
 from typing import Dict, Optional, Union
 from inspect import signature
 
+import pytz
 from twisted.internet.defer import Deferred, fail, succeed, inlineCallbacks
+from twisted.internet.defer import DeferredSemaphore
 from twisted.python import failure
 from twisted.python.failure import Failure
 
@@ -14,14 +17,16 @@ from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.TupleAction import TupleActionABC
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.TupleActionVortex import TupleActionVortex
+from vortex.VortexFactory import VortexFactory
 
 logger = logging.getLogger(__name__)
 
 
 class TupleActionProcessorDelegateABC(metaclass=ABCMeta):
     @abstractmethod
-    def processTupleAction(self, tupleAction: TupleActionABC,
-                           **kwargs) -> Deferred:
+    def processTupleAction(
+        self, tupleAction: TupleActionABC, **kwargs
+    ) -> Deferred:
         """Process Tuple Action
 
         The method generates the vortexMsg for the vortex to send.
@@ -32,13 +37,18 @@ class TupleActionProcessorDelegateABC(metaclass=ABCMeta):
 
 
 class TupleActionProcessor:
+    # To avoid saturating the CPU, we will prepare only 10 responses at a time.
+    # Once the responses are prepared,
+    #  they will be queued in the VortexPushProducer
+    _prepareResponsesSemaphore = DeferredSemaphore(10)
+
     def __init__(
-            self,
-            tupleActionProcessorName: str,
-            additionalFilt: Optional[Dict] = None,
-            defaultDelegate: Optional[TupleActionProcessorDelegateABC] = None,
-            acceptOnlyFromVortex: Optional[Union[str, tuple]] = None,
-            usedForProxy__=False,
+        self,
+        tupleActionProcessorName: str,
+        additionalFilt: Optional[Dict] = None,
+        defaultDelegate: Optional[TupleActionProcessorDelegateABC] = None,
+        acceptOnlyFromVortex: Optional[Union[str, tuple]] = None,
+        usedForProxy__=False,
     ) -> None:
         """Constructor
 
@@ -69,12 +79,12 @@ class TupleActionProcessor:
 
             self._endpoint = PayloadEndpoint(
                 self._filt,
-                self._process,
+                self._processBeforeSemaphore,
                 acceptOnlyFromVortex=acceptOnlyFromVortex,
             )
 
     def setDelegate(
-            self, tupleName: str, processor: TupleActionProcessorDelegateABC
+        self, tupleName: str, processor: TupleActionProcessorDelegateABC
     ):
         """Add Tuple Action Processor Delegate
 
@@ -90,9 +100,9 @@ class TupleActionProcessor:
         )
 
         assert isinstance(processor, TupleActionProcessorDelegateABC), (
-                "TupleActionProcessor:%s, provider must be an"
-                " instance of TupleActionProcessorDelegateABC"
-                % self._tupleActionProcessorName
+            "TupleActionProcessor:%s, provider must be an"
+            " instance of TupleActionProcessorDelegateABC"
+            % self._tupleActionProcessorName
         )
 
         self._tupleProcessorsByTupleName[tupleName] = processor
@@ -107,19 +117,46 @@ class TupleActionProcessor:
     def shutdown(self):
         self._endpoint.shutdown()
 
+    def _processBeforeSemaphore(self, *args, **kwargs):
+        self._prepareResponsesSemaphore.run(
+            self._processAfterSemaphore, datetime.now(pytz.utc), *args, **kwargs
+        )
+
+    def _processAfterSemaphore(self, queuedTime: datetime, *args, **kwargs):
+        deltaTime = datetime.now(pytz.utc) - queuedTime
+
+        def logIt(logFunc):
+            logFunc(
+                "_process call was queued for %s, queue size " "%s",
+                deltaTime,
+                len(self._prepareResponsesSemaphore.waiting),
+            )
+
+        if 15.0 < deltaTime.total_seconds():
+            logIt(logger.warning)
+
+        elif 5.0 < deltaTime.total_seconds():
+            logIt(logger.warning)
+
+        d = self._process(*args, **kwargs)
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
+
     @inlineCallbacks
     def _process(
-            self,
-            payloadEnvelope: PayloadEnvelope,
-            sendResponse: SendVortexMsgResponseCallable,
-            **kwargs
+        self,
+        payloadEnvelope: PayloadEnvelope,
+        vortexUuid: str,
+        sendResponse: SendVortexMsgResponseCallable,
+        **kwargs
     ):
         """Process the Payload / Tuple Action"""
+        if not VortexFactory.isVortexUuidOnline(vortexUuid):
+            return
 
         payload = yield payloadEnvelope.decodePayloadDefer()
 
         assert (
-                len(payload.tuples) == 1
+            len(payload.tuples) == 1
         ), "TupleActionProcessor:%s Expected 1 tuples, received %s" % (
             self._tupleActionProcessorName,
             len(payload.tuples),
@@ -132,7 +169,7 @@ class TupleActionProcessor:
         )
 
     def _processTupleAction(
-            self, payloadEnvelopeFilt, sendResponse, tupleAction, **kwargs
+        self, payloadEnvelopeFilt, sendResponse, tupleAction, **kwargs
     ):
 
         assert isinstance(
@@ -156,8 +193,9 @@ class TupleActionProcessor:
         sig = signature(delegate)
         if len(sig.parameters) == 2:
             tupleActionVortex = TupleActionVortex(**kwargs)
-            d = self._customMaybeDeferred(delegate, tupleAction,
-                                          tupleActionVortex)
+            d = self._customMaybeDeferred(
+                delegate, tupleAction, tupleActionVortex
+            )
         else:
             d = self._customMaybeDeferred(delegate, tupleAction)
 
@@ -170,11 +208,11 @@ class TupleActionProcessor:
 
     @inlineCallbacks
     def _callback(
-            self,
-            result,
-            replyFilt: dict,
-            tupleName: str,
-            sendResponse: SendVortexMsgResponseCallable,
+        self,
+        result,
+        replyFilt: dict,
+        tupleName: str,
+        sendResponse: SendVortexMsgResponseCallable,
     ):
 
         if not isinstance(result, list):
@@ -194,11 +232,11 @@ class TupleActionProcessor:
 
     @inlineCallbacks
     def _errback(
-            self,
-            result: Failure,
-            replyFilt: dict,
-            tupleName: str,
-            sendResponse: SendVortexMsgResponseCallable,
+        self,
+        result: Failure,
+        replyFilt: dict,
+        tupleName: str,
+        sendResponse: SendVortexMsgResponseCallable,
     ):
 
         logger.error(
