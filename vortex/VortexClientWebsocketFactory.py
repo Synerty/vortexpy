@@ -161,6 +161,7 @@ class VortexClientWebsocketFactory(
             kwargs["url"] = url
 
         WebSocketClientFactory.__init__(self, *args, **kwargs)
+        self.setProtocolOptions(utf8validateIncoming=False)
 
         self._server = None
         self._port = None
