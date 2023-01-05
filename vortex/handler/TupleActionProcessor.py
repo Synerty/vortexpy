@@ -118,28 +118,45 @@ class TupleActionProcessor:
         self._endpoint.shutdown()
 
     def _processBeforeSemaphore(self, *args, **kwargs):
-        self._prepareResponsesSemaphore.run(
+        d = self._prepareResponsesSemaphore.run(
             self._processAfterSemaphore, datetime.now(pytz.utc), *args, **kwargs
         )
+        d.addErrback(vortexLogFailure, logger, consumeError=True)
 
-    def _processAfterSemaphore(self, queuedTime: datetime, *args, **kwargs):
+    @inlineCallbacks
+    def _processAfterSemaphore(
+        self,
+        queuedTime: datetime,
+        payloadEnvelope: PayloadEnvelope,
+        *args,
+        **kwargs,
+    ):
         deltaTime = datetime.now(pytz.utc) - queuedTime
+        queueSize = len(self._prepareResponsesSemaphore.waiting)
 
         def logIt(logFunc):
             logFunc(
                 "_process call was queued for %s, queue size " "%s",
                 deltaTime,
-                len(self._prepareResponsesSemaphore.waiting),
+                queueSize,
             )
 
-        if 15.0 < deltaTime.total_seconds():
+        if 15.0 < deltaTime.total_seconds() or 2000 < queueSize:
             logIt(logger.warning)
 
-        elif 5.0 < deltaTime.total_seconds():
-            logIt(logger.warning)
+        elif 5.0 < deltaTime.total_seconds() or 200 < queueSize:
+            logIt(logger.debug)
 
-        d = self._process(*args, **kwargs)
-        d.addErrback(vortexLogFailure, logger, consumeError=True)
+        # Run the process and log if it takes too long
+        startTime = datetime.now(pytz.utc)
+        yield self._process(payloadEnvelope, *args, **kwargs)
+        processingTime = datetime.now(pytz.utc) - startTime
+        if 5.0 < processingTime.total_seconds():
+            logger.debug(
+                "Payload endpoint took %s\npayload.filt=%s",
+                processingTime,
+                payloadEnvelope.filt,
+            )
 
     @inlineCallbacks
     def _process(
@@ -147,7 +164,7 @@ class TupleActionProcessor:
         payloadEnvelope: PayloadEnvelope,
         vortexUuid: str,
         sendResponse: SendVortexMsgResponseCallable,
-        **kwargs
+        **kwargs,
     ):
         """Process the Payload / Tuple Action"""
         if not VortexFactory.isVortexUuidOnline(vortexUuid):
