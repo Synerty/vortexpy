@@ -31,6 +31,7 @@ from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
 from vortex.VortexServer import HEART_BEAT_PERIOD
+from vortex.VortexServer import HEART_BEAT_TIMEOUT
 from vortex.VortexUtil import logLargeMessages
 
 logger = logging.getLogger(name=__name__)
@@ -137,7 +138,6 @@ class VortexPayloadWebsocketClientProtocol(
 class VortexClientWebsocketFactory(
     WebSocketClientFactory, ReconnectingClientFactory, VortexABC
 ):
-    HEART_BEAT_TIMEOUT = HEART_BEAT_PERIOD
     maxDelay = 1.0
 
     def __init__(self, name: str, *args, **kwargs):
@@ -246,7 +246,7 @@ class VortexClientWebsocketFactory(
         self._sslContextFactory = sslContextFactory
 
         self._beat()
-        d = self._beatLoopingCall.start(5.0, now=False)
+        d = self._beatLoopingCall.start(HEART_BEAT_PERIOD, now=False)
         d.addErrback(vortexLogFailure, logger, consumeError=True)
         deferred = Deferred()
 
@@ -349,12 +349,12 @@ class VortexClientWebsocketFactory(
         # If we've been asleep, then make note of that (VM suspended)
         checkTimout = (
             datetime.now(pytz.utc) - self._lastHeartBeatCheckTime
-        ).seconds > self.HEART_BEAT_TIMEOUT
+        ).seconds > HEART_BEAT_TIMEOUT
 
         # Has the heart beat expired?
         beatTimeout = (
             datetime.now(pytz.utc) - self._lastBeatReceiveTime
-        ).seconds > self.HEART_BEAT_TIMEOUT
+        ).seconds > HEART_BEAT_TIMEOUT
 
         # Mark that we've just checked it
         self._lastHeartBeatCheckTime = datetime.now(pytz.utc)

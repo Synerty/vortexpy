@@ -27,6 +27,7 @@ from vortex.PayloadEnvelope import PayloadEnvelope, VortexMsgList
 from vortex.PayloadPriority import DEFAULT_PRIORITY
 from vortex.VortexABC import VortexABC, VortexInfo
 from vortex.VortexPayloadProtocol import VortexPayloadProtocol
+from vortex.VortexServer import HEART_BEAT_PERIOD
 from vortex.VortexUtil import logLargeMessages
 
 logger = logging.getLogger(name=__name__)
@@ -131,7 +132,7 @@ class VortexClientHttp(VortexABC):
             raise Exception("Reconnecting is not implemented")
 
         self._beat()
-        self._beatLoopingCall.start(5.0)
+        self._beatLoopingCall.start(HEART_BEAT_PERIOD)
 
         deferred = Deferred()
 
