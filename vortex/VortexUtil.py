@@ -52,6 +52,8 @@ def debounceCall(debounceSeconds: float):
                         self._calls.pop(key)
 
         def __wrapArgsAndKwargs(self, *args, **kwargs):
+            if not args and not kwargs:
+                return ""
             hashedArgs = _DebounceArgsTuple(
                 args=args, kwargs=kwargs
             ).toJsonDict()
