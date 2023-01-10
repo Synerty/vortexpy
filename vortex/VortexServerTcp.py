@@ -94,6 +94,11 @@ class VortexTcpServerFactory(Factory):
         self._vortexServer = vortexServer
 
     def buildProtocol(self, addr):
+        from vortex.VortexFactory import VortexFactory
+
+        if not VortexFactory.canConnect(str(addr)):
+            return
+
         p = VortexTcpServerProtocol(self._vortexServer, addr)
         p.factory = self
         return p

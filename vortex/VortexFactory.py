@@ -56,6 +56,85 @@ class NoVortexException(Exception):
     """
 
 
+_ConnectionDateSuccess = namedtuple(
+    "_ConnectionDateSuccess", ("dateTime", "success", "ip")
+)
+
+
+class _VortexConnectionRateLimit:
+    _ROLLING_WINDOW_SECONDS = 15.0
+    _NEW_CONNECTIONS_IN_WINDOW = 15
+
+    def __init__(self):
+        self._connections: list[_ConnectionDateSuccess] = []
+        self._peerConnectionLimitPerIp = None
+
+    def _hasHitPeerConnectionLimit(
+        self, connectionCountForPeer: int, fromIp: str
+    ) -> bool:
+        if not self._peerConnectionLimitPerIp:
+            return True
+
+        if connectionCountForPeer + 1 <= self._peerConnectionLimitPerIp:
+            return True
+
+        logger.info(
+            "Closing new connection from %s,"
+            " this peer has %s connections, our limit is %s",
+            fromIp,
+            connectionCountForPeer,
+            self._peerConnectionLimitPerIp,
+        )
+
+        return False
+
+    def canConnect(
+        self,
+        connectionCountForPeer: int,
+        totalConnectionCount: int,
+        fromIp: str,
+    ) -> bool:
+        if not self._hasHitPeerConnectionLimit(connectionCountForPeer, fromIp):
+            return False
+
+        now = datetime.now(pytz.utc)
+        self._connections = list(
+            filter(
+                lambda item: (now - item.dateTime).total_seconds()
+                < self._ROLLING_WINDOW_SECONDS,
+                self._connections,
+            )
+        )
+
+        connectedInWindow = len(
+            list(filter(lambda item: item.success, self._connections))
+        )
+
+        if connectedInWindow < self._NEW_CONNECTIONS_IN_WINDOW:
+            self._connections.append(_ConnectionDateSuccess(now, True, fromIp))
+            return True
+
+        self._connections.append(_ConnectionDateSuccess(now, False, fromIp))
+
+        earliestDate = min([c.dateTime for c in self._connections])
+        logger.info(
+            "Closing new connection from %s,"
+            " we've allowed %s"
+            " and closed %s connections in the last %s seconds,"
+            " we have %s connections",
+            fromIp,
+            connectedInWindow,
+            len(self._connections) - connectedInWindow,
+            now - earliestDate,
+            totalConnectionCount,
+        )
+
+        return False
+
+    def setPeerConnectionLimitPerIp(self, limit):
+        self._peerConnectionLimitPerIp = limit
+
+
 VortexUuidList = List[str]
 
 
@@ -115,18 +194,8 @@ class VortexFactory:
         return results
 
     @classmethod
-    def _allVortexes(cls):
-        """All Vortexes
-
-        :return: A list of all the vortexes, both client and server
-        """
-        vortexes = []
-        for vortexList in cls.__vortexServersByName.values():
-            vortexes += vortexList
-        for vortexList in cls.__vortexClientsByName.values():
-            vortexes += vortexList
-
-        return vortexes
+    def setPeerConnectionLimitPerIp(cls, limit: int):
+        cls.__connectionRateLimit.setPeerConnectionLimitPerIp(limit)
 
     @classmethod
     def createServer(cls, name: str, rootResource) -> None:
@@ -424,12 +493,12 @@ class VortexFactory:
         cls.__vortexServersByName[vortex.localVortexInfo.name].append(vortex)
 
     @classmethod
-    def isVortexNameLocal(cls, vortexName: str) -> bool:
-        for vortex in cls._allVortexes():
-            if vortex.localVortexInfo.name == vortexName:
-                return True
-
-        return False
+    def canConnect(cls, fromIp: str) -> bool:
+        return cls.__connectionRateLimit.canConnect(
+            cls.__vortexInfoState.getInboundConnectionCountForPeer(fromIp),
+            cls.__vortexInfoState.getInboundConnectionCount,
+            fromIp,
+        )
 
     @classmethod
     def isVortexUuidOnline(cls, vortexUuid: str) -> bool:
@@ -462,11 +531,9 @@ class VortexFactory:
     def getRemoteVortexUuids(cls) -> List[str]:
         remoteUuids = []
 
-        for vortex in cls._allVortexes():
-            for remoteVortexInfo in vortex.remoteVortexInfo:
-                remoteUuids.append(remoteVortexInfo.uuid)
-
-        return remoteUuids
+    @classmethod
+    def getInboundConnectionCount(cls) -> int:
+        return cls.__vortexInfoState.getInboundConnectionCount
 
     @classmethod
     def getRemoteVortexName(cls) -> List[str]:

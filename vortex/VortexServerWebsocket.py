@@ -7,6 +7,7 @@
  * Support : support@synerty.com
 """
 import logging
+from random import random
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
@@ -142,6 +143,14 @@ class VortexWebsocketServerFactory(Factory):
         self._vortexServer = vortexServer
 
     def buildProtocol(self, addr, httpSession=None):
+        # VortexWebSocketUpgradeResource provides this check
+        # if we're connected via a HTTP upgrade
+        if not httpSession:
+            from vortex.VortexFactory import VortexFactory
+
+            if not VortexFactory.canConnect(str(addr)):
+                return
+
         p = VortexWebsocketServerProtocol(self._vortexServer, addr, httpSession)
         p.factory = self
         return p
@@ -179,6 +188,14 @@ class VortexWebSocketUpgradeResource(resource.Resource):
         self._websocketFactory = websocketFactory
 
     def render(self, request):
+
+        from vortex.VortexFactory import VortexFactory
+
+        if not VortexFactory.canConnect(str(request.client.host)):
+            request.setResponseCode(503)
+            request.setHeader("Retry-After", str(max(10, int(random() * 100))))
+            return b"Rejected due to new connections throttling."
+
         httpSession = request.getSession()
 
         websocketProtocol = self._websocketFactory.buildProtocol(

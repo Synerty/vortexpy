@@ -42,6 +42,12 @@ class VortexServerHttpResource(Resource):
         return b"You have reached the vortex. It only likes POST methods."
 
     def render_POST(self, request):
+
+        from vortex.VortexFactory import VortexFactory
+
+        if not VortexFactory.canConnect(str(request.client.host)):
+            return
+
         remoteVortexUuid = request.args[b"vortexUuid"][0].decode()
         remoteVortexName = request.args[b"vortexName"][0].decode()
 
