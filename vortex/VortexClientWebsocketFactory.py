@@ -215,14 +215,10 @@ class VortexClientWebsocketFactory(
 
     def buildProtocol(self, addr) -> VortexPayloadWebsocketClientProtocol:
         logger.debug(f"Building protocol for {addr}")
-        if self.__protocol:
-            self.__protocol.close()
-            self.__protocol = None
+        self._close()
 
         # Reset the times in the ReconnectingClientFactory
         self.resetDelay()
-
-        self._errbackAllQueuedMessages("The vortex is not yet connected")
 
         self.__protocol = VortexPayloadWebsocketClientProtocol(self)
         self.__protocol.factory = self
@@ -270,8 +266,7 @@ class VortexClientWebsocketFactory(
 
         # Stop the ReconnectingClientFactory from trying to reconnect
         self.stopTrying()
-        if self.__protocol:
-            self.__protocol.close()
+        self._close()
 
     def addReconnectVortexMsg(self, vortexMsg: bytes):
         """Add Reconnect Payload
@@ -305,37 +300,34 @@ class VortexClientWebsocketFactory(
 
         logLargeMessages(logger, vortexMsgs, self._serverVortexUuid)
 
-        d = Deferred()
-        self._pendingMessages.append(
-            VortexMsgToSend(deferred=d, vortexMsgs=vortexMsgs)
-        )
+        if isMainThread():
+            return self._sendVortexMsgLater(vortexMsgs)
 
-        # This will send any pending messages the next time a message can
-        # actually be send
-        reactor.callLater(0, self._sendVortexMsgFromQueue)
-        return d
-
-    def _errbackAllQueuedMessages(self, message: str):
-        from vortex.VortexFactory import NoVortexException
-
-        # Fail all the messages in the queue
-        while self._pendingMessages:
-            item = self._pendingMessages.popleft()
-            item.deferred.errback(NoVortexException(message))
+        return task.deferLater(reactor, 0, self._sendVortexMsgLater, vortexMsgs)
 
     @inlineCallbacks
-    @nonConcurrentMethod
-    def _sendVortexMsgFromQueue(self):
+    def _sendVortexMsgLater(self, vortexMsgs: VortexMsgList):
+        yield None
+
+        if not self.__protocol:
+            from vortex.VortexFactory import NoVortexException
+
+            raise NoVortexException("The vortex is not yet connected")
+
         assert self._server
+        assert vortexMsgs
 
-        while self._pendingMessages:
-            item = self._pendingMessages.popleft()
+        # This transport requires base64 encoding
+        for index, vortexMsg in enumerate(vortexMsgs):
+            if vortexMsg.startswith(b"{"):
+                vortexMsgs[index] = yield PayloadEnvelope.base64EncodeDefer(
+                    vortexMsg
+                )
 
-            for vortexMsg in item.vortexMsgs:
-                self.__protocol.write(vortexMsg)
+        for vortexMsg in vortexMsgs:
+            self.__protocol.write(vortexMsg)
 
-            item.deferred.callback(True)
-            yield None
+        return True
 
     def _beat(self):
         """Beat, Called by protocol"""
@@ -380,8 +372,9 @@ class VortexClientWebsocketFactory(
             self._port,
         )
 
-        self._errbackAllQueuedMessages("The vortex connection has timed out")
+        self._close()
 
+    def _close(self):
         if self.__protocol:
             self.__protocol.close()
             self.__protocol = None
