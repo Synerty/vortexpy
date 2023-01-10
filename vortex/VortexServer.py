@@ -47,7 +47,7 @@ class VortexServer(VortexABC):
         # Simple initialisations up the top
         self._name = name
         self._requiresBase64Encoding = requiresBase64Encoding
-        self._uuid = str(uuid.uuid1())
+        self._uuid = str(uuid.uuid4())
         self._shutdown = False
 
         # Store all our sessions

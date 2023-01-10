@@ -82,7 +82,7 @@ class VortexClientHttp(VortexABC):
 
     def __init__(self, name: str) -> None:
         self._vortexName = name
-        self._vortexUuid = str(uuid.uuid1())
+        self._vortexUuid = str(uuid.uuid4())
 
         self._server = None
         self._port = None

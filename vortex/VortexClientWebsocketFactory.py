@@ -145,7 +145,7 @@ class VortexClientWebsocketFactory(
         ReconnectingClientFactory.__init__(self)
 
         self._vortexName = name
-        self._vortexUuid = str(uuid.uuid1())
+        self._vortexUuid = str(uuid.uuid4())
 
         if "url" in kwargs:
             params = dict(
