@@ -55,6 +55,7 @@ class VortexServer(VortexABC):
             WeakValueDictionary()
         )
         self._connectionByVortexUuid: Dict[str, Any] = {}
+        self._remoteVortexInfo: tuple[VortexInfo] = tuple()
 
     def name(self):
         return self._name
@@ -71,7 +72,10 @@ class VortexServer(VortexABC):
         return VortexInfo(name=self._name, uuid=self._uuid)
 
     @property
-    def remoteVortexInfo(self) -> List[VortexInfo]:
+    def remoteVortexInfo(self) -> tuple[VortexInfo]:
+        return self._remoteVortexInfo
+
+    def _connectionsChanged(self):
         vortexInfos = []
 
         for conn in self._connectionByVortexUuid.values():
@@ -81,7 +85,11 @@ class VortexServer(VortexABC):
                 )
             )
 
-        return vortexInfos
+        self._remoteVortexInfo = tuple(vortexInfos)
+
+        from vortex.VortexFactory import VortexFactory
+
+        VortexFactory.connectionChanged()
 
     @property
     def connections(self) -> Dict[str, Any]:
@@ -137,6 +145,7 @@ class VortexServer(VortexABC):
 
         # Update the _connectionsByvortexUuid
         self._connectionByVortexUuid[vortexUuid] = vortexConnection
+        self._connectionsChanged()
 
     def connectionClosed(self, conn):
         if self._DEBUG_LOGGING:
@@ -157,6 +166,7 @@ class VortexServer(VortexABC):
         if conn.remoteVortexUuid in self._connectionByVortexUuid:
             if self._connectionByVortexUuid[conn.remoteVortexUuid] == conn:
                 del self._connectionByVortexUuid[conn.remoteVortexUuid]
+                self._connectionsChanged()
 
     def _sessionExpired(self, httpSessionUuid):
         logger.debug(
@@ -171,6 +181,7 @@ class VortexServer(VortexABC):
         for vortexUuid, conn in list(self._connectionByVortexUuid.items()):
             if conn.httpSessionUuid == httpSessionUuid:
                 del self._connectionByVortexUuid[vortexUuid]
+                self._connectionsChanged()
 
     def payloadReveived(self, httpSession, vortexUuid, vortexName, payload):
         # print "VortexServer - payloadReveived"
@@ -282,11 +293,17 @@ class VortexServer(VortexABC):
                         vortexMsg
                     )
 
-        conns: List[VortexServerConnection] = []
         if vortexUuid is None:
-            conns = list(self._connectionByVortexUuid.values())
+            conns = self._connectionByVortexUuid.values()
         elif vortexUuid in self._connectionByVortexUuid:
-            conns.append(self._connectionByVortexUuid[vortexUuid])
+            conns = [self._connectionByVortexUuid[vortexUuid]]
+        else:
+            logger.debug(
+                "Vortex %s offline, not sending message of size %s",
+                vortexUuid,
+                ", ".join(["{:,}".format(len(m)) for m in vortexMsgs]),
+            )
+            return False
 
         for conn in conns:
             for vortexMsg in vortexMsgs:

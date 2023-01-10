@@ -1,11 +1,13 @@
 import logging
-import typing
 from collections import defaultdict
+from collections import namedtuple
+from datetime import datetime
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
 
+import pytz
 from OpenSSL import SSL
 from rx.subjects import Subject
 from twisted.internet import reactor
@@ -138,9 +140,222 @@ class _VortexConnectionRateLimit:
 VortexUuidList = List[str]
 
 
+class _VortexFactoryVortexInfo:
+    def __init__(self):
+        self.__vortexServersByName: Dict[str, List[VortexServer]] = defaultdict(
+            list
+        )
+        self.__vortexClientsByName: Dict[str, List[VortexABC]] = defaultdict(
+            list
+        )
+
+        self.__vortexServers: tuple[VortexServer] = tuple()
+        self.__vortexClients: tuple[VortexABC] = tuple()
+        self.__allVortexes: tuple[VortexABC] = tuple()
+
+        self.__remoteVortexUuidsByName = defaultdict(set)
+        self.__remoteVortexNameByUuid = {}
+
+        self.__remoteVortexUuids: set[str] = set()
+        self.__inboundConnectionCount: int = 0
+        self.__inboundConnectionCountPerIp = defaultdict(lambda: 0)
+
+        self.__localVortexUuidsByName = defaultdict(set)
+        self.__localVortexNameByUuid = {}
+
+    def addVortexServer(self, vortexName: str, vortex: VortexServer):
+        vortexes = self.__vortexServersByName[vortexName]
+
+        if vortex in vortexes:
+            raise Exception("Vortex is already registered, %s", vortex)
+
+        vortexes.append(vortex)
+        self.rebuildStructs()
+
+    def addVortexClient(self, vortexName: str, vortex: VortexABC):
+        vortexes = self.__vortexClientsByName[vortexName]
+
+        if vortex in vortexes:
+            raise Exception("Vortex is already registered, %s", vortex)
+
+        vortexes.append(vortex)
+        self.rebuildStructs()
+
+    def rebuildStructs(self):
+
+        vortexServers = []
+        for vortexes in self.__vortexServersByName.values():
+            vortexServers.extend(vortexes)
+
+        self.__vortexServers = tuple(vortexServers)
+
+        vortexClients = []
+        for vortexes in self.__vortexClientsByName.values():
+            vortexClients.extend(vortexes)
+
+        self.__vortexClients = tuple(vortexClients)
+
+        self.__allVortexes = self.__vortexServers + self.__vortexClients
+
+        self.__remoteVortexUuidsByName: dict[
+            str, set[tuple[VortexABC, str]]
+        ] = defaultdict(set)
+
+        self.__remoteVortexNameByUuid: dict[str, tuple[VortexABC, str]] = {}
+
+        self.__localVortexUuidsByName: dict[
+            str, set[tuple[VortexABC, str]]
+        ] = defaultdict(set)
+
+        self.__localVortexNameByUuid: dict[str, tuple[VortexABC, str]] = {}
+
+        self.__inboundConnectionCount: int = 0
+        self.__inboundConnectionCountPerIp = defaultdict(lambda: 0)
+        for vortex in self.__vortexServers:
+            self.__inboundConnectionCount += len(vortex.connections)
+            for conn in vortex.connections.values():
+                self.__inboundConnectionCountPerIp[conn.ip] += 1
+
+        for vortex in self.allVortexes:
+            for remoteVortexInfo in vortex.remoteVortexInfo:
+                self.__remoteVortexUuidsByName[remoteVortexInfo.name].add(
+                    (vortex, remoteVortexInfo.uuid)
+                )
+                assert (
+                    remoteVortexInfo.uuid not in self.__remoteVortexNameByUuid
+                ), "Remote UUID is already registered - all vortexes %s" % str(
+                    self.allVortexes
+                )
+                self.__remoteVortexNameByUuid[remoteVortexInfo.uuid] = (
+                    vortex,
+                    remoteVortexInfo.name,
+                )
+
+            self.__localVortexUuidsByName[vortex.localVortexInfo.name].add(
+                (vortex, vortex.localVortexInfo.uuid)
+            )
+            assert (
+                vortex.localVortexInfo.uuid not in self.__localVortexNameByUuid
+            ), "Local UUID is already registered - all vortexes %s" % str(
+                self.allVortexes
+            )
+            self.__localVortexNameByUuid[vortex.localVortexInfo.uuid] = (
+                vortex,
+                vortex.localVortexInfo.name,
+            )
+
+        self.__remoteVortexUuids = set(self.__remoteVortexNameByUuid)
+
+    def getRemoteVortexInfos(
+        self, name=None, uuid=None
+    ) -> list[tuple[VortexABC, str]]:
+        assert name or uuid, "We expect a name or uuid"
+
+        # If we're passed a UUID, then there will only be one result
+        if uuid:
+            vortex, foundName = self.__remoteVortexNameByUuid.get(
+                uuid, (None, None)
+            )
+            if not foundName:
+                return []
+            return [(vortex, uuid)]
+
+        # Name is asserted
+        return [
+            (vortex, foundUuid)
+            for vortex, foundUuid in self.__remoteVortexUuidsByName.get(
+                name, []
+            )
+        ]
+
+    def getRemoteVortexInfoByIp(self, ip: str, vortexName=None) -> str:
+        # Ignore the port if any
+        ip = ip.split(":")[0]
+
+        from vortex.VortexConnectionABC import VortexConnectionABC
+
+        targetConns: list[VortexConnectionABC] = []
+        for server in self.vortexSevers:
+            for conn in server.connections.values():
+                if (
+                    not conn.closed
+                    and not conn.timedOut
+                    and conn.ip == ip
+                    and (
+                        conn.remoteVortexName == vortexName
+                        or vortexName is None
+                    )
+                ):
+                    targetConns.append(conn)
+
+        if len(targetConns) > 1:
+            logger.warning(
+                "Multiple vortexes found for ip=%s, name=%s,"
+                " choosing latest connection",
+                ip,
+                vortexName,
+            )
+            targetConns.sort(key=lambda c: c.connectDateTime)
+            # As of Python3.6, dict are ordered, so the newest is the last.
+            return targetConns[-1].remoteVortexUuid
+
+        if not targetConns:
+            raise NoVortexException(f"Can not find vortex with IP {ip}")
+
+        return targetConns[0].remoteVortexUuid
+
+    @property
+    def getRemoteClientVortexInfos(self) -> List[VortexInfo]:
+        return [
+            VortexInfo(name=name, uuid=uuid)
+            for name, (vortex, uuid) in self.__remoteVortexUuidsByName.items()
+        ]
+
+    @property
+    def getRemoteVortexUuids(self) -> set[str]:
+        return self.__remoteVortexUuids
+
+    @property
+    def getRemoteVortexNames(self) -> list[str]:
+        return list(self.__remoteVortexUuidsByName)
+
+    @property
+    def getInboundConnectionCount(self) -> int:
+        return self.__inboundConnectionCount
+
+    def getInboundConnectionCountForPeer(self, peerIp: str) -> int:
+        return self.__inboundConnectionCountPerIp[peerIp]
+
+    def isVortexNameLocal(self, vortexName: str) -> bool:
+        return vortexName in self.__localVortexUuidsByName
+
+    def getLocalVortexClients(self, localVortexName: str) -> List[VortexABC]:
+        return [
+            vortex
+            for vortex, _ in self.__localVortexUuidsByName.get(
+                localVortexName, []
+            )
+        ]
+
+    def isRemoteVortexOnline(self, uuid):
+        return uuid in self.__remoteVortexNameByUuid
+
+    @property
+    def vortexSevers(self) -> tuple[VortexServer]:
+        return self.__vortexServers
+
+    @property
+    def vortexClients(self) -> tuple[VortexABC]:
+        return self.__vortexClients
+
+    @property
+    def allVortexes(self) -> tuple[VortexABC]:
+        return self.__allVortexes
+
+
 class VortexFactory:
-    __vortexServersByName: Dict[str, List[VortexABC]] = defaultdict(list)
-    __vortexClientsByName: Dict[str, List[VortexABC]] = defaultdict(list)
+    __vortexInfoState = _VortexFactoryVortexInfo()
+    __connectionRateLimit = _VortexConnectionRateLimit()
 
     __vortexStatusChangeSubjectsByName: Dict[str, Subject] = {}
 
@@ -155,43 +370,16 @@ class VortexFactory:
     @inlineCallbacks
     def shutdown(cls):
         cls.__isShutdown = True
-        for vortex in VortexFactory._allVortexes():
+        for vortex in cls.__vortexInfoState.allVortexes:
             if hasattr(vortex, "close"):
                 vortex.close()
                 yield deferLater(reactor, 0.05, lambda: None)
+
         while cls.__listeningPorts:
             cls.__listeningPorts.pop().stopListening()
             yield deferLater(reactor, 0.05, lambda: None)
 
-    @classmethod
-    def _getVortexSendRefs(
-        cls, name=None, uuid=None
-    ) -> List[typing.Tuple[VortexABC, List[str]]]:
-        assert name or uuid
-
-        results = []
-
-        def iterVortexes(vortexes):
-            for vortex in vortexes:
-                uuids: List[str] = []
-                # logger.debug("FROM : %s", vortex.localVortexInfo)
-                for remoteVortexInfo in vortex.remoteVortexInfo:
-                    # logger.debug("        REMOTE : %s", remoteVortexInfo)
-                    if (name is None or remoteVortexInfo.name == name) and (
-                        uuid is None or remoteVortexInfo.uuid == uuid
-                    ):
-                        uuids.append(remoteVortexInfo.uuid)
-
-                if uuids:
-                    results.append((vortex, uuids))
-
-        for vortexList in cls.__vortexServersByName.values():
-            iterVortexes(vortexList)
-
-        for vortexList in cls.__vortexClientsByName.values():
-            iterVortexes(vortexList)
-
-        return results
+        cls.__vortexInfoState = _VortexFactoryVortexInfo()
 
     @classmethod
     def setPeerConnectionLimitPerIp(cls, limit: int):
@@ -213,7 +401,7 @@ class VortexFactory:
         """
 
         vortexServer = VortexServer(name)
-        cls.__vortexServersByName[name].append(vortexServer)
+        cls.__vortexInfoState.addVortexServer(name, vortexServer)
 
         vortexResource = VortexServerHttpResource(vortexServer)
         rootResource.putChild(b"vortex", vortexResource)
@@ -269,7 +457,7 @@ class VortexFactory:
         )
 
         vortexServer = VortexServer(name, requiresBase64Encoding=False)
-        cls.__vortexServersByName[name].append(vortexServer)
+        cls.__vortexInfoState.addVortexServer(name, vortexServer)
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(
             vortexServer
         )
@@ -309,7 +497,7 @@ class VortexFactory:
         cls, name: str
     ) -> VortexWebSocketUpgradeResource:
         vortexServer = VortexServer(name, requiresBase64Encoding=False)
-        cls.__vortexServersByName[name].append(vortexServer)
+        cls.__vortexInfoState.addVortexServer(name, vortexServer)
 
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(
             vortexServer
@@ -335,7 +523,7 @@ class VortexFactory:
         """
 
         vortexServer = VortexServer(name, requiresBase64Encoding=False)
-        cls.__vortexServersByName[name].append(vortexServer)
+        cls.__vortexInfoState.addVortexServer(name, vortexServer)
         vortexWebsocketServerFactory = VortexWebsocketServerFactory(
             vortexServer
         )
@@ -361,7 +549,7 @@ class VortexFactory:
         """
 
         vortexServer = VortexServer(name)
-        cls.__vortexServersByName[name].append(vortexServer)
+        cls.__vortexInfoState.addVortexServer(name, vortexServer)
         vortexTcpServerFactory = VortexTcpServerFactory(vortexServer)
         port = reactor.listenTCP(port, vortexTcpServerFactory)
         cls.__listeningPorts.append(port)
@@ -382,7 +570,7 @@ class VortexFactory:
         logger.info("Connecting to Peek Server HTTP %s:%s", host, port)
 
         vortexClient = VortexClientHttp(name)
-        cls.__vortexClientsByName[name].append(vortexClient)
+        cls.__vortexInfoState.addVortexClient(name, vortexClient)
 
         return vortexClient.connect(host, port)
 
@@ -433,7 +621,9 @@ class VortexFactory:
         vortexWebsocketClientFactory = VortexClientWebsocketFactory(
             name, url=url
         )
-        cls.__vortexClientsByName[name].append(vortexWebsocketClientFactory)
+        cls.__vortexInfoState.addVortexClient(
+            name, vortexWebsocketClientFactory
+        )
 
         if vortexWebsocketClientFactory.isSecure and sslEnableMutualTLS:
             trustedCertificateAuthorities = parseTrustRootFromBundle(
@@ -484,13 +674,15 @@ class VortexFactory:
         logger.info("Connecting to Peek Server TCP %s:%s", host, port)
 
         vortexClient = VortexClientTcp(name)
-        cls.__vortexClientsByName[name].append(vortexClient)
+        cls.__vortexInfoState.addVortexClient(name, vortexClient)
 
         return vortexClient.connect(host, port)
 
     @classmethod
     def addCustomServerVortex(cls, vortex: VortexABC):
-        cls.__vortexServersByName[vortex.localVortexInfo.name].append(vortex)
+        cls.__vortexInfoState.addVortexServer(
+            vortex.localVortexInfo.name, vortex
+        )
 
     @classmethod
     def canConnect(cls, fromIp: str) -> bool:
@@ -502,86 +694,39 @@ class VortexFactory:
 
     @classmethod
     def isVortexUuidOnline(cls, vortexUuid: str) -> bool:
-        return bool(cls._getVortexSendRefs(uuid=vortexUuid))
+        return cls.__vortexInfoState.isRemoteVortexOnline(uuid=vortexUuid)
+
+    @classmethod
+    def isVortexNameLocal(cls, vortexName: str) -> bool:
+        return cls.__vortexInfoState.isVortexNameLocal(vortexName=vortexName)
 
     @classmethod
     def getLocalVortexClients(cls, localVortexName: str) -> List[VortexABC]:
-        vortexes: List[VortexABC] = []
-
-        for items in cls.__vortexClientsByName.values():
-            vortexes.extend(
-                filter(
-                    lambda x: x.localVortexInfo.name == localVortexName, items
-                )
-            )
-
-        return vortexes
+        return cls.__vortexInfoState.getLocalVortexClients(
+            localVortexName=localVortexName
+        )
 
     @classmethod
     def getRemoteClientVortexInfos(cls) -> List[VortexInfo]:
-        clientVortexInfos = []
-
-        for vortexes in cls.__vortexServersByName.values():
-            for vortex in vortexes:
-                clientVortexInfos.extend(vortex.remoteVortexInfo)
-
-        return clientVortexInfos
+        return cls.__vortexInfoState.getRemoteClientVortexInfos
 
     @classmethod
-    def getRemoteVortexUuids(cls) -> List[str]:
-        remoteUuids = []
+    def getRemoteVortexUuids(cls) -> set[str]:
+        return cls.__vortexInfoState.getRemoteVortexUuids
 
     @classmethod
     def getInboundConnectionCount(cls) -> int:
         return cls.__vortexInfoState.getInboundConnectionCount
 
     @classmethod
-    def getRemoteVortexName(cls) -> List[str]:
-        remoteNames = set()
-
-        for vortex in cls._allVortexes():
-            for remoteVortexInfo in vortex.remoteVortexInfo:
-                remoteNames.add(remoteVortexInfo.name)
-
-        return list(remoteNames)
+    def getRemoteVortexName(cls) -> list[str]:
+        return cls.__vortexInfoState.getRemoteVortexNames
 
     @classmethod
     def getRemoteVortexInfoByIp(cls, ip: str, vortexName=None) -> str:
-        # Ignore the port if any
-        ip = ip.split(":")[0]
-
-        from vortex.VortexConnectionABC import VortexConnectionABC
-
-        targetConns: list[VortexConnectionABC] = []
-        for servers in cls.__vortexServersByName.values():
-            for server in servers:
-                for conn in server.connections.values():
-                    if (
-                        not conn.closed
-                        and not conn.timedOut
-                        and conn.ip == ip
-                        and (
-                            conn.remoteVortexName == vortexName
-                            or vortexName is None
-                        )
-                    ):
-                        targetConns.append(conn)
-
-        if len(targetConns) > 1:
-            logger.warning(
-                "Multiple vortexes found for ip=%s, name=%s,"
-                " choosing latest connection",
-                ip,
-                vortexName,
-            )
-            targetConns.sort(key=lambda c: c.connectDateTime)
-            # As of Python3.6, dict are ordered, so the newest is the last.
-            return targetConns[-1].remoteVortexUuid
-
-        if not targetConns:
-            raise NoVortexException(f"Can not find vortex with IP {ip}")
-
-        return targetConns[0].remoteVortexUuid
+        return cls.__vortexInfoState.getRemoteVortexInfoByIp(
+            ip=ip, vortexName=vortexName
+        )
 
     @classmethod
     @inlineCallbacks
@@ -608,8 +753,9 @@ class VortexFactory:
 
         :return: A C{Deferred} which will callback when the message has been sent.
         """
-
-        vortexAndUuids = cls._getVortexSendRefs(destVortexName, destVortexUuid)
+        vortexAndUuids = cls.__vortexInfoState.getRemoteVortexInfos(
+            name=destVortexName, uuid=destVortexUuid
+        )
         if not vortexAndUuids:
             raise NoVortexException(
                 "Can not find vortexes to send message to,"
@@ -630,14 +776,13 @@ class VortexFactory:
                     ] = yield PayloadEnvelope.base64EncodeDefer(vortexMsg)
 
         deferreds = []
-        for vortex, uuids in vortexAndUuids:
-            for uuid in uuids:
-                msgToUse = (
-                    base64VortexMsgs
-                    if vortex.requiresBase64Encoding
-                    else vortexMsgs
-                )
-                deferreds.append(vortex.sendVortexMsg(msgToUse, uuid))
+        for vortex, uuid in vortexAndUuids:
+            msgToUse = (
+                base64VortexMsgs
+                if vortex.requiresBase64Encoding
+                else vortexMsgs
+            )
+            deferreds.append(vortex.sendVortexMsg(msgToUse, uuid))
 
         results = yield DeferredList(deferreds)
         return results
@@ -690,6 +835,10 @@ class VortexFactory:
         return DeferredList(deferreds)
 
     @classmethod
+    def connectionChanged(cls):
+        cls.__vortexInfoState.rebuildStructs()
+
+    @classmethod
     def subscribeToVortexStatusChange(cls, vortexName: str) -> Subject:
         """Subscribe to Vortex Status Change
 
@@ -717,3 +866,5 @@ class VortexFactory:
 
         if vortexName in cls.__vortexStatusChangeSubjectsByName:
             cls.__vortexStatusChangeSubjectsByName[vortexName].on_next(online)
+
+        cls.connectionChanged()

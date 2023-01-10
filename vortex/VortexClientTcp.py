@@ -53,14 +53,12 @@ class VortexPayloadTcpClientProtocol(VortexPayloadProtocol):
     def _nameAndUuidReceived(self, name, uuid):
         from vortex.VortexFactory import VortexFactory
 
-        VortexFactory._notifyOfVortexStatusChange(name, online=True)
-
-        self._producer.setRemoteVortexName(self._serverVortexName)
+        self._producer.setRemoteVortexName(name)
 
         if self._vortexClient:
-            self._vortexClient._setNameAndUuid(
-                name=self._serverVortexName, uuid=self._serverVortexUuid
-            )
+            self._vortexClient._setNameAndUuid(name=name, uuid=uuid)
+
+        VortexFactory._notifyOfVortexStatusChange(name, online=True)
 
     def _createResponseSenderCallable(self):
         def sendResponse(
@@ -303,8 +301,6 @@ class VortexClientTcp(ReconnectingClientFactory, VortexABC):
                 vortexMsgs[index] = yield PayloadEnvelope.base64EncodeDefer(
                     vortexMsg
                 )
-
-        self.vortexMsgs = b""
 
         for vortexMsg in vortexMsgs:
             self.__protocol.write(vortexMsg)

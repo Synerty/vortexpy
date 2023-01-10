@@ -67,12 +67,12 @@ class VortexPayloadWebsocketClientProtocol(
     def _nameAndUuidReceived(self, name, uuid):
         from vortex.VortexFactory import VortexFactory
 
-        VortexFactory._notifyOfVortexStatusChange(name, online=True)
+        # self._producer.setRemoteVortexName(name)
 
         if self._vortexClient:
-            self._vortexClient._setNameAndUuid(
-                name=self._serverVortexName, uuid=self._serverVortexUuid
-            )
+            self._vortexClient._setNameAndUuid(name=name, uuid=uuid)
+
+        VortexFactory._notifyOfVortexStatusChange(name, online=True)
 
     def _createResponseSenderCallable(self):
         def sendResponse(
