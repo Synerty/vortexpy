@@ -40,7 +40,7 @@ class PayloadResponse(Deferred):
 
     """
 
-    __messageIdKey = "PayloadResponse.messageId"
+    MESSAGE_ID_KEY = "PayloadResponse.messageId"
 
     PROCESSING = "Processing"
     # NO_ENDPOINT = "No Endpoint"
@@ -86,7 +86,7 @@ class PayloadResponse(Deferred):
         self._messageId = str(uuid4()) + str(PayloadResponse.__SEQ)
         PayloadResponse.__SEQ += 1
 
-        payloadEnvelope.filt[self.__messageIdKey] = self._messageId
+        payloadEnvelope.filt[self.MESSAGE_ID_KEY] = self._messageId
         self._filt = copy(payloadEnvelope.filt)
         self._destVortexName = destVortexName
 
@@ -121,7 +121,7 @@ class PayloadResponse(Deferred):
 
         :returns: True if this payload has been tagged by a PayloadResponse class
         """
-        return cls.__messageIdKey in payloadEnvelope.filt
+        return cls.MESSAGE_ID_KEY in payloadEnvelope.filt
 
     @property
     def status(self):
