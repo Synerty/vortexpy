@@ -1,14 +1,12 @@
 import logging
 from copy import copy
-from datetime import datetime
 
-import pytz
 from twisted.internet import reactor
-from twisted.internet.defer import DeferredSemaphore
-from twisted.internet.defer import TimeoutError, inlineCallbacks
+from twisted.internet.defer import TimeoutError
 from twisted.python.failure import Failure
 
-from vortex.DeferUtil import deferToThreadWrapWithLogger, vortexLogFailure
+from vortex.DeferUtil import deferToThreadWrapWithLogger
+from vortex.DeferUtil import vortexLogFailure
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse
@@ -16,22 +14,16 @@ from vortex.TupleSelector import TupleSelector
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import NoVortexException
 from vortex.VortexFactory import VortexFactory
+from vortex.VortexUtil import limitConcurrency, _dedupProcessorCallKeys
 from vortex.handler.TupleDataObservableCache import TupleDataObservableCache
-from vortex.handler.TupleDataObservableHandler import (
-    TupleDataObservableHandler,
-    TuplesProviderABC,
-)
+from vortex.handler.TupleDataObservableHandler import TupleDataObservableHandler
+from vortex.handler.TupleDataObservableHandler import TuplesProviderABC
 
 logger = logging.getLogger(__name__)
 
 
 class TupleDataObservableProxyHandler(TupleDataObservableCache):
     __CHECK_PERIOD = 30  # seconds
-
-    # To avoid saturating the CPU, we will prepare only 10 responses at a time.
-    # Once the responses are prepared,
-    #  they will be queued in the VortexPushProducer
-    _prepareResponsesSemaphore = DeferredSemaphore(10)
 
     def __init__(
         self,
@@ -66,13 +58,12 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
             additionalFilt=additionalFilt,
             subscriptionsEnabled=subscriptionsEnabled,
         )
-        # Shutdown the local observables endpoint, we don't want it listening it's self
+        # Shutdown the local observables' endpoint, we don't want it
+        # listening its self
         self._localObservableHandler.shutdown()
 
         # Finally, Setup our endpoint
-        self._endpoint = PayloadEndpoint(
-            self._filt, self._processBeforeSemaphore
-        )
+        self._endpoint = PayloadEndpoint(self._filt, self._process)
 
         TupleDataObservableCache.start(self)
 
@@ -110,49 +101,6 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
 
         self._localObservableHandler.notifyOfTupleUpdate(tupleSelector)
 
-    ## ----- Implement proxy from here on in
-
-    def _processBeforeSemaphore(self, *args, **kwargs):
-        d = self._prepareResponsesSemaphore.run(
-            self._processAfterSemaphore, datetime.now(pytz.utc), *args, **kwargs
-        )
-        d.addErrback(vortexLogFailure, logger, consumeError=True)
-
-    @inlineCallbacks
-    def _processAfterSemaphore(
-        self,
-        queuedTime: datetime,
-        payloadEnvelope: PayloadEnvelope,
-        *args,
-        **kwargs,
-    ):
-        deltaTime = datetime.now(pytz.utc) - queuedTime
-        queueSize = len(self._prepareResponsesSemaphore.waiting)
-
-        def logIt(logFunc):
-            logFunc(
-                "_process call was queued for %s, queue size " "%s",
-                deltaTime,
-                queueSize,
-            )
-
-        if 15.0 < deltaTime.total_seconds() or 2000 < queueSize:
-            logIt(logger.warning)
-
-        elif 5.0 < deltaTime.total_seconds() or 200 < queueSize:
-            logIt(logger.debug)
-
-        startTime = datetime.now(pytz.utc)
-        yield self._process(payloadEnvelope, *args, **kwargs)
-        processingTime = datetime.now(pytz.utc) - startTime
-        if 5.0 < processingTime.total_seconds():
-            logger.debug(
-                "Payload endpoint took %s\npayload.filt=%s",
-                processingTime,
-                payloadEnvelope.filt,
-            )
-
-    @inlineCallbacks
     def _process(
         self,
         payloadEnvelope: PayloadEnvelope,
@@ -161,23 +109,27 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
         sendResponse: SendVortexMsgResponseCallable,
         **kwargs,
     ):
-        if not VortexFactory.isVortexUuidOnline(vortexUuid):
-            return
 
         if vortexName == self._proxyToVortexName:
-            yield self._processUpdateFromBackend(payloadEnvelope)
+            return self._processUpdateFromBackend(payloadEnvelope)
 
         else:
-            yield self._processSubscribeFromFrontend(
+            d = self._processSubscribeFromFrontend(
                 payloadEnvelope, vortexUuid, sendResponse
             )
+            if d:
+                d.addErrback(vortexLogFailure, logger, consumeError=True)
 
+    @limitConcurrency(
+        logger, 10, deduplicateBasedOnKwArgsKey=_dedupProcessorCallKeys
+    )
     def _processSubscribeFromFrontend(
         self,
         payloadEnvelope: PayloadEnvelope,
         vortexUuid: str,
         sendResponse: SendVortexMsgResponseCallable,
     ):
+
         tupleSelector: TupleSelector = payloadEnvelope.filt["tupleSelector"]
 
         # If the local observable provides this tuple, then use that instead
@@ -187,6 +139,16 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
                 vortexUuid=vortexUuid,
                 sendResponse=sendResponse,
             )
+
+        if not VortexFactory.isVortexUuidOnline(vortexUuid):
+            logger.debug(
+                "Vortex %s is no longer online, skipping reply", vortexUuid
+            )
+            return
+
+        # logger.debug(
+        #     "Vortex %s is STILL online, continuing to reply", vortexUuid
+        # )
 
         # Add support for just getting data, no subscription.
         if payloadEnvelope.filt.get("unsubscribe", True):
@@ -343,8 +305,8 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
             return
 
         # Get / update the list of observing UUIDs
-        observingUuids = cache.vortexUuids & set(
-            VortexFactory.getRemoteVortexUuids()
+        observingUuids = (
+            cache.vortexUuids & VortexFactory.getRemoteVortexUuids()
         )
 
         if not observingUuids:
@@ -372,7 +334,7 @@ class TupleDataObservableProxyHandler(TupleDataObservableCache):
     def _sendErrback(self, failure):
 
         if failure.check(NoVortexException):
-            self._logger.debug(str(failure.value))
+            logger.debug(str(failure.value))
             return
 
-        vortexLogFailure(failure, self._logger)
+        vortexLogFailure(failure, logger)

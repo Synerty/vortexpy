@@ -1,12 +1,15 @@
 import logging
-from abc import abstractmethod, ABCMeta
-from datetime import datetime
-from typing import Dict, Optional, Union
+from abc import ABCMeta
+from abc import abstractmethod
 from inspect import signature
+from typing import Dict
+from typing import Optional
+from typing import Union
 
-import pytz
-from twisted.internet.defer import Deferred, fail, succeed, inlineCallbacks
-from twisted.internet.defer import DeferredSemaphore
+from twisted.internet.defer import Deferred
+from twisted.internet.defer import fail
+from twisted.internet.defer import inlineCallbacks
+from twisted.internet.defer import succeed
 from twisted.python import failure
 from twisted.python.failure import Failure
 
@@ -15,9 +18,11 @@ from vortex.Payload import Payload
 from vortex.PayloadEndpoint import PayloadEndpoint
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.TupleAction import TupleActionABC
-from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.TupleActionVortex import TupleActionVortex
+from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
+from vortex.VortexUtil import _dedupProcessorCallKeys
+from vortex.VortexUtil import limitConcurrency
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +42,6 @@ class TupleActionProcessorDelegateABC(metaclass=ABCMeta):
 
 
 class TupleActionProcessor:
-    # To avoid saturating the CPU, we will prepare only 10 responses at a time.
-    # Once the responses are prepared,
-    #  they will be queued in the VortexPushProducer
-    _prepareResponsesSemaphore = DeferredSemaphore(10)
-
     def __init__(
         self,
         tupleActionProcessorName: str,
@@ -79,7 +79,7 @@ class TupleActionProcessor:
 
             self._endpoint = PayloadEndpoint(
                 self._filt,
-                self._processBeforeSemaphore,
+                self._processLimited,
                 acceptOnlyFromVortex=acceptOnlyFromVortex,
             )
 
@@ -117,46 +117,16 @@ class TupleActionProcessor:
     def shutdown(self):
         self._endpoint.shutdown()
 
-    def _processBeforeSemaphore(self, *args, **kwargs):
-        d = self._prepareResponsesSemaphore.run(
-            self._processAfterSemaphore, datetime.now(pytz.utc), *args, **kwargs
-        )
-        d.addErrback(vortexLogFailure, logger, consumeError=True)
+    def _processLimited(self, *args, **kwargs):
+        d = self._processLimitedDecorated(*args, **kwargs)
+        if d:
+            d.addErrback(vortexLogFailure, logger, consumeError=True)
 
-    @inlineCallbacks
-    def _processAfterSemaphore(
-        self,
-        queuedTime: datetime,
-        payloadEnvelope: PayloadEnvelope,
-        *args,
-        **kwargs,
-    ):
-        deltaTime = datetime.now(pytz.utc) - queuedTime
-        queueSize = len(self._prepareResponsesSemaphore.waiting)
-
-        def logIt(logFunc):
-            logFunc(
-                "_process call was queued for %s, queue size " "%s",
-                deltaTime,
-                queueSize,
-            )
-
-        if 15.0 < deltaTime.total_seconds() or 2000 < queueSize:
-            logIt(logger.warning)
-
-        elif 5.0 < deltaTime.total_seconds() or 200 < queueSize:
-            logIt(logger.debug)
-
-        # Run the process and log if it takes too long
-        startTime = datetime.now(pytz.utc)
-        yield self._process(payloadEnvelope, *args, **kwargs)
-        processingTime = datetime.now(pytz.utc) - startTime
-        if 5.0 < processingTime.total_seconds():
-            logger.debug(
-                "Payload endpoint took %s\npayload.filt=%s",
-                processingTime,
-                payloadEnvelope.filt,
-            )
+    @limitConcurrency(
+        logger, 25, deduplicateBasedOnKwArgsKey=_dedupProcessorCallKeys
+    )
+    def _processLimitedDecorated(self, *args, **kwargs):
+        return self._process(*args, **kwargs)
 
     @inlineCallbacks
     def _process(
@@ -168,7 +138,14 @@ class TupleActionProcessor:
     ):
         """Process the Payload / Tuple Action"""
         if not VortexFactory.isVortexUuidOnline(vortexUuid):
+            logger.debug(
+                "Vortex %s is no longer online, skipping reply", vortexUuid
+            )
             return
+
+        # logger.debug(
+        #     "Vortex %s is STILL online, continuing to reply", vortexUuid
+        # )
 
         payload = yield payloadEnvelope.decodePayloadDefer()
 
@@ -181,7 +158,7 @@ class TupleActionProcessor:
 
         tupleAction = payload.tuples[0]
 
-        self._processTupleAction(
+        return self._processTupleAction(
             payloadEnvelope.filt, sendResponse, tupleAction, **kwargs
         )
 
@@ -222,6 +199,7 @@ class TupleActionProcessor:
         d.addErrback(
             self._errback, payloadEnvelopeFilt, tupleName, sendResponse
         )
+        return d
 
     @inlineCallbacks
     def _callback(

@@ -1,11 +1,11 @@
 import logging
 from copy import copy
-from datetime import datetime
-from typing import Optional, Union
+from typing import Optional
+from typing import Union
 
-import pytz
-from twisted.internet.defer import DeferredSemaphore
-from twisted.internet.defer import TimeoutError, inlineCallbacks, Deferred
+from twisted.internet.defer import Deferred
+from twisted.internet.defer import TimeoutError
+from twisted.internet.defer import inlineCallbacks
 from twisted.python.failure import Failure
 
 from vortex.DeferUtil import vortexLogFailure
@@ -14,10 +14,10 @@ from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadResponse import PayloadResponse
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
-from vortex.handler.TupleActionProcessor import (
-    TupleActionProcessor,
-    TupleActionProcessorDelegateABC,
-)
+from vortex.VortexUtil import _dedupProcessorCallKeys
+from vortex.VortexUtil import limitConcurrency
+from vortex.handler.TupleActionProcessor import TupleActionProcessor
+from vortex.handler.TupleActionProcessor import TupleActionProcessorDelegateABC
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +29,6 @@ class TupleActionProcessorProxy:
     to pass through one services into another. EG, from a client facing python service
     to a server backend.
     """
-
-    # To avoid saturating the CPU, we will prepare only 10 responses at a time.
-    # Once the responses are prepared,
-    #  they will be queued in the VortexPushProducer
-    _prepareResponsesSemaphore = DeferredSemaphore(10)
 
     _DEBUG_LOGGING = False
 
@@ -51,6 +46,7 @@ class TupleActionProcessorProxy:
         :param additionalFilt: Any additional filter keys that are required
         """
         self._proxyToVortexName = proxyToVortexName
+        self._tupleActionProcessorName = tupleActionProcessorName
         self._delegateProcessor = TupleActionProcessor(
             tupleActionProcessorName=tupleActionProcessorName,
             usedForProxy__=True,
@@ -65,7 +61,7 @@ class TupleActionProcessorProxy:
 
         self._endpoint = PayloadEndpoint(
             self._filt,
-            self._processBeforeSemaphore,
+            self._processLimited,
             acceptOnlyFromVortex=acceptOnlyFromVortex,
         )
 
@@ -83,45 +79,16 @@ class TupleActionProcessorProxy:
         """
         self._delegateProcessor.setDelegate(tupleName, processor)
 
-    def _processBeforeSemaphore(self, *args, **kwargs):
-        d = self._prepareResponsesSemaphore.run(
-            self._processAfterSemaphore, datetime.now(pytz.utc), *args, **kwargs
-        )
-        d.addErrback(vortexLogFailure, logger, consumeError=True)
+    def _processLimited(self, *args, **kwargs):
+        d = self._processLimitedDecorated(*args, **kwargs)
+        if d:
+            d.addErrback(vortexLogFailure, logger, consumeError=True)
 
-    @inlineCallbacks
-    def _processAfterSemaphore(
-        self,
-        queuedTime: datetime,
-        payloadEnvelope: PayloadEnvelope,
-        *args,
-        **kwargs,
-    ):
-        deltaTime = datetime.now(pytz.utc) - queuedTime
-        queueSize = len(self._prepareResponsesSemaphore.waiting)
-
-        def logIt(logFunc):
-            logFunc(
-                "_process call was queued for %s, queue size " "%s",
-                deltaTime,
-                queueSize,
-            )
-
-        if 15.0 < deltaTime.total_seconds() or 2000 < queueSize:
-            logIt(logger.warning)
-
-        elif 5.0 < deltaTime.total_seconds() or 200 < queueSize:
-            logIt(logger.debug)
-
-        startTime = datetime.now(pytz.utc)
-        yield self._process(payloadEnvelope, *args, **kwargs)
-        processingTime = datetime.now(pytz.utc) - startTime
-        if 5.0 < processingTime.total_seconds():
-            logger.debug(
-                "Payload endpoint took %s\npayload.filt=%s",
-                processingTime,
-                payloadEnvelope.filt,
-            )
+    @limitConcurrency(
+        logger, 10, deduplicateBasedOnKwArgsKey=_dedupProcessorCallKeys
+    )
+    def _processLimitedDecorated(self, *args, **kwargs):
+        return self._process(*args, **kwargs)
 
     @inlineCallbacks
     def _process(
@@ -137,7 +104,14 @@ class TupleActionProcessorProxy:
             return
 
         if not VortexFactory.isVortexUuidOnline(vortexUuid):
+            logger.debug(
+                "Vortex %s is no longer online, skipping reply", vortexUuid
+            )
             return
+
+        # logger.debug(
+        #     "Vortex %s is STILL online, continuing to reply", vortexUuid
+        # )
 
         # Shortcut the logic, so that we don't decode the payload unless we need to.
         if not self._delegateProcessor.delegateCount:
