@@ -363,6 +363,8 @@ class VortexFactory:
 
     __listeningPorts = []
 
+    _DEBUG_LOGGING = False
+
     def __init__(self):
         raise Exception("Vortex Factory should not be instantiated")
 

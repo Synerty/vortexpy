@@ -62,6 +62,16 @@ class PayloadIO(object):
         httpSession,
         sendResponse: SendVortexMsgResponseCallable,
     ):
+        from vortex.VortexFactory import VortexFactory
+
+        # noinspection PyProtectedMember
+        if VortexFactory._DEBUG_LOGGING:
+            logger.debug(
+                "Received payloadEnvelope from %s:%s for %s",
+                vortexName,
+                vortexUuid,
+                payloadEnvelope.filt,
+            )
 
         immutableEndpoints = list(self._endpoints)
         for endpoint in immutableEndpoints:

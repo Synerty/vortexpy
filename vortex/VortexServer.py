@@ -256,6 +256,8 @@ class VortexServer(VortexABC):
         This also means it doesn't matter what thread this is called from
 
         """
+        from vortex.VortexFactory import VortexFactory
+
         yield None
 
         if not isinstance(vortexMsgs, list):
@@ -307,6 +309,13 @@ class VortexServer(VortexABC):
 
         for conn in conns:
             for vortexMsg in vortexMsgs:
+
+                # noinspection PyProtectedMember
+                if VortexFactory._DEBUG_LOGGING:
+                    logger.debug(
+                        "Sending vortexMsg to %s", conn.remoteVortexUuid
+                    )
+
                 conn.write(vortexMsg, priority)
 
         return True
