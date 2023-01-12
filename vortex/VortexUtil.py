@@ -13,7 +13,9 @@ from uuid import uuid4
 import pytz
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
+from twisted.internet.defer import fail
 from twisted.internet.defer import maybeDeferred
+from twisted.python.failure import Failure
 
 from vortex.PayloadEnvelope import PayloadEnvelope
 from vortex.PayloadEnvelope import VortexMsgList
@@ -109,9 +111,13 @@ def limitConcurrency(
             while self._runningCount < concurrency and self._callQueue:
                 # decoratorLogger.debug("Queueing new task %s", str(self._f))
                 self._runningCount += 1
+
                 nextKey = next(iter(self._callQueue.keys()))
+
                 args = self._callQueue.pop(nextKey)
+
                 self._lastQueueProcessingDelta = now - args.queuedTime
+
                 callWithArgs = lambda: self._f(
                     args.funcSelf, *args.args, **args.kwargs
                 )
@@ -157,7 +163,7 @@ def limitConcurrency(
             def logIt(logFunc):
                 self._lastLogTime = datetime.now(pytz.utc)
                 logFunc(
-                    "%s call was queued for %s, queue size %s,"
+                    "%s last call was queued for %s, queue size %s,"
                     " processed %s since last log message",
                     self._f.__name__,
                     deltaTime,

@@ -21,7 +21,6 @@ from vortex.TupleAction import TupleActionABC
 from vortex.TupleActionVortex import TupleActionVortex
 from vortex.VortexABC import SendVortexMsgResponseCallable
 from vortex.VortexFactory import VortexFactory
-from vortex.VortexUtil import _dedupProcessorCallKeys
 from vortex.VortexUtil import limitConcurrency
 
 logger = logging.getLogger(__name__)
@@ -122,9 +121,7 @@ class TupleActionProcessor:
         if d:
             d.addErrback(vortexLogFailure, logger, consumeError=True)
 
-    @limitConcurrency(
-        logger, 25, deduplicateBasedOnKwArgsKey=_dedupProcessorCallKeys
-    )
+    @limitConcurrency(logger, 25)
     def _processLimitedDecorated(self, *args, **kwargs):
         return self._process(*args, **kwargs)
 
@@ -158,7 +155,7 @@ class TupleActionProcessor:
 
         tupleAction = payload.tuples[0]
 
-        return self._processTupleAction(
+        yield self._processTupleAction(
             payloadEnvelope.filt, sendResponse, tupleAction, **kwargs
         )
 
