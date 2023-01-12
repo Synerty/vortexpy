@@ -64,8 +64,8 @@ _ConnectionDateSuccess = namedtuple(
 
 
 class _VortexConnectionRateLimit:
-    _ROLLING_WINDOW_SECONDS = 15.0
-    _NEW_CONNECTIONS_IN_WINDOW = 15
+    _ROLLING_WINDOW_SECONDS = 10.0
+    _NEW_CONNECTIONS_IN_WINDOW = 5
 
     def __init__(self):
         self._connections: list[_ConnectionDateSuccess] = []
