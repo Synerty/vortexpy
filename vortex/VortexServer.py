@@ -8,22 +8,31 @@
 """
 import logging
 import uuid
-from typing import Optional, Union, Dict, List, Any
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Union
 from weakref import WeakValueDictionary
 
-from twisted.internet import task, reactor
-from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet import reactor
+from twisted.internet import task
+from twisted.internet.defer import Deferred
+from twisted.internet.defer import inlineCallbacks
 from twisted.python.components import registerAdapter
 from twisted.web.server import Session
-from zope.interface import Interface, Attribute
+from zope.interface import Attribute
+from zope.interface import Interface
 from zope.interface.declarations import implementer
 
-from .DeferUtil import vortexLogFailure, isMainThread
-from .PayloadEnvelope import VortexMsgList, PayloadEnvelope
+from .DeferUtil import isMainThread
+from .DeferUtil import vortexLogFailure
+from .PayloadEnvelope import PayloadEnvelope
+from .PayloadEnvelope import VortexMsgList
 from .PayloadFilterKeys import rapuiServerEcho
 from .PayloadIO import PayloadIO
 from .PayloadPriority import DEFAULT_PRIORITY
-from .VortexABC import VortexABC, VortexInfo
+from .VortexABC import VortexABC
+from .VortexABC import VortexInfo
 from .VortexUtil import logLargeMessages
 
 logger = logging.getLogger(__name__)
@@ -75,7 +84,9 @@ class VortexServer(VortexABC):
     def remoteVortexInfo(self) -> tuple[VortexInfo]:
         return self._remoteVortexInfo
 
-    def _connectionsChanged(self):
+    def _connectionsChanged(
+        self, vortexClosedNames: list[str], nowOnline: bool
+    ):
         vortexInfos = []
 
         for conn in self._connectionByVortexUuid.values():
@@ -90,6 +101,12 @@ class VortexServer(VortexABC):
         from vortex.VortexFactory import VortexFactory
 
         VortexFactory.connectionChanged()
+
+        for vortexName in vortexClosedNames:
+            # noinspection PyProtectedMember
+            VortexFactory._notifyOfVortexStatusChange(
+                vortexName, online=nowOnline
+            )
 
     @property
     def connections(self) -> Dict[str, Any]:
@@ -145,7 +162,9 @@ class VortexServer(VortexABC):
 
         # Update the _connectionsByvortexUuid
         self._connectionByVortexUuid[vortexUuid] = vortexConnection
-        self._connectionsChanged()
+        self._connectionsChanged(
+            [vortexConnection.remoteVortexName], nowOnline=True
+        )
 
     def connectionClosed(self, conn):
         if self._DEBUG_LOGGING:
@@ -163,10 +182,13 @@ class VortexServer(VortexABC):
                 del conns[vortexUuid]
 
         # cleanup _connectionsByvortexUuid
+        vortexClosedNames = []
         if conn.remoteVortexUuid in self._connectionByVortexUuid:
             if self._connectionByVortexUuid[conn.remoteVortexUuid] == conn:
                 del self._connectionByVortexUuid[conn.remoteVortexUuid]
-                self._connectionsChanged()
+                vortexClosedNames.append(conn.remoteVortexName)
+
+        self._connectionsChanged(vortexClosedNames, nowOnline=False)
 
     def _sessionExpired(self, httpSessionUuid):
         logger.debug(
@@ -178,10 +200,13 @@ class VortexServer(VortexABC):
         del self._httpSessionsBySessionUuid[httpSessionUuid]
 
         # cleanup _connectionsByvortexUuid
+        vortexClosedNames = []
         for vortexUuid, conn in list(self._connectionByVortexUuid.items()):
             if conn.httpSessionUuid == httpSessionUuid:
                 del self._connectionByVortexUuid[vortexUuid]
-                self._connectionsChanged()
+                vortexClosedNames.append(conn.remoteVortexName)
+
+        self._connectionsChanged(vortexClosedNames, nowOnline=False)
 
     def payloadReveived(self, httpSession, vortexUuid, vortexName, payload):
         # print "VortexServer - payloadReveived"
@@ -284,8 +309,6 @@ class VortexServer(VortexABC):
                 d.addErrback(vortexLogFailure, logger, consumeError=True)
 
             return
-
-        from .VortexServerConnection import VortexServerConnection
 
         # If any transports require base64 encoding, then encode them all
         if self.requiresBase64Encoding:
