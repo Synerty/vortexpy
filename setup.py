@@ -4,7 +4,7 @@ import shutil
 from setuptools import setup, find_packages
 
 package_name = "vortexpy"
-package_version = '3.4.1'
+package_version = "3.4.1"
 
 egg_info = "%s.egg-info" % package_name
 if os.path.isdir(egg_info):
@@ -19,7 +19,6 @@ requirements = [
     # causes issues
     "vcversioner",
     "six",
-    "ujson<2.0.0",
     "pytz",
     # RxPY by Microsoft. Used everywhere
     # TODO Upgrade to rx 3.x.x

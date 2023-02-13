@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import List, Optional, Dict
 
 import pytz
-import ujson
+import json
 
 from vortex.DeferUtil import deferToThreadWrapWithLogger, noMainThread
 from .Jsonable import Jsonable
@@ -86,13 +86,13 @@ class Payload(Jsonable):
     # -------------------------------------------
     # JSON Related methods
     def _fromJson(self, jsonStr):
-        jsonDict = ujson.loads(jsonStr)
+        jsonDict = json.loads(jsonStr)
 
         assert jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__
         return self.fromJsonDict(jsonDict)
 
     def _toJson(self) -> str:
-        return ujson.dumps(self.toJsonDict())
+        return json.dumps(self.toJsonDict())
 
     # -------------------------------------------
     # VortexServer Message Methods

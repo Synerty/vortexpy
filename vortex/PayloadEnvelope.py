@@ -7,22 +7,24 @@
  * Support : support@synerty.com
 """
 import base64
+import json
 import logging
-from typing import Any
-from typing import Union
-
-import ujson
-import zlib
-from base64 import b64encode, b64decode
+from base64 import b64decode
+from base64 import b64encode
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 
 import pytz
 
-from .DeferUtil import deferToThreadWrapWithLogger, noMainThread
+from .DeferUtil import deferToThreadWrapWithLogger
+from .DeferUtil import noMainThread
+from .Jsonable import Jsonable
 from .Payload import Payload
 from .SerialiseUtil import T_RAPUI_PAYLOAD_ENVELOPE
-from .Jsonable import Jsonable
 
 logger = logging.getLogger(__name__)
 
@@ -123,13 +125,13 @@ class PayloadEnvelope(Jsonable):
     # -------------------------------------------
     # JSON Related methods
     def _fromJson(self, jsonStr):
-        jsonDict = ujson.loads(jsonStr)
+        jsonDict = json.loads(jsonStr)
 
         assert jsonDict[Jsonable.JSON_CLASS_TYPE] == self.__rapuiSerialiseType__
         return self.fromJsonDict(jsonDict)
 
     def _toJson(self) -> str:
-        return ujson.dumps(self.toJsonDict())
+        return json.dumps(self.toJsonDict())
 
     # -------------------------------------------
     # VortexServer Message Methods
