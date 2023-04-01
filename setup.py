@@ -45,6 +45,7 @@ setup(
     ),
     keywords=["vortex", "observable", "http", "compressed", "synerty"],
     classifiers=[
+        'License :: OSI Approved :: MIT',
         "Programming Language :: Python :: 3.5",
     ],
 )
